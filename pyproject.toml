@@ -1,7 +1,7 @@
 [project]
 name = "boneid"
 version = "0.1.0"
-description = "Add your description here"
+description = "Whole-body inverse dynamics from Visual3D-aligned forces and kinematics: net joint torques, residual wrench, and an energy audit on every run"
 readme = "README.md"
 authors = [
     { name = "jeremy wong", email = "jeremydwong@gmail.com" }

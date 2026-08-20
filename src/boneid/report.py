@@ -1661,7 +1661,11 @@ def p1_report_html(trial, chain, skel_u, kin_u, whole, audit, params, sweep,
     strip_slice = slice(0, strip_stop + 1)
     strips = strip_charts(
         t[strip_slice],
-        [("joint-centre\nheight (m)",
+        [("vertical GRF (N)",
+          [("R belt", JOINT_COLORS[0], None, ground_r.force[strip_slice, 2]),
+           ("L belt", JOINT_COLORS[2], "4 3",
+            ground_l.force[strip_slice, 2])]),
+         ("joint-centre\nheight (m)",
           [(f"{'RL'[k]} {joints[j]}", JOINT_COLORS[j],
             None if k == 0 else "4 3",
             (kin_r if k == 0 else kin_l).prox_pos[strip_slice, j, 2])
@@ -1670,11 +1674,7 @@ def p1_report_html(trial, chain, skel_u, kin_u, whole, audit, params, sweep,
           [(f"{'RL'[k]} {joints[j]}", JOINT_COLORS[j],
             None if k == 0 else "4 3",
             legs[SIDES[k]].joint_torque[strip_slice, j, 0])
-           for k in range(2) for j in range(3)]),
-         ("vertical GRF (N)",
-          [("R belt", JOINT_COLORS[0], None, ground_r.force[strip_slice, 2]),
-           ("L belt", JOINT_COLORS[2], "4 3",
-            ground_l.force[strip_slice, 2])])],
+           for k in range(2) for j in range(3)])],
         period_s=period, fps=fps, n_frames=n_key)
 
     viewer = ""
@@ -1697,12 +1697,13 @@ def p1_report_html(trial, chain, skel_u, kin_u, whole, audit, params, sweep,
             f"L5/S1-to-acromion distance — it is not decoration, it is what "
             f"that mass looks like. Decimated to {fps:.0f} fps, looping. "
             "Drag to orbit.</p>"
-            "<p>Directly below the animation: joint-centre heights (both "
-            "legs, one panel so the axes are necessarily identical), sagittal "
-            "joint torques, and both belts' vertical force, on the "
-            "animation's own time axis. The orange cursor is <b>synchronised "
-            "to the looping animation — the same period, and both start on "
-            "page load</b>; it is an independent "
+            "<p>Directly below the animation: both belts' vertical force, "
+            "joint-centre heights (both legs, one panel so the axes are "
+            "necessarily identical), and sagittal joint torques, on the "
+            "animation's own time axis. The traces <b>draw themselves in "
+            "left-to-right, synchronised to the looping animation — the same "
+            "period, and both start on page load</b> (the faint full traces "
+            "stay behind for context); the reveal is an independent "
             f"<code>requestAnimationFrame</code> loop of exactly "
             f"{period:.3f} s ({n_key} keyframes at {fps:.0f} fps), not a read "
             "of the viewer's clock, which sits in a sandboxed iframe.</p>"
@@ -2221,19 +2222,22 @@ def _strip_path(t, y, x0, x1, ytop, ybot, lo, hi, max_pts: int = 900) -> str:
 
 def strip_charts(t, panels, period_s: float, fps: float,
                  n_frames: int, uid: str = "strip") -> str:
-    """Three stacked SVG strips sharing one time axis, with a looping cursor.
+    """Three stacked SVG strips sharing one time axis, drawn in live.
 
     `panels` is a list of `(ylabel, [(label, color, dash, y), ...])`; every
     series in a panel is drawn on that panel's own shared y-scale, which is how
     the bilateral rule is honoured here — the left and right trace of a joint
     live in the SAME panel and therefore literally cannot have different axes.
 
-    The cursor is a single vertical line spanning all three strips, advanced by
+    Rather than a cursor sweeping over static traces, the DATA scans in
+    left-to-right: the full traces sit behind at low opacity for context, and
+    a clip rectangle reveals them at full strength up to "now", so the thin
+    leading edge is the pen head. The clip width is advanced by
     `requestAnimationFrame` with period `period_s` — the meshcat clip's exact
-    period, `(n_frames − 1) / fps` (see `viewer_period`). Both the clip and this
-    loop start when the page loads, so they run at the same rate from the same
-    instant; nothing here reads the viewer's clock, because the viewer is in a
-    sandboxed iframe. The caption says so.
+    period, `(n_frames − 1) / fps` (see `viewer_period`). Both the clip and
+    this loop start when the page loads, so they run at the same rate from the
+    same instant; nothing here reads the viewer's clock, because the viewer is
+    in a sandboxed iframe. The caption says so.
     """
     t = np.asarray(t, float)
     x0, x1 = STRIP_PAD_L, STRIP_WIDTH - STRIP_PAD_R
@@ -2242,6 +2246,7 @@ def strip_charts(t, panels, period_s: float, fps: float,
            f'width="100%" role="img" '
            f'aria-label="time-locked strip charts">']
     legend = []
+    traces: list[str] = []
     for p_i, (ylabel, series) in enumerate(panels):
         ytop = p_i * (STRIP_HEIGHT + STRIP_GAP)
         ybot = ytop + STRIP_HEIGHT
@@ -2258,9 +2263,9 @@ def strip_charts(t, panels, period_s: float, fps: float,
                        f'y2="{zy:.1f}" stroke="{FAINT}" stroke-width="0.7"/>')
         for label, color, dash, y in series:
             d = f' stroke-dasharray="{dash}"' if dash else ""
-            out.append(f'<polyline fill="none" stroke="{color}" '
-                       f'stroke-width="1.3"{d} points="'
-                       f'{_strip_path(t, y, x0, x1, ytop, ybot, lo, hi)}"/>')
+            traces.append(f'<polyline fill="none" stroke="{color}" '
+                          f'stroke-width="1.3"{d} points="'
+                          f'{_strip_path(t, y, x0, x1, ytop, ybot, lo, hi)}"/>')
         fmt = "{:.2f}" if max(abs(lo), abs(hi)) < 10 else "{:.0f}"
         out.append(f'<text x="{x0 - 5}" y="{ytop + 10}" text-anchor="end" '
                    f'font-size="9.5" fill="{NEUTRAL}">{fmt.format(hi)}</text>')
@@ -2276,6 +2281,11 @@ def strip_charts(t, panels, period_s: float, fps: float,
             f'<span style="color:{c}">&#9644;</span> {lab}'
             for lab, c, _, _ in series))
     axis_y = len(panels) * (STRIP_HEIGHT + STRIP_GAP)
+    # ghost of the full traces for context, then the live reveal on top
+    out.append(f'<g opacity="0.18">{"".join(traces)}</g>')
+    out.append(f'<clipPath id="{uid}-clip"><rect id="{uid}-cliprect" '
+               f'x="{x0}" y="0" width="0" height="{axis_y}"/></clipPath>')
+    out.append(f'<g clip-path="url(#{uid}-clip)">{"".join(traces)}</g>')
     out.append(f'<line x1="{x0}" y1="{axis_y}" x2="{x1}" y2="{axis_y}" '
                f'stroke="{FAINT}"/>')
     for frac in (0.0, 0.25, 0.5, 0.75, 1.0):
@@ -2285,8 +2295,10 @@ def strip_charts(t, panels, period_s: float, fps: float,
                    f'{t[0] + frac * (t[-1] - t[0]):.1f}</text>')
     out.append(f'<text x="{x1}" y="{axis_y + 25}" text-anchor="end" '
                f'font-size="10" fill="{NEUTRAL}">time (s)</text>')
+    # the pen head: a thin leading edge at the reveal boundary
     out.append(f'<line id="{uid}-cursor" x1="{x0}" y1="0" x2="{x0}" '
-               f'y2="{axis_y}" stroke="{JOINT_COLORS[1]}" stroke-width="1.6"/>')
+               f'y2="{axis_y}" stroke="{JOINT_COLORS[1]}" '
+               f'stroke-width="1.1" opacity="0.7"/>')
     # the cursor's time readout lives in the left gutter, clear of the ticks
     out.append(f'<text id="{uid}-time" x="{x0 - 5}" y="{axis_y + 14}" '
                f'text-anchor="end" font-size="10" '
@@ -2296,6 +2308,7 @@ def strip_charts(t, panels, period_s: float, fps: float,
     script = f"""<script>
 (function() {{
   var cursor = document.getElementById("{uid}-cursor");
+  var clip   = document.getElementById("{uid}-cliprect");
   var label  = document.getElementById("{uid}-time");
   var X0 = {x0}, X1 = {x1}, T0 = {t[0]:.6f}, T1 = {t[-1]:.6f};
   var PERIOD = {period_s:.6f};          // (n_frames - 1) / fps, exactly
@@ -2304,6 +2317,7 @@ def strip_charts(t, panels, period_s: float, fps: float,
     if (start === null) start = now;
     var u = (((now - start) / 1000.0) % PERIOD) / PERIOD;
     var x = X0 + (X1 - X0) * u;
+    clip.setAttribute("width", x - X0);
     cursor.setAttribute("x1", x); cursor.setAttribute("x2", x);
     label.textContent = (T0 + (T1 - T0) * u).toFixed(2) + " s";
     window.requestAnimationFrame(tick);

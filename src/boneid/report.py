@@ -2165,10 +2165,13 @@ def p1_viewer_html(trial, chain, skel_u, kin_u, params,
         for side in ("r", "l"):
             arm_skel, arm_kin = slice_chain(skel_u, vkin["u"],
                                             UPPER_BODY_ARM[side])
+            # joint_balls=False: the arm joint centres ARE the AC/EP/WR
+            # markers, so a dark joint sphere would swallow the red marker
+            # that defines it — let the marker itself mark the joint.
             viz.animate(vis, arm_skel, arm_kin, decimate=decimate,
                         repetitions=1, play=False, plane_height=floor,
                         root=root["a" + side], animation=animation,
-                        camera=False,
+                        camera=False, joint_balls=False,
                         top_girth_fraction=viz.GIRTH_FRACTION)
         viz.draw_markers(vis, traj, 0)
         step = max(1, int(decimate))

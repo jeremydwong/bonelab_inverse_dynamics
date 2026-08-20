@@ -510,7 +510,8 @@ def build_scene(vis: meshcat.Visualizer, skeleton: Skeleton,
                 top_girth_fraction: float = TOP_GIRTH_FRACTION,
                 ground: bool = True, force_arrow: bool = True,
                 root: str = ROOT,
-                pelvis_span=None, torso=None) -> None:
+                pelvis_span=None, torso=None,
+                joint_balls: bool = True) -> None:
     """Create every mesh once, under `<root>/...`, in its canonical pose.
 
     Segments are unit-height cylinders along local +Y (so `segment_transform`
@@ -531,9 +532,10 @@ def build_scene(vis: meshcat.Visualizer, skeleton: Skeleton,
         vis[f"{root}/skeleton/{name}"].set_object(
             g.Cylinder(height=1.0, radius=radius),
             g.MeshLambertMaterial(color=color))
-        vis[f"{root}/skeleton/{name}_joint"].set_object(
-            g.Sphere(radius * JOINT_RADIUS_FRACTION),
-            g.MeshLambertMaterial(color=JOINT_COLOR))
+        if joint_balls:
+            vis[f"{root}/skeleton/{name}_joint"].set_object(
+                g.Sphere(radius * JOINT_RADIUS_FRACTION),
+                g.MeshLambertMaterial(color=JOINT_COLOR))
     if force_arrow:
         # unit shaft: centered at origin, height 1 along +Y; the transform
         # applied per frame both scales and places it.
@@ -569,7 +571,8 @@ def draw_skeleton(vis: meshcat.Visualizer, skeleton: Skeleton,
                   girth_fraction: float = GIRTH_FRACTION,
                   top_girth_fraction: float = TOP_GIRTH_FRACTION,
                   build: bool = True, root: str = ROOT,
-                  pelvis_span=None, torso=None) -> None:
+                  pelvis_span=None, torso=None,
+                  joint_balls: bool = True) -> None:
     """Pose every segment at `frame_index`.
 
     Each segment mesh is stretched and placed between `kin.prox_pos[t, s]` and
@@ -596,15 +599,17 @@ def draw_skeleton(vis: meshcat.Visualizer, skeleton: Skeleton,
     """
     if build:
         build_scene(vis, skeleton, girth_fraction, top_girth_fraction,
-                    root=root, pelvis_span=pelvis_span, torso=torso)
+                    root=root, pelvis_span=pelvis_span, torso=torso,
+                    joint_balls=joint_balls)
     t = int(frame_index)
     for s, name in enumerate(skeleton.segment_names):
         prox = kin.prox_pos[t, s]
         dist = kin.dist_pos[t, s]
         vis[f"{root}/skeleton/{name}"].set_transform(
             segment_transform(prox, dist, skeleton.length[s]))
-        vis[f"{root}/skeleton/{name}_joint"].set_transform(
-            _rigid(kin.r_world[t, s], prox))
+        if joint_balls:
+            vis[f"{root}/skeleton/{name}_joint"].set_transform(
+                _rigid(kin.r_world[t, s], prox))
     if pelvis_span is not None:
         hip_l, hip_r, l5s1 = _pelvis_span_parts(pelvis_span)
         draw_pelvis_band(vis, hip_l, hip_r, l5s1, frame_index=t,
@@ -968,6 +973,7 @@ def animate(vis: meshcat.Visualizer, skeleton: Skeleton,
             repetitions: int = LOOP_REPETITIONS,
             plane_height: float = 0.0,
             force_threshold: float = 20.0,
+            joint_balls: bool = True,
             root: str = ROOT,
             animation: anim.Animation | None = None,
             camera: bool = True,
@@ -1020,7 +1026,8 @@ def animate(vis: meshcat.Visualizer, skeleton: Skeleton,
     """
     build_scene(vis, skeleton, girth_fraction, top_girth_fraction,
                 ground=True, force_arrow=ground is not None, root=root,
-                pelvis_span=pelvis_span, torso=torso)
+                pelvis_span=pelvis_span, torso=torso,
+                joint_balls=joint_balls)
     n_frames = int(kin.prox_pos.shape[0])
     step = max(1, int(decimate))
     fps = max(1.0, float(kin.rate) / step * float(realtime_scale))
@@ -1036,8 +1043,9 @@ def animate(vis: meshcat.Visualizer, skeleton: Skeleton,
                 # quaternion track only ever sees an unscaled rotation.
                 _frame_stretch(frame, f"{root}/skeleton/{name}", prox, dist,
                                float(skeleton.length[s]))
-                frame[f"{root}/skeleton/{name}_joint"].set_transform(
-                    _rigid(kin.r_world[t, s], prox))
+                if joint_balls:
+                    frame[f"{root}/skeleton/{name}_joint"].set_transform(
+                        _rigid(kin.r_world[t, s], prox))
             if pelvis_span is not None:
                 hip_l, hip_r, l5s1 = _pelvis_span_parts(pelvis_span)
                 p_l, p_r = _at(hip_l, t), _at(hip_r, t)
@@ -1079,7 +1087,8 @@ def animate(vis: meshcat.Visualizer, skeleton: Skeleton,
                         "scale", "vector3", [1.0, 1.0, 1.0])
 
     # a sane initial pose + camera so the static HTML looks right before play
-    draw_skeleton(vis, skeleton, kin, 0, build=False, root=root)
+    draw_skeleton(vis, skeleton, kin, 0, build=False, root=root,
+                  joint_balls=joint_balls)
     if ground is not None:
         draw_ground_force(vis, ground, 0, force_scale, head_length,
                           plane_height, root=root)

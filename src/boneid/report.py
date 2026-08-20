@@ -1682,32 +1682,33 @@ def p1_report_html(trial, chain, skel_u, kin_u, whole, audit, params, sweep,
         esc = viewer_html.replace("&", "&amp;").replace('"', "&quot;")
         viewer = (
             "<h2>Step 8 — the trial, moving</h2>"
-            "<p>All twelve modelled segments — both legs (foot, shank, thigh), "
-            "the pelvis, the torso+head and both arms — posed from the measured "
-            "joint centres, the markers they were built from in red, and "
-            "<em>both</em> ground reactions drawn as green arrows from their "
-            "equivalent centres of pressure (1 kN per metre). Each arrow "
-            "collapses to a stub parked at the treadmill origin while its "
-            "belt is unloaded — the centre of pressure is a division by "
-            "vertical force and is undefined there — so the "
-            f"alternating stance is visible directly. The pelvis is drawn at "
-            f"its real width, spanning the two hip centres, and the torso as a "
-            f"cylinder sized to displace its actual {torso_mass:.0f} kg at "
-            f"1000 kg/m³ over the measured L5/S1-to-acromion distance — it is "
-            f"not decoration, it is what that mass looks like. Decimated to "
-            f"{fps:.0f} fps, looping. Drag to orbit.</p>"
-            f'<iframe class="viewer" srcdoc="{esc}"></iframe>'
             "<h3>Time-locked strips</h3>"
             "<p>Three compact strips on the animation's own time axis: joint-"
             "centre heights (both legs, one panel so the axes are necessarily "
             "identical), sagittal joint torques, and both belts' vertical "
             "force. The orange cursor is <b>synchronised to the looping "
-            "animation — the same period, and both start on page load</b>; it "
-            "is an independent "
+            "animation below — the same period, and both start on page "
+            "load</b>; it is an independent "
             f"<code>requestAnimationFrame</code> loop of exactly "
             f"{period:.3f} s ({n_key} keyframes at {fps:.0f} fps), not a read "
             "of the viewer's clock, which sits in a sandboxed iframe.</p>"
-            f"{strips}")
+            f"{strips}"
+            "<p>All twelve modelled segments — both legs (foot, shank, thigh), "
+            "the pelvis, the torso+head and both arms — posed from the measured "
+            "joint centres, every marker in the export in red (anatomical "
+            "pairs, landmarks, and the SH/TH tracking clusters), and "
+            "<em>both</em> ground reactions drawn as green arrows from their "
+            "equivalent centres of pressure (1 kN per metre). Each arrow is "
+            "hidden while its belt reads below the 20 N contact threshold — "
+            "the residue there is anti-alias filter ripple with no defined "
+            "centre of pressure — so the alternating stance is visible "
+            f"directly. The pelvis is drawn at its real width, spanning the "
+            f"two hip centres, and the torso as a cylinder sized to displace "
+            f"its actual {torso_mass:.0f} kg at 1000 kg/m³ over the measured "
+            f"L5/S1-to-acromion distance — it is not decoration, it is what "
+            f"that mass looks like. Decimated to {fps:.0f} fps, looping. "
+            "Drag to orbit.</p>"
+            f'<iframe class="viewer" srcdoc="{esc}"></iframe>')
         if urdf_html is not None:
             esc_u = urdf_html.replace("&", "&amp;").replace('"', "&quot;")
             viewer += (
@@ -2069,10 +2070,14 @@ def shift_wrench(ground, shift: np.ndarray):
 
 
 VIEWER_DECIMATE = 4             #: 120 Hz / 4 = 30 fps playback
+#: every marker in the export — anatomical pairs, landmarks, and the
+#: SH/TH tracking clusters — so the viewer shows the data, not a selection.
 VIEWER_MARKERS = ("RCAL", "R5TH", "RLML", "RMML", "RLEP", "RMEP", "RGTR",
                   "LCAL", "L5TH", "LLML", "LMML", "LLEP", "LMEP", "LGTR",
                   "RASI", "LASI", "SACR", "RAC", "LAC", "REP", "LEP",
-                  "RWR", "LWR")
+                  "RWR", "LWR",
+                  "RSH1", "RSH2", "RSH3", "LSH1", "LSH2", "LSH3",
+                  "RTH1", "RTH2", "RTH3", "LTH1", "LTH2", "LTH3")
 
 
 def viewer_period(kin, decimate: int = VIEWER_DECIMATE) -> tuple[int, float, float]:

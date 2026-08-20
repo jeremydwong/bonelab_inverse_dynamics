@@ -967,6 +967,7 @@ def animate(vis: meshcat.Visualizer, skeleton: Skeleton,
             head_length: float = 0.06, play: bool = True,
             repetitions: int = LOOP_REPETITIONS,
             plane_height: float = 0.0,
+            force_threshold: float = 20.0,
             root: str = ROOT,
             animation: anim.Animation | None = None,
             camera: bool = True,
@@ -1051,18 +1052,31 @@ def animate(vis: meshcat.Visualizer, skeleton: Skeleton,
                 _frame_stretch(frame, f"{root}/torso/trunk",
                                _at(t_l5s1, t), _at(t_top, t))
             if ground is not None:
-                origin = force_application_point(ground, t,
-                                                 plane_height)
                 f_vec = np.asarray(ground.force[t], dtype=float)
-                rot = _frame_from_direction(f_vec)
-                length = float(np.linalg.norm(f_vec)) * float(force_scale)
-                body = max(length - head_length, 1e-4)
-                frame[f"{root}/grf/shaft"].set_transform(
-                    _rigid(rot, origin + rot[:, 1] * (0.5 * body)))
-                frame[f"{root}/grf/shaft"].set_property(
-                    "scale", "vector3", [1.0, body, 1.0])
-                frame[f"{root}/grf/head"].set_transform(
-                    _rigid(rot, origin + rot[:, 1] * (body + 0.5 * head_length)))
+                f_norm = float(np.linalg.norm(f_vec))
+                if f_norm < force_threshold:
+                    # Below the contact threshold the force is filter ripple:
+                    # its COP is undefined and force_application_point would
+                    # park a stub at the wrench's fixed lab point (visually,
+                    # a head jumping off the treadmill). Hide the arrow at
+                    # the last real contact point instead.
+                    frame[f"{root}/grf/shaft"].set_property(
+                        "scale", "vector3", [1e-4, 1e-4, 1e-4])
+                    frame[f"{root}/grf/head"].set_property(
+                        "scale", "vector3", [1e-4, 1e-4, 1e-4])
+                else:
+                    origin = force_application_point(ground, t, plane_height)
+                    rot = _frame_from_direction(f_vec)
+                    length = f_norm * float(force_scale)
+                    body = max(length - head_length, 1e-4)
+                    frame[f"{root}/grf/shaft"].set_transform(
+                        _rigid(rot, origin + rot[:, 1] * (0.5 * body)))
+                    frame[f"{root}/grf/shaft"].set_property(
+                        "scale", "vector3", [1.0, body, 1.0])
+                    frame[f"{root}/grf/head"].set_transform(
+                        _rigid(rot, origin + rot[:, 1] * (body + 0.5 * head_length)))
+                    frame[f"{root}/grf/head"].set_property(
+                        "scale", "vector3", [1.0, 1.0, 1.0])
 
     # a sane initial pose + camera so the static HTML looks right before play
     draw_skeleton(vis, skeleton, kin, 0, build=False, root=root)

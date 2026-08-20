@@ -1,0 +1,44 @@
+# Build output (lives in ../build above the repo per CLAUDE.md)
+/build/
+*.pdb
+*.obj
+*.exp
+!src/mps_pipeline/m00vcan_mps.exp
+*.ilk
+
+# Python
+__pycache__/
+*.pyc
+
+# Local run logs / scratch dumps
+debug_out.txt
+dfine_run.txt
+diag_run.txt
+
+# Per-machine GitHub read token for the updater (never committed, never bundled)
+tools/ship/token.txt
+
+# Large reference PDFs (specs are transcribed into data/ + code).
+# `resources/*` (not `resources/`) so the two source-of-truth files below can be
+# re-included — git won't descend into a directory ignored as a whole.
+resources/*
+!resources/exercise portfolio spreadsheet.xlsx
+!resources/risecare_report_mockup.html
+
+# Generated verification artifacts
+tests/manual/out/
+
+# Exploratory scratch scripts (ONNX/TRT debugging debris)
+tests/scratch/
+
+# Agent worktrees (Claude Code isolation)
+.claude/worktrees/
+
+# ImGui layout dropped when running from src/app
+src/app/imgui.ini
+
+# Captured build-script output
+src/app/LOG.TXT
+
+# macOS Finder droppings
+.DS_Store

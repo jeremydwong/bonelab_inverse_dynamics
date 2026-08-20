@@ -196,6 +196,89 @@ def inertia_world(r: np.ndarray, inertia_local: np.ndarray) -> np.ndarray:
     return np.einsum("...ij,jk,...lk->...il", r, inertia_local, r)
 
 
+# ---------------------------------------------------------------------------
+# Legacy ("asicssource") physics switches — see
+# `inverse_dynamics_whole_body_asicssource` for the full story.
+# ---------------------------------------------------------------------------
+
+@dataclass
+class LegacyPhysics:
+    """Which of the legacy MATLAB's three physics mistakes to reproduce.
+
+    Defaults are the CORRECT physics; nothing in the normal path constructs
+    one of these. `inverse_dynamics*` take it as a keyword-only argument and
+    every field left at its default leaves the recursion byte-identical.
+    """
+
+    one_sided_inertia: bool = False   # I_G = R I  instead of  R I R^T
+    gyroscopic: bool = True           # keep omega x (I omega)
+    cardan_alpha: bool = False        # alpha = d2/dt2 of zxy Cardan angles
+
+
+def cardan_angles_zxy(r: np.ndarray) -> np.ndarray:
+    """zxy Cardan angles [.. ,3] (radians, ordered x, y, z) of rotations
+    [...,3,3], reproducing the legacy `CardanSegAngles(TM, 'zxy')`.
+
+    That routine feeds `inv(TM)` to Spacelib's `RTOCARDA` with axis order
+    (Z, X, Y), which for a rotation matrix M = R^T extracts
+
+        a_x = asin(M[2,1]),  a_y = atan2(-M[2,0], M[2,2]),
+        a_z = atan2(-M[0,1], M[1,1])
+
+    and returns them in x, y, z slots. Kept in radians here (the MATLAB
+    multiplied by 57.3 for reporting; the derivatives that fed the dynamics
+    were taken on the radian copies).
+    """
+    m = np.swapaxes(np.asarray(r, dtype=float), -1, -2)      # inv(TM) = R^T
+    a = np.empty(m.shape[:-2] + (3,))
+    a[..., 0] = np.arcsin(np.clip(m[..., 2, 1], -1.0, 1.0))
+    a[..., 1] = np.arctan2(-m[..., 2, 0], m[..., 2, 2])
+    a[..., 2] = np.arctan2(-m[..., 0, 1], m[..., 1, 1])
+    return np.unwrap(a, axis=0)
+
+
+def cardan_alpha(r: np.ndarray, rate: float, cutoff: float = 12.0,
+                 order: int = 4) -> np.ndarray:
+    """The legacy's "angular acceleration": the second time derivative of the
+    zxy Cardan angles, low-passed like `filterdata1(...,12,4)` between the two
+    differentiations. NOT the angular acceleration vector d(omega)/dt — the two
+    agree only for rotations about a single fixed axis.
+
+    PRESUMED, not verified: `RoomSegAng.m` is missing from the repo, so this is
+    reconstructed from how the main script uses it (Cardan angles everywhere
+    else, `filterdata1(FirstCentral(...),rate,0,12,4,0)` for every other
+    angular velocity).
+    """
+    ang = cardan_angles_zxy(r)
+    vel = lowpass(finite_difference(ang, rate), rate, cutoff, order)
+    return lowpass(finite_difference(vel, rate), rate, cutoff, order)
+
+
+def _rot_term(r: np.ndarray, inertia_local: np.ndarray, omega: np.ndarray,
+              alpha: np.ndarray, physics: LegacyPhysics | None) -> np.ndarray:
+    """The rotational (Euler) side of the moment balance for one segment,
+    d/dt(I omega) = I_w alpha + omega x (I_w omega), with the legacy switches
+    applied. `r` [T,3,3], `inertia_local` [3,3], `omega`/`alpha` [T,3]."""
+    if physics is not None and physics.one_sided_inertia:
+        i_w = np.einsum("tij,jk->tik", r, inertia_local)      # the legacy bug
+    else:
+        i_w = inertia_world(r, inertia_local)
+    term = np.einsum("tij,tj->ti", i_w, alpha)
+    if physics is None or physics.gyroscopic:
+        term = term + np.cross(omega, np.einsum("tij,tj->ti", i_w, omega))
+    return term
+
+
+def _alpha_of(ck: dict, rate: float, params: "AnalysisParams",
+              physics: LegacyPhysics | None) -> np.ndarray:
+    """[T,S,3] angular acceleration used by the recursion: the true d(omega)/dt
+    from `chain_kinematics`, or the legacy Cardan double-derivative."""
+    if physics is not None and physics.cardan_alpha:
+        cutoff = params.lowpass_hz if params.lowpass_hz > 0 else 12.0
+        return cardan_alpha(ck["r"], rate, cutoff, params.filter_order)
+    return ck["alpha"]
+
+
 def wrench_from_cop(force: np.ndarray, cop: np.ndarray, free_moment: np.ndarray,
                     point: np.ndarray) -> np.ndarray:
     """Moment about `point` of a load applied at the COP with a free moment."""
@@ -297,7 +380,9 @@ def chain_kinematics(skeleton: Skeleton, kin: SegmentKinematics,
 
 def inverse_dynamics(skeleton: Skeleton, kin: SegmentKinematics,
                      ground: GroundWrench,
-                     params: AnalysisParams | None = None) -> InverseDynamicsResult:
+                     params: AnalysisParams | None = None,
+                     *, physics: LegacyPhysics | None = None,
+                     ) -> InverseDynamicsResult:
     """Bottom-up Newton-Euler over the chain.
 
     For each segment (distal -> proximal), with the distal load expressed as a
@@ -313,6 +398,10 @@ def inverse_dynamics(skeleton: Skeleton, kin: SegmentKinematics,
     The ground wrench (about its fixed point) is the distal load on segment 0.
     Joint reactions are wrenches about the joint center; the negated top
     reaction is reported as the residual.
+
+    `physics` (keyword-only) is the legacy-mistake switch used only by
+    `inverse_dynamics_whole_body_asicssource`; None = the correct physics
+    written above.
     """
     if params is None:
         params = AnalysisParams()
@@ -338,13 +427,12 @@ def inverse_dynamics(skeleton: Skeleton, kin: SegmentKinematics,
     m_d = moment                                  # [T,3] about p_d
     p_d = np.broadcast_to(ground.point, (t_n, 3))  # [T,3]
 
+    alpha = _alpha_of(ck, kin.rate, params, physics)
     for s in range(s_n):
         m_seg = skeleton.mass[s]
         com = ck["com"][:, s]
-        i_w = inertia_world(ck["r"][:, s], skeleton.inertia_local[s])
-        iw_omega = np.einsum("tij,tj->ti", i_w, ck["omega"][:, s])
-        rot_term = (np.einsum("tij,tj->ti", i_w, ck["alpha"][:, s])
-                    + np.cross(ck["omega"][:, s], iw_omega))
+        rot_term = _rot_term(ck["r"][:, s], skeleton.inertia_local[s],
+                             ck["omega"][:, s], alpha[:, s], physics)
         p_p = ck["prox"][:, s]
         f_p = m_seg * ck["a_com"][:, s] - f_d - m_seg * g
         m_p = (rot_term - m_d - np.cross(p_d - com, f_d)
@@ -522,6 +610,7 @@ def inverse_dynamics_two_legs(skel_r: Skeleton, kin_r: SegmentKinematics,
                               skel_l: Skeleton, kin_l: SegmentKinematics,
                               ground_l: GroundWrench,
                               params: AnalysisParams | None = None,
+                              *, physics: LegacyPhysics | None = None,
                               ) -> TwoLegInverseDynamics:
     """Whole-lower-body inverse dynamics: two legs + shared pelvis.
 
@@ -547,7 +636,8 @@ def inverse_dynamics_two_legs(skel_r: Skeleton, kin_r: SegmentKinematics,
     for tag, skel, kin, ground in (("r", skel_r, kin_r, ground_r),
                                    ("l", skel_l, kin_l, ground_l)):
         leg_skel, leg_kin = slice_chain(skel, kin, [0, 1, 2])
-        res = inverse_dynamics(leg_skel, leg_kin, ground, params)
+        res = inverse_dynamics(leg_skel, leg_kin, ground, params,
+                               physics=physics)
         legs[tag] = res
         hip_pts[tag] = kin.prox_pos[:, 2]        # thigh proximal = hip centre
 
@@ -557,10 +647,10 @@ def inverse_dynamics_two_legs(skel_r: Skeleton, kin_r: SegmentKinematics,
                           params.filter_order)
     m_p = pel_skel.mass[0]
     com = ck["com"][:, 0]
-    i_w = inertia_world(ck["r"][:, 0], pel_skel.inertia_local[0])
-    iw_omega = np.einsum("tij,tj->ti", i_w, ck["omega"][:, 0])
-    rot_term = (np.einsum("tij,tj->ti", i_w, ck["alpha"][:, 0])
-                + np.cross(ck["omega"][:, 0], iw_omega))
+    rot_term = _rot_term(ck["r"][:, 0], pel_skel.inertia_local[0],
+                         ck["omega"][:, 0],
+                         _alpha_of(ck, pel_kin.rate, params, physics)[:, 0],
+                         physics)
 
     f_d = -(legs["r"].residual_force + legs["l"].residual_force)
     residual_force = m_p * ck["a_com"][:, 0] - f_d - m_p * params.gravity
@@ -754,6 +844,7 @@ def inverse_dynamics_whole_body(skel_r: Skeleton, kin_r: SegmentKinematics,
                                 ground_l: GroundWrench,
                                 skel_u: Skeleton, kin_u: SegmentKinematics,
                                 params: AnalysisParams | None = None,
+                                *, physics: LegacyPhysics | None = None,
                                 ) -> WholeBodyInverseDynamics:
     """Whole-body inverse dynamics over all 12 segments.
 
@@ -791,7 +882,8 @@ def inverse_dynamics_whole_body(skel_r: Skeleton, kin_r: SegmentKinematics,
         params = AnalysisParams()
 
     two = inverse_dynamics_two_legs(skel_r, kin_r, ground_r,
-                                    skel_l, kin_l, ground_l, params)
+                                    skel_l, kin_l, ground_l, params,
+                                    physics=physics)
     l5s1_force = two.residual_force
     l5s1_torque = two.residual_torque
     l5s1_point = chain_kinematics(*slice_chain(skel_r, kin_r, [3]),
@@ -807,7 +899,8 @@ def inverse_dynamics_whole_body(skel_r: Skeleton, kin_r: SegmentKinematics,
 
     for k, side in enumerate(("r", "l")):
         arm_skel, arm_kin = slice_chain(skel_u, kin_u, UPPER_BODY_ARM[side])
-        res = inverse_dynamics(arm_skel, arm_kin, _zero_wrench(arm_kin), params)
+        res = inverse_dynamics(arm_skel, arm_kin, _zero_wrench(arm_kin), params,
+                               physics=physics)
         elbow_force[:, k] = res.joint_force[:, 0]
         elbow_torque[:, k] = res.joint_torque[:, 0]
         shoulder_force[:, k] = res.residual_force
@@ -822,10 +915,10 @@ def inverse_dynamics_whole_body(skel_r: Skeleton, kin_r: SegmentKinematics,
                           params.filter_order)
     m_t = tor_skel.mass[0]
     com = ck["com"][:, 0]
-    i_w = inertia_world(ck["r"][:, 0], tor_skel.inertia_local[0])
-    rot_term = (np.einsum("tij,tj->ti", i_w, ck["alpha"][:, 0])
-                + np.cross(ck["omega"][:, 0],
-                           np.einsum("tij,tj->ti", i_w, ck["omega"][:, 0])))
+    rot_term = _rot_term(ck["r"][:, 0], tor_skel.inertia_local[0],
+                         ck["omega"][:, 0],
+                         _alpha_of(ck, tor_kin.rate, params, physics)[:, 0],
+                         physics)
 
     loads = [(-l5s1_force, -l5s1_torque, l5s1_point)]
     for k in (0, 1):
@@ -847,6 +940,55 @@ def inverse_dynamics_whole_body(skel_r: Skeleton, kin_r: SegmentKinematics,
         shoulder_force=shoulder_force, shoulder_torque=shoulder_torque,
         elbow_force=elbow_force, elbow_torque=elbow_torque,
         residual_force=residual_force, residual_torque=residual_torque)
+
+
+def inverse_dynamics_whole_body_asicssource(
+        skel_r: Skeleton, kin_r: SegmentKinematics, ground_r: GroundWrench,
+        skel_l: Skeleton, kin_l: SegmentKinematics, ground_l: GroundWrench,
+        skel_u: Skeleton, kin_u: SegmentKinematics,
+        params: AnalysisParams | None = None,
+        cardan_alpha: bool = True) -> WholeBodyInverseDynamics:
+    """`inverse_dynamics_whole_body` with the legacy MATLAB's PHYSICS MISTAKES.
+
+    Same signature, same return type, same data, same anthropometrics, same
+    joint centres, same chain structure, same force handling, same filtering.
+    The ONLY differences are the three calculations the Asics-era MATLAB
+    (`Asics_Moments4JCF_v3.m` + `inv3d.m`) got wrong, so an A/B against
+    `inverse_dynamics_whole_body` isolates the physics and nothing else:
+
+    (a) VERIFIED — `Asics_Moments4JCF_v3.m:369-380` forms the global inertia
+        one-sidedly, `IfootG = multiprod(R_FootTM, Ifoot)`, i.e.
+        I_G = R I_local instead of the similarity transform R I_local R^T.
+        The result is not even symmetric.
+
+    (b) VERIFIED — `inv3d.m` line 38 balances moments with
+        `multiprod(I,aANG)` only: the gyroscopic term omega x (I omega) is
+        absent from Euler's equation.
+
+    (c) PRESUMED, and therefore switchable via `cardan_alpha` (default True,
+        because the legacy did do this) — the "angular acceleration" fed to
+        `inv3d` came from `RoomSegAng`, whose source is LOST from the repo.
+        Everything around it (Cardan `zxy` angles for every segment and joint,
+        `filterdata1(FirstCentral(...),rate,0,12,4,0)` for every other angular
+        velocity) says it returned the second time derivative of the segment's
+        room-frame Cardan angles, low-passed at 12 Hz, rather than the true
+        angular acceleration vector d(omega)/dt with omega = unskew(R' R^T).
+        `core.cardan_alpha` reproduces that; passing `cardan_alpha=False`
+        gives mistakes (a)+(b) only, which is how the report separates the
+        verified bugs from the presumed one.
+
+    NOT reproduced, on purpose: the legacy's anthropometric typos
+    (`Ileg = [Ilx 0 0; 0 Ify 0; 0 0 Ilz]` uses the FOOT's transverse moment for
+    the shank; the thigh's `Ity` regression is fed the foot length `A(6)`).
+    Those are data-entry errors, not physics, and reproducing them would mix a
+    different-numbers comparison into a same-numbers-different-equations one.
+    This function uses the corrected de Leva anthropometrics throughout.
+    """
+    return inverse_dynamics_whole_body(
+        skel_r, kin_r, ground_r, skel_l, kin_l, ground_l, skel_u, kin_u,
+        params,
+        physics=LegacyPhysics(one_sided_inertia=True, gyroscopic=False,
+                              cardan_alpha=cardan_alpha))
 
 
 def energy_audit_whole_body(skel_r: Skeleton, kin_r: SegmentKinematics,

@@ -11,7 +11,9 @@ Chart conventions (kept consistent across every report):
 Run `uv run python -m boneid.report` to generate the TEST-SIMULATED-S2S
 report at reports/s2s_report.html, or
 `uv run python -m boneid.report v3d [matpath] [trial_index]` for the real-data
-walkthrough at reports/p1_report.html.
+walkthrough at reports/p1_report.html, or
+`uv run python -m boneid.report asics [matpath] [trial_index]` for the legacy-
+physics A/B ("Implication of Asics") at reports/p1_asics.html.
 """
 
 from __future__ import annotations
@@ -1307,41 +1309,24 @@ def p1_report_html(trial, chain, skel_u, kin_u, whole, audit, params, sweep,
                        "is scored by exactly the same code as the right, with "
                        "nothing but the side letter changed.")
 
-    # ---- 8a. the residual, before and after ------------------------------
-    fig, axes = new_grid(1, 2, height=3.0, width=8.8, sharey=True)
+    # ---- 6b. the residual at the torso COM --------------------------------
+    fig, ax = new_fig(height=3.0)
     for c in range(3):
-        axes[0, 0].plot(t, whole.l5s1_force[:, c], color=JOINT_COLORS[c],
-                        lw=1.2, label=f"F{lab[c]}")
-        axes[0, 1].plot(t, whole.residual_force[:, c], color=JOINT_COLORS[c],
-                        lw=1.2, label=f"F{lab[c]}")
-    axes[0, 0].axhline(l5_mean[2], color=JOINT_COLORS[3], lw=1.4)
-    axes[0, 0].annotate(f"mean Fz = {l5_mean[2]:.0f} N", (t[0], l5_mean[2]),
-                        ha="left", va="top", fontsize=8.5,
-                        color=JOINT_COLORS[3])
-    axes[0, 1].axhline(res_mean[2], color=JOINT_COLORS[3], lw=1.4)
-    axes[0, 1].annotate(f"mean Fz = {res_mean[2]:.1f} N", (t[0], res_mean[2]),
-                        ha="left", va="bottom", fontsize=8.5,
-                        color=JOINT_COLORS[3])
-    axes[0, 0].set_title("legs + pelvis only: residual at L5/S1",
-                         color=NEUTRAL, fontsize=10)
-    axes[0, 1].set_title("whole body: residual at the torso COM",
-                         color=NEUTRAL, fontsize=10)
-    for a in (axes[0, 0], axes[0, 1]):
-        shade(a, contact_spans(mask["r"], t), NEUTRAL, 0.06)
-        style_axes(a, "time (s)", "residual force (N)")
-        a.legend(frameon=False, fontsize=8.5, ncol=3)
-    # RULE: the same quantity in two panels shares one y-scale — the whole
-    # point of the figure is that the right panel is flat by comparison.
-    share_ylim(axes[0, 0], axes[0, 1])
-    add(fig, f"<b>The headline result.</b> Left: the residual of the previous, "
-             f"legs-and-pelvis model — the wrench left over at L5/S1, averaging "
-             f"{l5_mean[2]:.0f} N downward because the trunk, head and arms "
-             f"were simply absent. Right: the residual of the whole-body model, "
-             f"at the torso's centre of mass, on <em>the same axes</em>: it "
-             f"averages {res_mean[2]:.1f} N. The missing weight has not been "
-             f"cancelled or fitted away — it has been given a body to belong "
-             f"to, and the left panel's offset has become a named output, the "
-             f"L5/S1 joint wrench of Figure {n[0] + 2}.")
+        ax.plot(t, whole.residual_force[:, c], color=JOINT_COLORS[c],
+                lw=1.2, label=f"F{lab[c]}")
+    ax.axhline(res_mean[2], color=JOINT_COLORS[3], lw=1.4)
+    ax.annotate(f"mean Fz = {res_mean[2]:.1f} N", (t[0], res_mean[2]),
+                ha="left", va="bottom", fontsize=8.5, color=JOINT_COLORS[3])
+    shade(ax, contact_spans(mask["r"], t), NEUTRAL, 0.06)
+    style_axes(ax, "time (s)", "residual force (N)")
+    ax.legend(frameon=False, fontsize=8.5, ncol=3)
+    add(fig, f"The residual wrench at the torso's centre of mass — the model's "
+             f"error term. Mean ({res_mean[0]:.1f}, {res_mean[1]:.1f}, "
+             f"{res_mean[2]:.1f}) N against a body weight of {bw:.0f} N; the "
+             f"peak of {res_peak:.0f} N ({res_peak / bw:.2f} BW) is where "
+             f"soft-tissue artefact, filter mismatch and de Leva's population "
+             f"regressions live. Near zero on average, non-trivial instant to "
+             f"instant — the signature of an unfitted model.")
 
     # ---- 8b. the L5S1 joint wrench, and the cross-trial check ------------
     fig, axes = new_grid(1, 3, height=3.0, width=9.2)
@@ -1622,15 +1607,19 @@ def p1_report_html(trial, chain, skel_u, kin_u, whole, audit, params, sweep,
              f"the hip peak moves by up to "
              f"{max(abs(100 * (hjc[m]['peak_force'][s][2] / hjc['landmark']['peak_force'][s][2] - 1)) for m in HJC_METHODS for s in SIDES):.1f}%.")
 
+    # RULE: bilateral quantities are organised L | R per joint, not by side.
+    # JOINT_LABELS order is (R ankle, R knee, R hip, L ankle, L knee, L hip),
+    # so joint j pairs indices (j + 3, j) as (left, right).
     stats_rms = "".join([
-        stat(f"{JOINT_LABELS[k]} RMS", f"{rms[k]:.2f}",
-             f"N m (peak {ref_peak[k]:.0f})",
-             "pass" if rms[k] < (0.20 if k % 3 == 2 else 0.08) * ref_peak[k]
+        stat(f"{name} RMS  L | R",
+             f"{rms[j + 3]:.2f} | {rms[j]:.2f}",
+             f"N m (peaks {ref_peak[j + 3]:.0f} | {ref_peak[j]:.0f})",
+             "pass" if max(rms[j + 3] / ref_peak[j + 3],
+                           rms[j] / ref_peak[j]) < (0.20 if j == 2 else 0.08)
              else "fail")
-        for k in range(6)])
+        for j, name in enumerate(("ankle", "knee", "hip"))])
     stats = "".join([
-        stat("whole-body residual Fz", f"{res_mean[2]:.1f}",
-             f"N mean (was {l5_mean[2]:.0f} at the pelvis)",
+        stat("whole-body residual Fz", f"{res_mean[2]:.1f}", "N mean",
              "pass" if abs(res_mean[2]) < 0.01 * bw else "fail"),
         stat("peak |residual force|", f"{res_peak / bw:.2f}",
              f"BW ({res_peak:.0f} N)"),
@@ -1692,7 +1681,7 @@ def p1_report_html(trial, chain, skel_u, kin_u, whole, audit, params, sweep,
     if viewer_html is not None:
         esc = viewer_html.replace("&", "&amp;").replace('"', "&quot;")
         viewer = (
-            "<h2>Step 9 — the trial, moving</h2>"
+            "<h2>Step 8 — the trial, moving</h2>"
             "<p>All twelve modelled segments — both legs (foot, shank, thigh), "
             "the pelvis, the torso+head and both arms — posed from the measured "
             "joint centres, the markers they were built from in red, and "
@@ -1778,11 +1767,10 @@ the whole report:</p>
 <li>The wrench arriving at L5/S1 is no longer a residual but a <b>joint
 wrench</b> with a name and a sign convention — the wrench the torso exerts
 <em>on the pelvis</em>, mirroring the hips — and it should equal minus the
-weight of everything above it on average. Step 7 checks that.</li>
+weight of everything above it on average. Step 6 checks that.</li>
 <li>The <b>residual has moved to the torso's centre of mass</b>, and with
 every segment of the body now modelled it has nothing structural left to
-carry: its mean vertical component drops from {l5_mean[2]:.0f} N to
-{res_mean[2]:.1f} N. What is left is the honest whole-model error term —
+carry: its mean vertical component is {res_mean[2]:.1f} N. What is left is the honest whole-model error term —
 anthropometry, soft tissue, marker artefact, plate calibration.</li>
 </ul>
 <p>Visual3D exports no arm or trunk kinetics, so the upper body has <em>no</em>
@@ -1899,63 +1887,31 @@ hides.</p>
 {figs[6]}
 {figs[7]}
 
-<h2>Step 7 — the residual, and the L5/S1 joint wrench</h2>
-<p>This is the section the whole-body model exists for. Before it, the model
-stopped at the pelvis and everything above L5/S1 was missing; the recursion's
-leftover wrench had to carry that missing weight, so its mean vertical
-component sat at <b>{l5_mean[2]:.0f} N</b> — recognisably minus the weight of a
-trunk, a head and two arms, and a perfectly good validation, but also a
-permanent {abs(l5_mean[2]) / bw:.0%}-of-body-weight offset sitting in the
-model's error term where real errors should live.</p>
+<p>Two more outputs ship with every run alongside the torques. The
+<b>residual wrench</b> at the torso's centre of mass — the whole-model error
+term, mean F<sub>z</sub> {res_mean[2]:.1f} N against a body weight of
+{bw:.0f} N:</p>
 
 {figs[8]}
 
-<p>With the upper body present the same number becomes <b>{res_mean[2]:.1f} N
-at the torso's centre of mass</b>. Nothing was tuned, fitted or subtracted: the
-missing weight was given a body. Two distinct quantities now exist where there
-was one:</p>
-<table><tbody>
-<tr><td>measured body mass</td><td>{body_mass:.2f} kg</td></tr>
-<tr><td>legs + pelvis (7 segments)</td>
-    <td>{leg_mass:.2f} kg ({leg_frac:.0f}%)</td></tr>
-<tr><td>torso + head + arms (5 segments)</td>
-    <td>{upper_mass:.2f} kg ({100 - leg_frac:.0f}%)</td></tr>
-<tr><td>unmodelled mass</td><td>{body_mass - modelled_mass:.2f} kg</td></tr>
-<tr><td>−(upper-body weight)</td><td>{-upper_n:.1f} N</td></tr>
-<tr><td><b>mean L5/S1 joint F<sub>z</sub></b> (torso on pelvis)</td>
-    <td><b>{l5_mean[2]:.1f} N</b> — difference {l5_gap:.1f} N,
-    {100 * abs(l5_gap) / abs(upper_n):.1f}% of the upper-body weight</td></tr>
-<tr><td><b>mean whole-body residual F<sub>z</sub></b> (at the torso COM)</td>
-    <td><b>{res_mean[2]:.2f} N</b> = {abs(res_mean[2]) / bw:.4%} of body
-    weight</td></tr>
-</tbody></table>
+<p>And the <b>L5/S1 joint wrench</b> — the wrench the torso exerts on the
+pelvis, mirroring the hips. Its mean vertical force should equal minus the
+de Leva weight of the segments above it ({-upper_n:.0f} N for the
+{upper_mass:.1f} kg torso, head and arms), and nothing in the recursion is
+told the subject's total mass — yet it lands within
+{100 * abs(l5_gap) / abs(upper_n):.1f}% on this trial and stays on the
+identity line across all {len(cross['index'])} trials:</p>
 
 {figs[9]}
 
-<p>The L5/S1 wrench is a real output with a predictable mean, and the closure
-test that used to justify the residual now justifies it: nothing in the
-recursion is told the subject's total mass, yet the wrench arriving at the top
-of the leg chains lands on the de Leva weight of the segments above it to
-{100 * abs(l5_gap) / abs(upper_n):.1f}%.</p>
-<p>The residual that remains is the honest one. Its mean horizontal components
-are {res_mean[0]:.2f} and {res_mean[1]:.2f} N; its peak is
-{res_peak:.0f} N = {res_peak / bw:.2f} BW, and that peak is not small. It is
-where soft-tissue artefact, the mismatch between a {params.lowpass_hz:.0f} Hz
-kinematic filter and a 50 Hz force filter, de Leva's population regressions
-applied to one particular body, the marker-for-joint-centre arm model and the
-rigid single-segment torso all end up. A residual that is near zero on average
-and non-trivial instant to instant is exactly what an honest whole-body model
-should produce; a residual that were zero everywhere would mean something had
-been fitted.</p>
-
-<h2>Step 8 — the energy audit</h2>
+<h2>Step 7 — the energy audit</h2>
 
 {figs[10]}
 {figs[11]}
 
 {viewer}
 
-<h2>Step 10 — whole-body power: COM, peripheral, and below the foot</h2>
+<h2>Step 9 — whole-body power: COM, peripheral, and below the foot</h2>
 <p>Inverse dynamics answers "what torque"; these three measures answer "where
 does the energy go". They are computed from the same data and none of them
 feeds the recursion.</p>
@@ -1970,11 +1926,10 @@ constant fixed by removing the mean, which is only legitimate over a whole
 number of strides of steady locomotion — the Visual3D crop is exactly that.</p>
 <p><b>Peripheral power.</b> Koenig's decomposition splits mechanical energy
 into a COM part and the motion of the segments relative to the COM; the second
-is Zelik &amp; Kuo's peripheral term (2010, <i>J Exp Biol</i> 213:4257–4264).
-Every previous version of this figure could only sum it over the legs and
-pelvis. <b>Here it runs over all twelve segments</b> — swinging arms and a
-moving trunk included — which is the whole-body quantity Zelik &amp; Kuo
-actually define.</p>
+is Zelik &amp; Kuo's peripheral term (2010, <i>J Exp Biol</i> 213:4257–4264),
+summed here over all twelve segments — swinging arms and a moving trunk
+included — which is the whole-body quantity Zelik &amp; Kuo actually
+define.</p>
 
 {figs[13]}
 
@@ -1996,7 +1951,7 @@ foot and nothing more. So no MTP joint is offered and the distal-to-foot power
 above lumps every sub-foot structure together. Inventing an MTP axis from three
 markers would produce a curve, not a measurement.</p>
 
-<h2>Step 11 — hip joint centre conventions</h2>
+<h2>Step 10 — hip joint centre conventions</h2>
 <p>Every number in this report so far uses one hip joint centre: Visual3D's
 exported <code>HHR</code>/<code>HHL</code> landmark. It is a choice, and it is
 the choice the hip torques are most sensitive to. Two published regressions
@@ -2053,7 +2008,7 @@ torque does not. That asymmetry is the practical answer to "does the hip
 convention matter": for ankle and knee kinetics, no; for hip kinetics and any
 joint power, yes.</p>
 
-<h2>Step 12 — every trial, both legs</h2>
+<h2>Step 11 — every trial, both legs</h2>
 <p>The previous steps prove one trial. This one proves the pipeline: identical
 code, identical parameters, no per-trial tuning, all
 {len(cross['index'])} trials of the subject and all six leg joints, scored
@@ -2438,6 +2393,569 @@ def p1_urdf_html(trial, chain, skel_u, kin_u, frame_index: int | None = None,
         viz.stop_viewer(vis)
 
 
+# ---------------------------------------------------------------------------
+# "Implication of Asics" — the legacy physics mistakes, A/B'd on real data
+# ---------------------------------------------------------------------------
+
+ASICS_VARIANTS = ("correct", "ab", "abc")
+
+ASICS_LABELS = {
+    "correct": "corrected physics",
+    "ab": "legacy (a)+(b): one-sided R·I, no gyroscopic term",
+    "abc": "legacy (a)+(b)+(c): + Cardan-angle α",
+}
+
+ASICS_STYLE = {                      # colour, linestyle, linewidth, zorder
+    "correct": (None, "-", 2.4, 2),  # colour filled in per joint
+    "abc": (NEUTRAL, (0, (5, 3)), 1.1, 4),
+    "ab": ("#9a6bd6", (0, (1, 2)), 1.4, 3),
+}
+
+
+def asics_comparison(trial, params=None, edge: int = EDGE) -> dict:
+    """Run the corrected and the legacy-physics pipelines on the same trial.
+
+    Returns a dict with, for each of `ASICS_VARIANTS`, the
+    `WholeBodyInverseDynamics`, the τ·ω_rel joint powers (computed with the
+    CORRECT kinematics in every case, so the comparison is of torques alone),
+    and the `core.energy_audit_whole_body` imbalance under those torques; plus
+    per-joint RMS torque differences, peaks, and the term-magnitude
+    diagnostics the prose quotes.
+
+    `ab` is `cardan_alpha=False` — the two VERIFIED mistakes only; `abc` adds
+    the presumed Cardan-angle "angular acceleration". Everything else (masses,
+    COMs, joint centres, forces, filtering, chain) is identical across all
+    three by construction: they are the same call with different flags.
+    """
+    from .core import (LegacyPhysics, cardan_alpha, chain_kinematics,
+                       energy_audit_whole_body, inertia_world,
+                       inverse_dynamics_whole_body,
+                       inverse_dynamics_whole_body_asicssource, slice_chain)
+    params = params or p1_params()
+    sl = slice(edge, -edge)
+    chain, skel_u, kin_u = whole_body_chain(trial, params)
+
+    runs = {
+        "correct": inverse_dynamics_whole_body(*chain, skel_u, kin_u, params),
+        "ab": inverse_dynamics_whole_body_asicssource(
+            *chain, skel_u, kin_u, params, cardan_alpha=False),
+        "abc": inverse_dynamics_whole_body_asicssource(
+            *chain, skel_u, kin_u, params, cardan_alpha=True),
+    }
+    out = {"chain": chain, "skel_u": skel_u, "kin_u": kin_u, "runs": runs,
+           "torque": {}, "power": {}, "audit": {}, "imbalance": {},
+           "rms": {}, "peak_diff": {}, "rms_xyz": {}}
+
+    for key, whole in runs.items():
+        # [T,6,3] lab-frame joint torques, ordered as JOINT_LABELS
+        out["torque"][key] = np.concatenate(
+            [whole.right.joint_torque, whole.left.joint_torque], axis=1)
+        # τ·ω_rel with the CORRECT kinematics for every variant
+        out["power"][key] = np.concatenate(
+            [joint_power_tau_omega(chain[3 * k], chain[3 * k + 1],
+                                   whole.right if k == 0 else whole.left,
+                                   params)
+             for k in range(2)], axis=1)                       # [T,6]
+        audit = energy_audit_whole_body(*chain, skel_u, kin_u, whole, params)
+        out["audit"][key] = audit
+        out["imbalance"][key] = {
+            "rms": float(np.sqrt((audit.imbalance[sl] ** 2).mean())),
+            "max": float(np.abs(audit.imbalance[sl]).max()),
+            "scale": float(np.abs(audit.de_dt[sl]).max())}
+
+    base = out["torque"]["correct"]
+    out["peak"] = np.array([np.linalg.norm(base[sl, j], axis=1).max()
+                            for j in range(6)])
+    out["peak_sag"] = np.abs(base[sl, :, 0]).max(axis=0)
+    for key in ("ab", "abc"):
+        d = out["torque"][key] - base                          # [T,6,3]
+        out["rms"][key] = np.array(
+            [float(np.sqrt((d[sl, j] ** 2).sum(axis=1).mean()))
+             for j in range(6)])
+        out["rms_xyz"][key] = np.sqrt((d[sl] ** 2).mean(axis=0))   # [6,3]
+        out["peak_diff"][key] = np.array(
+            [float(np.linalg.norm(d[sl, j], axis=1).max()) for j in range(6)])
+
+    # --- each mistake ON ITS OWN, for the "which one dominates" section.
+    # Same call, one flag at a time; only the RMS torque difference is kept.
+    for key, phys in (("a", LegacyPhysics(one_sided_inertia=True)),
+                      ("b", LegacyPhysics(gyroscopic=False)),
+                      ("c", LegacyPhysics(cardan_alpha=True))):
+        one = inverse_dynamics_whole_body(*chain, skel_u, kin_u, params,
+                                          physics=phys)
+        d = np.concatenate([one.right.joint_torque, one.left.joint_torque],
+                           axis=1) - base
+        out["rms"][key] = np.array(
+            [float(np.sqrt((d[sl, j] ** 2).sum(axis=1).mean()))
+             for j in range(6)])
+
+    # --- term magnitudes on the right leg, for the honest-magnitude section
+    leg_skel, leg_kin = slice_chain(chain[0], chain[1], [0, 1, 2])
+    ck = chain_kinematics(leg_skel, leg_kin, params.lowpass_hz,
+                          params.filter_order)
+    a_cardan = cardan_alpha(ck["r"], leg_kin.rate,
+                            params.lowpass_hz or 12.0, params.filter_order)
+    terms = {}
+    for s, name in enumerate(leg_skel.segment_names):
+        r = ck["r"][:, s]
+        i_w = inertia_world(r, leg_skel.inertia_local[s])
+        i_one = np.einsum("tij,jk->tik", r, leg_skel.inertia_local[s])
+        w = ck["omega"][:, s]
+        i_alpha = np.einsum("tij,tj->ti", i_w, ck["alpha"][:, s])
+        w_local = np.einsum("tji,tj->ti", r, w)
+        frac = (np.abs(w_local[sl])
+                / (np.linalg.norm(w_local[sl], axis=1, keepdims=True) + 1e-12))
+        terms[name] = {
+            "i_alpha": float(np.abs(i_alpha[sl]).max()),
+            "gyro": float(np.abs(np.cross(
+                w, np.einsum("tij,tj->ti", i_w, w))[sl]).max()),
+            "one_sided": float(np.abs(
+                (np.einsum("tij,tj->ti", i_one, ck["alpha"][:, s])
+                 - i_alpha)[sl]).max()),
+            "cardan": float(np.abs(np.einsum(
+                "tij,tj->ti", i_one, (a_cardan[:, s] - ck["alpha"][:, s]))[sl]
+            ).max()),
+            "omega_frac": frac.mean(axis=0)}
+    out["terms"] = terms
+    return out
+
+
+def asics_grid(t, series, joints, ylabel, spans=None, window=None,
+               scale=1.0):
+    """A 2x3 (rows = R/L side, cols = joint) overlay of variant curves.
+
+    `series` maps variant key -> [T,6] array in JOINT_LABELS order. Y-limits
+    are shared down each joint COLUMN (the CLAUDE.md bilateral rule) — the
+    left and the right panel of the same joint are always directly comparable.
+    """
+    fig, axes = new_grid(2, 3, height=4.8, width=8.6, sharex=True)
+    sl = slice(*window) if window else slice(None)
+    handles = None
+    for k in range(2):                                   # 0 = right, 1 = left
+        for j in range(3):
+            ax = axes[k, j]
+            if spans:
+                for a, b in spans[k]:
+                    ax.axvspan(a, b, color=FAINT, alpha=0.30, lw=0)
+            for key in ASICS_VARIANTS:
+                if key not in series:
+                    continue
+                colour, ls, lw, z = ASICS_STYLE[key]
+                ax.plot(t[sl], series[key][sl, k * 3 + j] * scale,
+                        color=colour or JOINT_COLORS[j], ls=ls, lw=lw,
+                        zorder=z, label=ASICS_LABELS[key])
+            ax.set_xlim(t[sl][0], t[sl][-1])
+            style_axes(ax, "time (s)" if k == 1 else "",
+                       (f"{'RL'[k]} — {ylabel}") if j == 0 else "")
+            if k == 0:
+                ax.set_title(joints[j], color=NEUTRAL, fontsize=10)
+            if handles is None:
+                handles = ax.get_legend_handles_labels()
+    for j in range(3):                                   # RULE: equal y-axes
+        share_ylim(axes[0, j], axes[1, j])
+    fig.legend(*handles, frameon=False, fontsize=8.0, ncols=3,
+               loc="outside lower center")
+    return fig
+
+
+def p1_asics_report_html(trial, data, params) -> str:
+    """The A/B report: the legacy MATLAB's physics mistakes against the
+    corrected pipeline, same subject, same trial, same everything else.
+
+    `data` is `asics_comparison(trial, params)`.
+    """
+    from . import io_v3d as io
+    from .core import detect_contact
+
+    chain = data["chain"]
+    skel_r, kin_r = chain[0], chain[1]
+    t = kin_r.t
+    joints = skel_r.joint_names                     # [ankle, knee, hip]
+    sl = slice(EDGE, -EDGE)
+    rms, peak = data["rms"], data["peak"]
+    imb = data["imbalance"]
+    terms = data["terms"]
+
+    plate = {s: io.plate_for_side(trial, s, params.contact_threshold_n)
+             for s in SIDES}
+    fz = io.analog_to_mocap(trial, trial.force[:, :, 2])
+    mask = {s: detect_contact(fz[:, plate[s]], params.contact_threshold_n,
+                              min_gap=12)[0] for s in SIDES}
+    spans = [contact_spans(mask[s], t) for s in SIDES]
+    a, b = stride_window(mask["r"], 1)
+
+    figs = []
+    n = [0]
+
+    def add(fig, caption):
+        n[0] += 1
+        figs.append(figure_block(fig_svg(fig), n[0], caption))
+
+    # ---- 1. torque overlay, whole trial ----------------------------------
+    add(asics_grid(t, {k: data["torque"][k][:, :, 0] for k in ASICS_VARIANTS},
+                   joints, "sagittal torque (N m)", spans),
+        "Sagittal (lab-x) net joint torque at all six leg joints over the "
+        "whole trial: the corrected pipeline in colour, the legacy physics in "
+        "grey dashed (all three mistakes) and violet dotted (the two verified "
+        "ones only). Shading is that side's stance. Rows are the two sides, "
+        "columns the joint, and <b>the two panels of a column share y-limits "
+        "by rule</b>. At this scale the three curves are one curve — which is "
+        "the honest headline: in walking, the legacy mistakes are a "
+        f"{100 * rms['abc'].max() / peak[np.argmax(rms['abc'])]:.0f}%-of-peak "
+        "effect at worst, not a sign error.")
+
+    # ---- 2. one stride, zoomed -------------------------------------------
+    add(asics_grid(t, {k: data["torque"][k][:, :, 0] for k in ASICS_VARIANTS},
+                   joints, "sagittal torque (N m)", spans, window=(a, b)),
+        f"The same six panels over a single right-foot stride "
+        f"({t[a]:.2f}–{t[b]:.2f} s, heel-strike to heel-strike). Zoomed, the "
+        "separation becomes visible at the hip and knee, mostly in swing "
+        "and around toe-off, where the segments are rotating fastest and the "
+        "inertial term is a real fraction of the balance. The ankle traces "
+        "still overlie each other: the foot's inertia is small enough that "
+        "getting its tensor wrong barely moves the ankle moment.")
+
+    # ---- 3. powers --------------------------------------------------------
+    add(asics_grid(t, data["power"], joints, "joint power (W)", spans,
+                   window=(a, b)),
+        "Joint power τ·ω<sub>rel</sub> over the same stride. "
+        "<b>ω<sub>rel</sub> is the CORRECT kinematics' relative angular "
+        "velocity in all three curves</b> — only the torque differs, so this "
+        "figure compares torques and does not double-count the Cardan-angle "
+        "mistake through the velocity as well. Power differences track the "
+        "torque differences directly, largest at the hip where ω is largest.")
+
+    # ---- 4. the difference itself, decomposed ----------------------------
+    fig, axes = new_grid(2, 3, height=4.8, width=8.6, sharex=True)
+    dhandles = None
+    for k in range(2):
+        for j in range(3):
+            ax = axes[k, j]
+            col = k * 3 + j
+            for key, colour, ls in (("ab", "#9a6bd6", (0, (1, 2))),
+                                    ("abc", NEUTRAL, (0, (5, 3)))):
+                d = data["torque"][key] - data["torque"]["correct"]
+                ax.plot(t, d[:, col, 0], color=colour, ls=ls, lw=1.3,
+                        label="sagittal Δτ, " + ASICS_LABELS[key])
+            d = data["torque"]["abc"] - data["torque"]["correct"]
+            ax.plot(t, np.linalg.norm(d[:, col], axis=1),
+                    color=JOINT_COLORS[j], lw=1.0, alpha=0.85,
+                    label="|Δτ|, all three components, (a)+(b)+(c) "
+                          "(joint colour)")
+            ax.axhline(0.0, color=FAINT, lw=0.8)
+            ax.set_xlim(t[0], t[-1])
+            style_axes(ax, "time (s)" if k == 1 else "",
+                       f"{'RL'[k]} — Δ torque (N m)" if j == 0 else "")
+            if k == 0:
+                ax.set_title(joints[j], color=NEUTRAL, fontsize=10)
+            if dhandles is None:
+                dhandles = ax.get_legend_handles_labels()
+    for j in range(3):
+        share_ylim(axes[0, j], axes[1, j])
+    fig.legend(*dhandles, frameon=False, fontsize=8.0, ncols=2,
+               loc="outside lower center")
+    add(fig,
+        "<b>The decomposition — the most informative panel here.</b> "
+        "Legacy minus corrected, sagittal component (dotted/dashed) and the "
+        "magnitude of the full 3-vector difference (coloured). The two "
+        "verified mistakes alone, (a) one-sided R·I and (b) the missing "
+        "gyroscopic term, give the dotted curve; adding the presumed "
+        "Cardan-angle α gives the dashed one. They are of the same order and "
+        "they partially CANCEL: at the right hip the (a)+(b) error is "
+        f"{rms['ab'][2]:.1f} N m RMS and (a)+(b)+(c) is {rms['abc'][2]:.1f} "
+        f"N m, even though (c) on its own is {rms['c'][2]:.1f} N m — larger "
+        "than either. That is "
+        "luck, not structure — nothing makes a Cardan-angle second derivative "
+        "cancel a non-symmetric inertia tensor.")
+
+    # ---- 5. the audit as a bug detector -----------------------------------
+    fig, axes = new_grid(1, 2, height=3.0, width=8.6)
+    for key in ASICS_VARIANTS:
+        colour, ls, lw, z = ASICS_STYLE[key]
+        axes[0, 0].plot(t[sl], data["audit"][key].imbalance[sl],
+                        color=colour or JOINT_COLORS[0], ls=ls, lw=lw,
+                        zorder=z, label=ASICS_LABELS[key])
+    style_axes(axes[0, 0], "time (s)", "energy imbalance dE/dt − ΣP (W)")
+    axes[0, 0].legend(frameon=False, fontsize=7.4)
+    bars = [imb[k]["rms"] for k in ASICS_VARIANTS]
+    axes[0, 1].bar(np.arange(3), bars,
+                   color=[JOINT_COLORS[2], "#9a6bd6", NEUTRAL], width=0.6)
+    axes[0, 1].set_xticks(np.arange(3))
+    axes[0, 1].set_xticklabels(["corrected", "(a)+(b)", "(a)+(b)+(c)"])
+    style_axes(axes[0, 1], "", "imbalance, RMS (W)")
+    add(fig,
+        "<b>The energy audit, used as a bug detector.</b> The audit code is "
+        "the corrected one in all three cases — correct inertia transform, "
+        "correct rotational kinetic energy — and only the joint torques handed "
+        "to it are swapped. d(KE+PE)/dt must equal the ground power plus the "
+        "eleven joint powers plus the residual power; with correct torques it "
+        f"does, to {imb['correct']['rms']:.1f} W RMS "
+        f"({100 * imb['correct']['rms'] / imb['correct']['scale']:.2f}% of "
+        "peak dE/dt), which is finite-difference noise. With the legacy "
+        f"torques the same instrument reads {imb['abc']['rms']:.1f} W — "
+        f"{imb['abc']['rms'] / imb['correct']['rms']:.0f}× worse. No reference "
+        "data, no Visual3D, no ground truth was needed to see it: an "
+        "independent energy balance detects a broken Euler equation on its "
+        "own.")
+
+    # ---- tiles ------------------------------------------------------------
+    # RULE (CLAUDE.md): bilateral quantities are organised L | R per joint.
+    # JOINT_LABELS order is (R ankle, R knee, R hip, L ankle, L knee, L hip),
+    # so joint j pairs indices (j + 3, j) as (left, right).
+    tiles_rms = "".join([
+        stat(f"{name} Δτ RMS  L | R",
+             f"{rms['abc'][j + 3]:.2f} | {rms['abc'][j]:.2f}",
+             f"N m — {100 * rms['abc'][j + 3] / peak[j + 3]:.1f}% | "
+             f"{100 * rms['abc'][j] / peak[j]:.1f}% of peak")
+        for j, name in enumerate(("ankle", "knee", "hip"))])
+    tiles = "".join([
+        stat("energy imbalance, corrected", f"{imb['correct']['rms']:.1f}",
+             "W RMS", "pass"),
+        stat("energy imbalance, asics", f"{imb['abc']['rms']:.1f}",
+             f"W RMS ({imb['abc']['rms'] / imb['correct']['rms']:.0f}× worse)",
+             "fail"),
+        stat("largest peak Δτ",
+             f"{data['peak_diff']['abc'].max():.1f}",
+             f"N m at {JOINT_LABELS[int(np.argmax(data['peak_diff']['abc']))]}"),
+        stat("worst joint, % of peak",
+             f"{100 * (rms['abc'] / peak).max():.1f}",
+             f"% at {JOINT_LABELS[int(np.argmax(rms['abc'] / peak))]}"),
+    ])
+
+    rows = "".join(
+        f"<tr><td>{JOINT_LABELS[j]}</td><td>{peak[j]:.0f}</td>"
+        f"<td>{rms['ab'][j]:.2f}</td>"
+        f"<td>{100 * rms['ab'][j] / peak[j]:.2f}</td>"
+        f"<td>{rms['abc'][j]:.2f}</td>"
+        f"<td>{100 * rms['abc'][j] / peak[j]:.2f}</td>"
+        f"<td>{data['peak_diff']['abc'][j]:.2f}</td></tr>"
+        for j in range(6))
+    rms_table = (
+        '<div class="overflow"><table><thead><tr><th>joint</th>'
+        "<th>peak |τ| (N m)</th><th>(a)+(b) RMS Δτ (N m)</th><th>% of peak</th>"
+        "<th>(a)+(b)+(c) RMS Δτ (N m)</th><th>% of peak</th>"
+        f"<th>peak |Δτ| (N m)</th></tr></thead><tbody>{rows}</tbody></table>"
+        "</div>")
+
+    comp_rows = "".join(
+        f"<tr><td>{JOINT_LABELS[j]}</td>"
+        + "".join(f"<td>{data['rms_xyz']['abc'][j, c]:.2f}</td>"
+                  for c in range(3))
+        + "".join(f"<td>{100 * data['rms_xyz']['abc'][j, c] / max(np.abs(data['torque']['correct'][sl, j, c]).max(), 1e-9):.1f}</td>"
+                  for c in range(3))
+        + "</tr>" for j in range(6))
+    comp_table = (
+        '<div class="overflow"><table><thead><tr><th>joint</th>'
+        "<th>Δτ<sub>x</sub></th><th>Δτ<sub>y</sub></th><th>Δτ<sub>z</sub></th>"
+        "<th>% peak x</th><th>% peak y</th><th>% peak z</th>"
+        f"</tr></thead><tbody>{comp_rows}</tbody></table></div>")
+
+    single_rows = "".join(
+        f"<tr><td>{label}</td>"
+        + "".join(f"<td>{rms[key][j]:.2f}</td>" for j in range(6)) + "</tr>"
+        for key, label in (
+            ("a", "(a) one-sided R·I only"),
+            ("b", "(b) no gyroscopic term only"),
+            ("c", "(c) Cardan-angle α only (presumed)"),
+            ("ab", "(a)+(b) — both verified mistakes"),
+            ("abc", "(a)+(b)+(c) — the legacy as it ran")))
+    single_table = (
+        '<div class="overflow"><table><thead><tr><th>mistake</th>'
+        + "".join(f"<th>{name}</th>" for name in JOINT_LABELS)
+        + f"</tr></thead><tbody>{single_rows}</tbody></table></div>")
+
+    term_rows = "".join(
+        f"<tr><td>{name}</td><td>{v['i_alpha']:.2f}</td>"
+        f"<td>{v['gyro']:.3f}</td><td>{v['one_sided']:.2f}</td>"
+        f"<td>{v['cardan']:.2f}</td>"
+        f"<td>{v['omega_frac'][0]:.2f} / {v['omega_frac'][1]:.2f} / "
+        f"{v['omega_frac'][2]:.2f}</td></tr>"
+        for name, v in terms.items())
+    term_table = (
+        '<div class="overflow"><table><thead><tr><th>segment (right leg)</th>'
+        "<th>peak |I<sub>w</sub>α| (N m)</th>"
+        "<th>peak |ω×(I<sub>w</sub>ω)| (N m)</th>"
+        "<th>peak |(R I − R I R<sup>T</sup>)α| (N m)</th>"
+        "<th>peak |R I (α<sub>Cardan</sub> − α)| (N m)</th>"
+        "<th>mean |ω<sub>local</sub>| fraction x / y / z</th>"
+        f"</tr></thead><tbody>{term_rows}</tbody></table></div>")
+
+    gyro_max = max(v["gyro"] for v in terms.values())
+    one_max = max(v["one_sided"] for v in terms.values())
+    ml_frac = terms["thigh"]["omega_frac"][1]
+    worst = int(np.argmax(rms["abc"] / peak))
+    speed = belt_speed(trial, params.contact_threshold_n)
+
+    body = f"""
+<p class="eyebrow">Report 4 · boneid · legacy A/B · subject P1 trial {trial.index}</p>
+<h1>Implication of Asics</h1>
+<p class="subtitle">What the legacy MATLAB's three physics mistakes actually
+cost, measured on real walking data at {speed:.2f} m/s. Same subject, same
+trial, same anthropometry, same joint centres, same forces, same filtering,
+same chain — <b>only the equations differ</b>.</p>
+
+<div class="stat-row">{tiles_rms}</div>
+<div class="stat-row">{tiles}</div>
+
+<h2>The three mistakes</h2>
+<p>The legacy pipeline (<code>Asics_Moments4JCF_v3.m</code> plus
+<code>inv3d.m</code>) computes each segment's Euler balance three ways that
+are not the Euler equation. In descending order of how sure we are:</p>
+<ul>
+<li><b>(a) The inertia tensor is rotated one-sidedly.</b> VERIFIED, at
+<code>Asics_Moments4JCF_v3.m:369–380</code>:
+<code>IfootG = multiprod(R_FootTM, Ifoot)</code> — that is
+I<sub>G</sub> = R I<sub>local</sub>, not the similarity transform
+R I<sub>local</sub> R<sup>T</sup>. The result is not symmetric, so it is not
+an inertia tensor at all; it happens to have the right magnitude and the wrong
+mixing between axes.</li>
+<li><b>(b) Euler's equation is missing its gyroscopic term.</b> VERIFIED, at
+<code>inv3d.m</code> line 38: the moment balance is
+<code>multiprod(I,aANG)</code> and nothing else, so
+ω × (I<sub>w</sub>ω) is simply absent. The correct balance is
+d/dt(I<sub>w</sub>ω) = I<sub>w</sub>α + ω × (I<sub>w</sub>ω).</li>
+<li><b>(c) The "angular acceleration" is a Cardan-angle second derivative.</b>
+PRESUMED, and stated as such. The routine that produced it,
+<code>RoomSegAng.m</code>, is <em>missing from the repository</em>. Everything
+around it — a <code>zxy</code> Cardan sequence for every segment and joint,
+<code>filterdata1(FirstCentral(...),rate,0,12,4,0)</code> for every other
+angular velocity in the script — says it returned the second time derivative
+of the room-frame Cardan angles, 12 Hz low-passed, rather than the true
+angular-acceleration vector dω/dt with ω = unskew(Ṙ R<sup>T</sup>). Those
+agree only for rotation about one fixed coordinate axis. Because the source is
+lost, this one is behind a switch: <code>cardan_alpha=True</code> (the
+default, because the legacy did do this) and <code>cardan_alpha=False</code>
+for the two verified mistakes alone. Every figure below shows both.</li>
+</ul>
+<p><b>What is <em>not</em> reproduced.</b> The legacy also had genuine
+anthropometric typos — <code>Ileg = [Ilx 0 0; 0 Ify 0; 0 0 Ilz]</code> puts the
+<em>foot's</em> transverse moment into the shank tensor, and the thigh's
+<code>Ity</code> regression is fed the foot length <code>A(6)</code>. Those are
+data-entry errors, not physics. Reproducing them would turn this into a
+different-numbers comparison instead of a same-numbers-different-equations
+one, so <code>inverse_dynamics_whole_body_asicssource</code> keeps the
+corrected de Leva anthropometrics throughout and changes only the three
+calculations above.</p>
+<p>The A/B is therefore exact: both arms of it are the same function call
+(<code>core.inverse_dynamics_whole_body</code>) with a flags record set
+differently. Joint <em>forces</em> come out bit-identical — F = m a − F<sub>d</sub>
+− m g contains no inertia tensor — which is a useful check that nothing else
+drifted.</p>
+
+<h2>What it costs, joint by joint</h2>
+{rms_table}
+<p>RMS is over the 3-vector torque difference, so no component is hidden, over
+the whole trial minus {EDGE} frames at each end. The worst joint is
+{JOINT_LABELS[worst]}, at {100 * (rms['abc'] / peak).max():.1f}% of its own
+peak torque. For scale, this same pipeline reproduces Visual3D's independently
+computed ankle and knee torques to about 1.5–2 N m on this subject: the legacy
+mistakes at the ankle ({rms['abc'][0]:.2f} N m) sit <em>below</em> that
+inter-software agreement floor, while at the hip
+({rms['abc'][2]:.1f} N m) they sit well above it.</p>
+
+{figs[0]}
+{figs[1]}
+{figs[2]}
+
+<h2>Which mistake dominates</h2>
+{figs[3]}
+<p>Running each flag <em>separately</em> — same call, one mistake at a time —
+gives the answer plainly. RMS torque difference from the corrected pipeline,
+N m:</p>
+{single_table}
+<p>At the right hip: (a) alone costs {rms['a'][2]:.1f} N m, (b) alone
+{rms['b'][2]:.2f} N m, (c) alone {rms['c'][2]:.1f} N m. So <b>the missing
+gyroscopic term (b) is nearly free in walking</b>, the one-sided inertia
+rotation (a) is the expensive verified mistake, and the presumed (c) is of the
+same order as (a) again — but they partially cancel, which is why all three
+together ({rms['abc'][2]:.1f} N m) come out <em>smaller</em> than (a) and (c)
+would suggest. That cancellation is luck, not structure. <b>Of the two
+mistakes we are certain about, (a) is the one that matters.</b></p>
+{term_table}
+<p>The term magnitudes say why. The gyroscopic term the legacy dropped peaks at
+{gyro_max:.2f} N m over the whole right leg — against an I<sub>w</sub>α term
+that peaks at {terms['thigh']['i_alpha']:.1f} N m at the thigh and a joint
+torque that peaks at {peak[2]:.0f} N m. The one-sided-inertia error is
+{one_max / max(gyro_max, 1e-9):.0f}× larger.</p>
+
+<h2>Honest about the magnitude</h2>
+<p>These are small numbers, and it is worth being precise about why rather
+than reciting the usual explanation. Two hypotheses, both checkable here:</p>
+<ul>
+<li><b>"Walking is near-planar, so ω lies close to a principal axis and
+ω × (I ω) nearly vanishes." TRUE.</b> The last column of the table above is
+the mean fraction of each segment's angular velocity along its own local axes:
+the thigh spends {100 * ml_frac:.0f}% of |ω| on the medio-lateral axis, which
+is a principal axis of a diagonal de Leva tensor, and for ω exactly along a
+principal axis ω × (Iω) is identically zero. Hence a gyroscopic term of
+{gyro_max:.2f} N m in a {peak[2]:.0f} N m signal. Mistake (b) is genuinely
+harmless in walking — which is not a defence of the code, it is a statement
+about this task. Run, cut, or throw and it grows.</li>
+<li><b>"The one-sided R·I error partially cancels in the sagittal
+component." PARTLY TRUE, and it is the smaller effect.</b> The per-component
+table below shows the error is <em>not</em> concentrated in the sagittal
+(lab-x) component that gait papers report; relative to each component's own
+peak it is smallest there and largest out of plane, where the torques are
+small and nobody looks.</li>
+</ul>
+{comp_table}
+<p>So the real reason the legacy pipeline produced publishable-looking sagittal
+moment curves is not that its physics was nearly right. It is that in level
+walking the whole inertial term is a small fraction of the balance — the
+segment weights and the ground reaction dominate — so any error <em>inside</em>
+the inertial term is a small fraction of a small fraction, and it lands mostly
+in the components that never get plotted. A movement with fast three-
+dimensional segment rotation (a cutting manoeuvre, a throw, a fall) would put
+ω well off the principal axes and the same code would be visibly wrong.</p>
+
+<h2>The audit catches it without a reference</h2>
+{figs[4]}
+<p>This is the argument for building the energy audit in the first place. It
+uses no reference data and no ground truth: it just asks whether the rate of
+change of the model's own mechanical energy equals the power flowing into it
+through the joints, the ground and the residual. Correct torques close it to
+{imb['correct']['rms']:.1f} W RMS; the legacy torques leave
+{imb['abc']['rms']:.1f} W unaccounted for, and the (a)+(b) torques
+{imb['ab']['rms']:.1f} W. A team running the legacy code in 2014 had this
+instrument available and did not build it; the imbalance was sitting there the
+whole time.</p>
+
+<h2>Reproducing this</h2>
+<p><code>uv run python -m boneid.report asics</code> regenerates this page.
+The comparison itself is
+<code>core.inverse_dynamics_whole_body_asicssource(skel_r, kin_r, ground_r,
+skel_l, kin_l, ground_l, skel_u, kin_u, params, cardan_alpha=True)</code> —
+same signature and same return type as
+<code>core.inverse_dynamics_whole_body</code>, so anything that consumes one
+consumes the other, including the audit. <code>tests/test_asicssource.py</code>
+pins the behaviour: on the KEY-GYRO simulation, whose entire required torque
+<em>is</em> ω × (I<sub>w</sub>ω), the asicssource path returns approximately
+zero — proof that the reimplementation really does reproduce the bug rather
+than approximate it.</p>
+"""
+    return html_page("Implication of Asics", "", body)
+
+
+def main_asics(argv=None):
+    from pathlib import Path
+
+    from . import io_v3d as io
+
+    argv = list(argv or [])
+    path = argv[0] if len(argv) > 0 else V3D_PATH
+    index = int(argv[1]) if len(argv) > 1 else V3D_TRIAL
+
+    params = p1_params()
+    trial = io.load_v3d_trial(path, index)
+    data = asics_comparison(trial, params)
+
+    out = Path(__file__).resolve().parents[2] / "reports"
+    out.mkdir(exist_ok=True)
+    dest = out / "p1_asics.html"
+    dest.write_text(p1_asics_report_html(trial, data, params))
+    print(f"wrote {dest} ({dest.stat().st_size / 1e6:.1f} MB)")
+
+
 def main_v3d(argv=None):
     from pathlib import Path
 
@@ -2476,10 +2994,12 @@ def main_v3d(argv=None):
 
 
 def main(argv=None):
-    """`python -m boneid.report [v3d [matpath [trial_index]]]`."""
+    """`python -m boneid.report [v3d|asics [matpath [trial_index]]]`."""
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] == "v3d":
         main_v3d(argv[1:])
+    elif argv and argv[0] == "asics":
+        main_asics(argv[1:])
     else:
         main_s2s()
 

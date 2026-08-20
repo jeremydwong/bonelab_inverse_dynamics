@@ -895,3 +895,24 @@ def build_upper_body(trial: V3dTrial, skeleton: Skeleton | None = None,
                             r_world=r_world, prox_pos=prox_pos,
                             dist_pos=dist_pos)
     return skeleton, kin
+
+
+def trim_v3d_mat(src: str | os.PathLike, dst: str | os.PathLike,
+                 slots=(13,)) -> str:
+    """Write a slimmed copy of a ``*_5StridesData.mat`` keeping only `slots`.
+
+    Used to produce the committed sample ``data/p1_trial13_sample.mat``
+    (2.5 MB vs 84 MB) — small enough for the repo, and it reproduces the full
+    pipeline's numbers bit-for-bit (torque RMS vs Visual3D, residual, energy).
+
+    Round-trips through scipy's record representation, so every field the
+    loader reads survives. NOTE: trial ``.index`` reflects position in the
+    trimmed file (slot 13 becomes index 0), since the export itself carries
+    no slot numbering.
+    """
+    raw = scipy.io.loadmat(os.fspath(src), struct_as_record=True,
+                           squeeze_me=False)
+    data = raw["data"]
+    sel = data[:, list(slots)] if data.ndim == 2 else data[list(slots)]
+    scipy.io.savemat(os.fspath(dst), {"data": sel}, do_compression=True)
+    return os.fspath(dst)

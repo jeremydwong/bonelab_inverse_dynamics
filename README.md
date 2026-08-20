@@ -228,12 +228,14 @@ conversion instruction in its first cell
 | Notebook | Needs data? | Colab |
 |---|---|---|
 | `s2s_report.ipynb` | no — pure simulation | runs as-is once the repo is public |
-| `quickstart_report.ipynb` | yes — one `*_5StridesData.mat` | set `DATA_URL` in the first code cell |
-| `p1_report.ipynb` | yes — same | set `DATA_URL` in the first code cell |
+| `quickstart_report.ipynb` | yes | `DATA_URL` defaults to the GitHub release asset |
+| `p1_report.ipynb` | yes | same |
 
 Each notebook begins with a Colab bootstrap cell that is a no-op locally: on
-Colab it pip-installs `boneid` from GitHub and (where needed) downloads the
-`.mat` from a URL you paste in (a Dropbox share link with `?dl=1` works).
+Colab it pip-installs `boneid` from GitHub and downloads the `.mat` from
+`DATA_URL`, which defaults to this repo's release asset (below). Locally the
+notebooks look for the full Dropbox data first and fall back to the committed
+sample.
 
 **To make the Colab badges live** (repo is currently private):
 
@@ -269,7 +271,17 @@ Broader coverage in `test_coverage.py`, `test_powers.py`, `test_io_v3d.py`,
 
 ## Validation data
 
-- Local: `/Users/jeremy/Dropbox/Public/inverse-dynamics-test-data/p{1..9}_5StridesData.mat`
+Three tiers, largest to smallest:
+
+- **Committed sample** — `data/p1_trial13_sample.mat` (2.5 MB): subject P1's
+  trial-13 slot only, produced by `io_v3d.trim_v3d_mat` from the full export.
+  Reproduces the pipeline's validation numbers **bit-for-bit** (torque RMS vs
+  Visual3D 3.11/4.09/17.32 R, 2.53/4.06/15.91 L N·m; residual mean −1 N).
+  Note its trial `.index` is 0, since slot numbering is positional.
+- **Release asset** — the full P1 export (84 MB, 28 walking conditions) is a
+  GitHub release asset (tag `data-p1-v1`), kept out of git history for size:
+  <https://github.com/jeremydwong/bonelab_inverse_dynamics/releases/download/data-p1-v1/p1_5StridesData.mat>
+- Local (full set): `/Users/jeremy/Dropbox/Public/inverse-dynamics-test-data/p{1..9}_5StridesData.mat`
   — Visual3D exports (120 Hz mocap / 1200 Hz dual-belt forces) of the
   van der Zee, Mundinger & Kuo (2022) dataset: 33 controlled **walking**
   conditions per subject (speed 0.7–2.0 m/s × step length × step width — no

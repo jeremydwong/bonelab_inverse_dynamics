@@ -152,6 +152,10 @@ Tests: `tests/test_key.py` holds the small intelligible KEY suite
   ≤ 2 analog samples). Naming trap: right shank is `rSk` for AngVel/CG* but
   `rSh` for ProxEnd*; use `io_v3d.reference_series`.
 - Published dataset & description: https://www.nature.com/articles/s41597-022-01817-1
+- In-repo sample: `data/p1_trial13_sample.mat` (2.5 MB, trial-13 slot only,
+  made by `io_v3d.trim_v3d_mat`; its `.index` is 0) — reproduces validation
+  numbers bit-for-bit. Full P1 export (84 MB) is a GitHub release asset,
+  tag `data-p1-v1`.
 - End-to-end check: `io_v3d.build_chain` + `core.inverse_dynamics` reproduces
   Visual3D's rFt/rSh ProxEndTorque to ~1.6/1.7 N m RMS on p1 trial 0
   (peaks ~105/70 N m); hip ~9 N m (hip-center model differences).

@@ -1699,11 +1699,13 @@ def p1_report_html(trial, chain, skel_u, kin_u, whole, audit, params, sweep,
             "Drag to orbit.</p>"
             "<p>Directly below the animation: both belts' vertical force, "
             "joint-centre heights (both legs, one panel so the axes are "
-            "necessarily identical), and sagittal joint torques, on the "
-            "animation's own time axis. The traces <b>draw themselves in "
-            "left-to-right, synchronised to the looping animation — the same "
-            "period, and both start on page load</b> (the faint full traces "
-            "stay behind for context); the reveal is an independent "
+            "necessarily identical), and sagittal joint torques, as a "
+            "<b>scrolling scope</b>: the data streams right-to-left through a "
+            "fixed window with the orange centre line pinned at the "
+            "animation's current instant — recent past on the left, immediate "
+            "future on the right. The scroll is <b>synchronised to the "
+            "looping animation — the same period, and both start on page "
+            "load</b>; it is an independent "
             f"<code>requestAnimationFrame</code> loop of exactly "
             f"{period:.3f} s ({n_key} keyframes at {fps:.0f} fps), not a read "
             "of the viewer's clock, which sits in a sandboxed iframe.</p>"
@@ -2221,19 +2223,21 @@ def _strip_path(t, y, x0, x1, ytop, ybot, lo, hi, max_pts: int = 900) -> str:
 
 
 def strip_charts(t, panels, period_s: float, fps: float,
-                 n_frames: int, uid: str = "strip") -> str:
-    """Three stacked SVG strips sharing one time axis, drawn in live.
+                 n_frames: int, uid: str = "strip",
+                 window_s: float = 2.4) -> str:
+    """Stacked SVG strips as a scrolling scope, synchronised to the animation.
 
     `panels` is a list of `(ylabel, [(label, color, dash, y), ...])`; every
     series in a panel is drawn on that panel's own shared y-scale, which is how
     the bilateral rule is honoured here — the left and right trace of a joint
     live in the SAME panel and therefore literally cannot have different axes.
 
-    Rather than a cursor sweeping over static traces, the DATA scans in
-    left-to-right: the full traces sit behind at low opacity for context, and
-    a clip rectangle reveals them at full strength up to "now", so the thin
-    leading edge is the pen head. The clip width is advanced by
-    `requestAnimationFrame` with period `period_s` — the meshcat clip's exact
+    The DATA scrolls right-to-left through a fixed `window_s`-second window
+    with "now" pinned at the CENTRE of the plot: the left half is the recent
+    past, the right half the immediate future. The traces are drawn once at
+    full length (plus a tiled copy on each side so the looping trial wraps
+    without a gap) inside a clipped group, and `requestAnimationFrame`
+    translates that group with period `period_s` — the meshcat clip's exact
     period, `(n_frames − 1) / fps` (see `viewer_period`). Both the clip and
     this loop start when the page loads, so they run at the same rate from the
     same instant; nothing here reads the viewer's clock, because the viewer is
@@ -2241,10 +2245,17 @@ def strip_charts(t, panels, period_s: float, fps: float,
     """
     t = np.asarray(t, float)
     x0, x1 = STRIP_PAD_L, STRIP_WIDTH - STRIP_PAD_R
+    plotw = x1 - x0
+    span = float(t[-1] - t[0])
+    px_per_s = plotw / float(window_s)
+    data_w = span * px_per_s               # full-trial width in user units
+    xc = x0 + 0.5 * plotw                  # the "now" line
     total_h = len(panels) * (STRIP_HEIGHT + STRIP_GAP) + 26
+    axis_y = len(panels) * (STRIP_HEIGHT + STRIP_GAP)
+
     out = [f'<svg id="{uid}-svg" viewBox="0 0 {STRIP_WIDTH} {total_h}" '
            f'width="100%" role="img" '
-           f'aria-label="time-locked strip charts">']
+           f'aria-label="time-locked scrolling strip charts">']
     legend = []
     traces: list[str] = []
     for p_i, (ylabel, series) in enumerate(panels):
@@ -2254,7 +2265,7 @@ def strip_charts(t, panels, period_s: float, fps: float,
         hi = max(float(np.max(y)) for *_, y in series)
         pad = 0.06 * max(hi - lo, 1e-9)
         lo, hi = lo - pad, hi + pad
-        out.append(f'<rect x="{x0}" y="{ytop}" width="{x1 - x0}" '
+        out.append(f'<rect x="{x0}" y="{ytop}" width="{plotw}" '
                    f'height="{STRIP_HEIGHT}" fill="{SURFACE}" '
                    f'stroke="{FAINT}" stroke-width="0.8"/>')
         if lo < 0 < hi:
@@ -2265,7 +2276,7 @@ def strip_charts(t, panels, period_s: float, fps: float,
             d = f' stroke-dasharray="{dash}"' if dash else ""
             traces.append(f'<polyline fill="none" stroke="{color}" '
                           f'stroke-width="1.3"{d} points="'
-                          f'{_strip_path(t, y, x0, x1, ytop, ybot, lo, hi)}"/>')
+                          f'{_strip_path(t, y, x0, x0 + data_w, ytop, ybot, lo, hi, max_pts=2000)}"/>')
         fmt = "{:.2f}" if max(abs(lo), abs(hi)) < 10 else "{:.0f}"
         out.append(f'<text x="{x0 - 5}" y="{ytop + 10}" text-anchor="end" '
                    f'font-size="9.5" fill="{NEUTRAL}">{fmt.format(hi)}</text>')
@@ -2280,46 +2291,54 @@ def strip_charts(t, panels, period_s: float, fps: float,
         legend.append(" &nbsp; ".join(
             f'<span style="color:{c}">&#9644;</span> {lab}'
             for lab, c, _, _ in series))
-    axis_y = len(panels) * (STRIP_HEIGHT + STRIP_GAP)
-    # ghost of the full traces for context, then the live reveal on top
-    out.append(f'<g opacity="0.18">{"".join(traces)}</g>')
-    out.append(f'<clipPath id="{uid}-clip"><rect id="{uid}-cliprect" '
-               f'x="{x0}" y="0" width="0" height="{axis_y}"/></clipPath>')
-    out.append(f'<g clip-path="url(#{uid}-clip)">{"".join(traces)}</g>')
+
+    # scrolling time ticks, one per second, drawn with the data
+    ticks = []
+    sec = int(np.ceil(t[0]))
+    while sec <= t[-1]:
+        tx = x0 + (sec - t[0]) * px_per_s
+        ticks.append(f'<line x1="{tx:.1f}" y1="{axis_y}" x2="{tx:.1f}" '
+                     f'y2="{axis_y + 4}" stroke="{NEUTRAL}" stroke-width="0.8"/>'
+                     f'<text x="{tx:.1f}" y="{axis_y + 15}" '
+                     f'text-anchor="middle" font-size="10" '
+                     f'fill="{NEUTRAL}">{sec:d}</text>')
+        sec += 1
+    pan_content = "".join(traces) + "".join(ticks)
+
+    # three tiled copies so the looping window never shows a gap
+    out.append(f'<clipPath id="{uid}-clip"><rect x="{x0}" y="0" '
+               f'width="{plotw}" height="{axis_y + 18}"/></clipPath>')
+    out.append(f'<g clip-path="url(#{uid}-clip)"><g id="{uid}-pan">'
+               + "".join(f'<g transform="translate({k * data_w:.2f},0)">'
+                         f'{pan_content}</g>' for k in (-1, 0, 1))
+               + "</g></g>")
     out.append(f'<line x1="{x0}" y1="{axis_y}" x2="{x1}" y2="{axis_y}" '
                f'stroke="{FAINT}"/>')
-    for frac in (0.0, 0.25, 0.5, 0.75, 1.0):
-        x = x0 + (x1 - x0) * frac
-        out.append(f'<text x="{x:.1f}" y="{axis_y + 14}" text-anchor="middle" '
-                   f'font-size="10" fill="{NEUTRAL}">'
-                   f'{t[0] + frac * (t[-1] - t[0]):.1f}</text>')
-    out.append(f'<text x="{x1}" y="{axis_y + 25}" text-anchor="end" '
-               f'font-size="10" fill="{NEUTRAL}">time (s)</text>')
-    # the pen head: a thin leading edge at the reveal boundary
-    out.append(f'<line id="{uid}-cursor" x1="{x0}" y1="0" x2="{x0}" '
-               f'y2="{axis_y}" stroke="{JOINT_COLORS[1]}" '
-               f'stroke-width="1.1" opacity="0.7"/>')
-    # the cursor's time readout lives in the left gutter, clear of the ticks
-    out.append(f'<text id="{uid}-time" x="{x0 - 5}" y="{axis_y + 14}" '
-               f'text-anchor="end" font-size="10" '
+    # "now": a fixed centre line spanning the strips
+    out.append(f'<line x1="{xc}" y1="0" x2="{xc}" y2="{axis_y}" '
+               f'stroke="{JOINT_COLORS[1]}" stroke-width="1.4"/>')
+    out.append(f'<text id="{uid}-time" x="{xc}" y="{axis_y + 15}" '
+               f'text-anchor="middle" font-size="10" font-weight="600" '
                f'fill="{JOINT_COLORS[1]}"></text>')
+    out.append(f'<text x="{x1}" y="{axis_y + 15}" text-anchor="end" '
+               f'font-size="10" fill="{NEUTRAL}">time (s)</text>')
     out.append("</svg>")
 
     script = f"""<script>
 (function() {{
-  var cursor = document.getElementById("{uid}-cursor");
-  var clip   = document.getElementById("{uid}-cliprect");
-  var label  = document.getElementById("{uid}-time");
-  var X0 = {x0}, X1 = {x1}, T0 = {t[0]:.6f}, T1 = {t[-1]:.6f};
-  var PERIOD = {period_s:.6f};          // (n_frames - 1) / fps, exactly
+  var pan   = document.getElementById("{uid}-pan");
+  var label = document.getElementById("{uid}-time");
+  var T0 = {t[0]:.6f}, SPAN = {span:.6f}, PXS = {px_per_s:.6f};
+  var XC_OFF = {0.5 * plotw:.6f};        // centre offset from the plot's left edge
+  var PERIOD = {period_s:.6f};           // (n_frames - 1) / fps, exactly
   var start = null;
   function tick(now) {{
     if (start === null) start = now;
-    var u = (((now - start) / 1000.0) % PERIOD) / PERIOD;
-    var x = X0 + (X1 - X0) * u;
-    clip.setAttribute("width", x - X0);
-    cursor.setAttribute("x1", x); cursor.setAttribute("x2", x);
-    label.textContent = (T0 + (T1 - T0) * u).toFixed(2) + " s";
+    var tau = ((now - start) / 1000.0) % PERIOD;   // loop time in [0, SPAN)
+    // translate so the sample at time tau sits at the centre line
+    var tx = XC_OFF - tau * PXS;
+    pan.setAttribute("transform", "translate(" + tx + ",0)");
+    label.textContent = (T0 + tau).toFixed(2) + " s";
     window.requestAnimationFrame(tick);
   }}
   window.requestAnimationFrame(tick);

@@ -1682,17 +1682,6 @@ def p1_report_html(trial, chain, skel_u, kin_u, whole, audit, params, sweep,
         esc = viewer_html.replace("&", "&amp;").replace('"', "&quot;")
         viewer = (
             "<h2>Step 8 — the trial, moving</h2>"
-            "<h3>Time-locked strips</h3>"
-            "<p>Three compact strips on the animation's own time axis: joint-"
-            "centre heights (both legs, one panel so the axes are necessarily "
-            "identical), sagittal joint torques, and both belts' vertical "
-            "force. The orange cursor is <b>synchronised to the looping "
-            "animation below — the same period, and both start on page "
-            "load</b>; it is an independent "
-            f"<code>requestAnimationFrame</code> loop of exactly "
-            f"{period:.3f} s ({n_key} keyframes at {fps:.0f} fps), not a read "
-            "of the viewer's clock, which sits in a sandboxed iframe.</p>"
-            f"{strips}"
             "<p>All twelve modelled segments — both legs (foot, shank, thigh), "
             "the pelvis, the torso+head and both arms — posed from the measured "
             "joint centres, every marker in the export in red (anatomical "
@@ -1708,7 +1697,17 @@ def p1_report_html(trial, chain, skel_u, kin_u, whole, audit, params, sweep,
             f"L5/S1-to-acromion distance — it is not decoration, it is what "
             f"that mass looks like. Decimated to {fps:.0f} fps, looping. "
             "Drag to orbit.</p>"
-            f'<iframe class="viewer" srcdoc="{esc}"></iframe>')
+            "<p>Directly below the animation: joint-centre heights (both "
+            "legs, one panel so the axes are necessarily identical), sagittal "
+            "joint torques, and both belts' vertical force, on the "
+            "animation's own time axis. The orange cursor is <b>synchronised "
+            "to the looping animation — the same period, and both start on "
+            "page load</b>; it is an independent "
+            f"<code>requestAnimationFrame</code> loop of exactly "
+            f"{period:.3f} s ({n_key} keyframes at {fps:.0f} fps), not a read "
+            "of the viewer's clock, which sits in a sandboxed iframe.</p>"
+            f'<iframe class="viewer" srcdoc="{esc}"></iframe>'
+            f"{strips}")
         if urdf_html is not None:
             esc_u = urdf_html.replace("&", "&amp;").replace('"', "&quot;")
             viewer += (

@@ -230,6 +230,7 @@ conversion instruction in its first cell
 | `s2s_report.ipynb` | no — pure simulation | runs as-is once the repo is public |
 | `quickstart_report.ipynb` | yes | `DATA_URL` defaults to the GitHub release asset |
 | `p1_report.ipynb` | yes | same |
+| `legacy_error_math.ipynb` | no — pure math | a worksheet deriving the three MATLAB errors, with a numerical check after every claim |
 
 Each notebook begins with a Colab bootstrap cell that is a no-op locally: on
 Colab it pip-installs `boneid` from GitHub and downloads the `.mat` from

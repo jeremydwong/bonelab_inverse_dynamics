@@ -14,12 +14,11 @@ from pathlib import Path
 
 import numpy as np
 
-from boneid import viz
 from boneid.core import (AnalysisParams, detect_contact,
                          energy_audit_whole_body, inverse_dynamics_whole_body)
 from boneid.io_v3d import (build_chain, build_upper_body, crossover_flags,
                            estimate_body_mass, load_v3d_trial)
-from boneid.report import quickstart_report_html
+from boneid.report import p1_viewer_html, quickstart_report_html
 
 # ---- study config (the only thing you edit) -------------------------------
 MAT_PATH = "/Users/jeremy/Dropbox/Public/inverse-dynamics-test-data/p1_5StridesData.mat"
@@ -89,11 +88,15 @@ def main(mat_path: str = MAT_PATH, trial_index: int = TRIAL_INDEX):
                                     skel_u, kin_u, whole, params)
 
     # Step 10 — report (figures + numbers + 3-D animation).
+    viewer_html = p1_viewer_html(
+        trial, (skel_r, kin_r, ground_r, skel_l, kin_l, ground_l),
+        skel_u, kin_u, params)
     html = quickstart_report_html(
         trial=trial, body_mass=body_mass, params=params,
         chains={"r": (skel_r, kin_r, ground_r), "l": (skel_l, kin_l, ground_l)},
         upper=(skel_u, kin_u),
-        contact=contact, crossover=crossover, whole=whole, audit=audit)
+        contact=contact, crossover=crossover, whole=whole, audit=audit,
+        viewer_html=viewer_html)
     out = Path(__file__).resolve().parents[1] / "reports" / "quickstart_report.html"
     out.parent.mkdir(exist_ok=True)
     out.write_text(html)

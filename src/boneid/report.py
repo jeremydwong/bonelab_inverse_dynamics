@@ -1675,7 +1675,8 @@ def p1_report_html(trial, chain, skel_u, kin_u, whole, audit, params, sweep,
             None if k == 0 else "4 3",
             legs[SIDES[k]].joint_torque[strip_slice, j, 0])
            for k in range(2) for j in range(3)])],
-        period_s=period, fps=fps, n_frames=n_key)
+        period_s=period, fps=fps, n_frames=n_key,
+        viewer_iframe="p1-viewer")
 
     viewer = ""
     if viewer_html is not None:
@@ -1705,11 +1706,13 @@ def p1_report_html(trial, chain, skel_u, kin_u, whole, audit, params, sweep,
             "animation's current instant — recent past on the left, immediate "
             "future on the right. The scroll is <b>synchronised to the "
             "looping animation — the same period, and both start on page "
-            "load</b>; it is an independent "
-            f"<code>requestAnimationFrame</code> loop of exactly "
-            f"{period:.3f} s ({n_key} keyframes at {fps:.0f} fps), not a read "
-            "of the viewer's clock, which sits in a sandboxed iframe.</p>"
-            f'<iframe class="viewer" srcdoc="{esc}"></iframe>'
+            "load</b> — and the scroll <b>listens to the viewer</b>: it reads the "
+            "animation clock directly, so pausing in the viewer's Animations "
+            "panel freezes the graph and dragging its time scrubber drags "
+            f"the graph with it (period {period:.3f} s, {n_key} keyframes at "
+            f"{fps:.0f} fps; a wall-clock loop stands in until the viewer "
+            "has loaded).</p>"
+            f'<iframe id="p1-viewer" class="viewer" srcdoc="{esc}"></iframe>'
             f"{strips}")
         if urdf_html is not None:
             esc_u = urdf_html.replace("&", "&amp;").replace('"', "&quot;")
@@ -2224,7 +2227,8 @@ def _strip_path(t, y, x0, x1, ytop, ybot, lo, hi, max_pts: int = 900) -> str:
 
 def strip_charts(t, panels, period_s: float, fps: float,
                  n_frames: int, uid: str = "strip",
-                 window_s: float = 2.4) -> str:
+                 window_s: float = 2.4,
+                 viewer_iframe: str | None = None) -> str:
     """Stacked SVG strips as a scrolling scope, synchronised to the animation.
 
     `panels` is a list of `(ylabel, [(label, color, dash, y), ...])`; every
@@ -2240,8 +2244,15 @@ def strip_charts(t, panels, period_s: float, fps: float,
     translates that group with period `period_s` — the meshcat clip's exact
     period, `(n_frames − 1) / fps` (see `viewer_period`). Both the clip and
     this loop start when the page loads, so they run at the same rate from the
-    same instant; nothing here reads the viewer's clock, because the viewer is
-    in a sandboxed iframe. The caption says so.
+    same instant.
+
+    When `viewer_iframe` names the meshcat iframe's element id, the scroll is
+    driven by the VIEWER'S OWN CLOCK instead: the srcdoc iframe shares the
+    parent's origin, so the script reads `contentWindow.viewer.animator.time`
+    each frame — meshcat's Animations panel (play / pause / reset / timeScale
+    and the time scrubber) all write through that field, so pausing freezes
+    the graph and scrubbing drags it. Falls back to the wall-clock loop until
+    the viewer has loaded (or if access ever fails).
     """
     t = np.asarray(t, float)
     x0, x1 = STRIP_PAD_L, STRIP_WIDTH - STRIP_PAD_R
@@ -2324,6 +2335,7 @@ def strip_charts(t, panels, period_s: float, fps: float,
                f'font-size="10" fill="{NEUTRAL}">time (s)</text>')
     out.append("</svg>")
 
+    viewer_iframe_js = f'"{viewer_iframe}"' if viewer_iframe else "null"
     script = f"""<script>
 (function() {{
   var pan   = document.getElementById("{uid}-pan");
@@ -2331,10 +2343,31 @@ def strip_charts(t, panels, period_s: float, fps: float,
   var T0 = {t[0]:.6f}, SPAN = {span:.6f}, PXS = {px_per_s:.6f};
   var XC_OFF = {0.5 * plotw:.6f};        // centre offset from the plot's left edge
   var PERIOD = {period_s:.6f};           // (n_frames - 1) / fps, exactly
+  var IFRAME = {viewer_iframe_js};
   var start = null;
+  function viewer_time() {{
+    // the srcdoc iframe shares our origin; meshcat's play/pause/scrub all
+    // write through animator.time, so this IS the animation's clock.
+    if (!IFRAME) return null;
+    try {{
+      var f = document.getElementById(IFRAME);
+      var a = f && f.contentWindow && f.contentWindow.viewer
+              && f.contentWindow.viewer.animator;
+      if (a && a.duration > 0) {{
+        // the action's own clock is authoritative (it wraps per loop and is
+        // written by play, pause and the time scrubber alike)
+        var tt = (a.actions && a.actions.length) ? a.actions[0].time : a.time;
+        if (isFinite(tt))
+          return ((tt % a.duration) + a.duration) % a.duration;
+      }}
+    }} catch (e) {{}}
+    return null;
+  }}
   function tick(now) {{
     if (start === null) start = now;
-    var tau = ((now - start) / 1000.0) % PERIOD;   // loop time in [0, SPAN)
+    var tau = viewer_time();
+    if (tau === null)
+      tau = ((now - start) / 1000.0) % PERIOD;     // fallback: wall clock
     // translate so the sample at time tau sits at the centre line
     var tx = XC_OFF - tau * PXS;
     pan.setAttribute("transform", "translate(" + tx + ",0)");
@@ -3053,13 +3086,15 @@ if __name__ == "__main__":
 # ---------------------------------------------------------------------------
 
 def quickstart_report_html(trial, body_mass, params, chains, upper, contact,
-                           crossover, whole, audit) -> str:
+                           crossover, whole, audit,
+                           viewer_html: str | None = None) -> str:
     """Compact report for the 10-step quickstart: the essential outputs of a
     whole-body inverse-dynamics run and nothing else. `chains` maps side ->
     (skeleton, kin, ground); `upper` is `(skel_u, kin_u)` from
     `io_v3d.build_upper_body`; `contact` maps side -> (mask, events);
     `crossover` maps side -> bool flags; `whole` is
-    `core.inverse_dynamics_whole_body`."""
+    `core.inverse_dynamics_whole_body`; `viewer_html` is the standalone
+    meshcat page from `p1_viewer_html`, embedded as the 3-D animation."""
     skel_u, kin_u = upper
     skel_r, kin_r, ground_r = chains["r"]
     t = kin_r.t
@@ -3158,6 +3193,17 @@ def quickstart_report_html(trial, body_mass, params, chains, upper, contact,
              "N at the torso COM"),
     ])
 
+    viewer = ""
+    if viewer_html is not None:
+        esc = viewer_html.replace("&", "&amp;").replace('"', "&quot;")
+        viewer = (
+            '<h2>3-D animation</h2>'
+            '<p>The whole body in motion: both legs, the pelvis spanning the '
+            'hips, the mass-sized torso, both arms, every marker (red), and '
+            'the ground-reaction force arrow per belt. Drag to orbit, scroll '
+            'to zoom; the clip loops.</p>'
+            f'<iframe class="viewer" srcdoc="{esc}"></iframe>')
+
     body = f"""
 <p class="eyebrow">boneid · quickstart · 10 steps</p>
 <h1>Inverse Dynamics in Ten Steps</h1>
@@ -3182,6 +3228,8 @@ the L5/S1 joint wrench, a near-zero residual and an energy audit — the
 <li><b>Energy audit</b> — <code>energy_audit_whole_body(...)</code>: d(KE+PE)/dt vs summed wrench power, every run.</li>
 <li><b>Report</b> — this page.</li>
 </ol>
+
+{viewer}
 
 {"".join(figs)}
 

@@ -505,13 +505,47 @@ def draw_torso(vis: meshcat.Visualizer, l5s1: np.ndarray, top: np.ndarray,
     return float(radius)
 
 
+def foot_wedge_mesh(heel_local: np.ndarray, tip_local: np.ndarray,
+                    width: float):
+    """(vertices, faces) of a wedge-shaped foot in the FOOT SEGMENT frame.
+
+    A foot drawn as a prox->dist cylinder has no heel: the ankle joint sits at
+    the segment origin and the cylinder runs ankle->toe, so everything behind
+    the ankle vanishes.  This builds the classic sagittal wedge instead —
+    the triangle (ankle, heel, toe tip) extruded to `width` along the
+    medio-lateral axis — from three points the calibration actually measured:
+    the segment origin (the ankle, [0,0,0] by construction), `heel_local` and
+    `tip_local`, both expressed in the foot frame relative to the ankle
+    (io_c3d's `StaticCalibration` carries the heel; the tip is the anterior
+    toebox marker in the same frame).  Faces are wound consistently outward
+    for a right foot (heel behind the ankle, tip in front, +y medial-ish);
+    meshcat's default material renders both sides, so winding is cosmetic.
+
+    Pose it RIGIDLY with `world_from_segment` at the proximal joint — a wedge
+    must never ride the cylinder scale track.
+    """
+    heel = np.asarray(heel_local, dtype=float)
+    tip = np.asarray(tip_local, dtype=float)
+    ankle = np.zeros(3)
+    h = 0.5 * float(width)
+    off = np.array([0.0, h, 0.0])
+    vertices = np.stack([ankle - off, heel - off, tip - off,     # right face
+                         ankle + off, heel + off, tip + off])    # left face
+    faces = np.array([[0, 1, 2], [3, 5, 4],          # side caps
+                      [0, 2, 5], [0, 5, 3],          # dorsal (ankle-tip)
+                      [1, 4, 5], [1, 5, 2],          # sole (heel-tip)
+                      [0, 3, 4], [0, 4, 1]])         # back of the heel
+    return vertices, faces
+
+
 def build_scene(vis: meshcat.Visualizer, skeleton: Skeleton,
                 girth_fraction: float = GIRTH_FRACTION,
                 top_girth_fraction: float = TOP_GIRTH_FRACTION,
                 ground: bool = True, force_arrow: bool = True,
                 root: str = ROOT,
                 pelvis_span=None, torso=None,
-                joint_balls: bool = True) -> None:
+                joint_balls: bool = True,
+                segment_meshes: dict | None = None) -> None:
     """Create every mesh once, under `<root>/...`, in its canonical pose.
 
     Segments are unit-height cylinders along local +Y (so `segment_transform`
@@ -524,14 +558,28 @@ def build_scene(vis: meshcat.Visualizer, skeleton: Skeleton,
     the pelvis band and the mass-sized trunk. They are sized here — from the
     whole trajectory, so the radii are constant over the trial — and only posed
     afterwards, which is what lets `animate` drive them with scale tracks.
+
+    `segment_meshes` maps a segment INDEX to `(vertices [N,3], faces [M,3])`
+    in that segment's own frame relative to its proximal joint (e.g.
+    `foot_wedge_mesh`).  Such a segment is drawn as that rigid mesh instead of
+    a stretchable cylinder, and `draw_skeleton`/`animate` pose it with the
+    segment's full rigid transform, never a scale track.
     """
+    segment_meshes = segment_meshes or {}
     n_seg = len(skeleton.segment_names)
     for s, name in enumerate(skeleton.segment_names):
         radius = segment_girth(skeleton, s, girth_fraction, top_girth_fraction)
         color = TOP_COLOR if s == n_seg - 1 else SEGMENT_COLOR
-        vis[f"{root}/skeleton/{name}"].set_object(
-            g.Cylinder(height=1.0, radius=radius),
-            g.MeshLambertMaterial(color=color))
+        if s in segment_meshes:
+            vertices, faces = segment_meshes[s]
+            vis[f"{root}/skeleton/{name}"].set_object(
+                g.TriangularMeshGeometry(np.asarray(vertices, float),
+                                         np.asarray(faces, np.uint32)),
+                g.MeshLambertMaterial(color=color))
+        else:
+            vis[f"{root}/skeleton/{name}"].set_object(
+                g.Cylinder(height=1.0, radius=radius),
+                g.MeshLambertMaterial(color=color))
         if joint_balls:
             vis[f"{root}/skeleton/{name}_joint"].set_object(
                 g.Sphere(radius * JOINT_RADIUS_FRACTION),
@@ -572,7 +620,8 @@ def draw_skeleton(vis: meshcat.Visualizer, skeleton: Skeleton,
                   top_girth_fraction: float = TOP_GIRTH_FRACTION,
                   build: bool = True, root: str = ROOT,
                   pelvis_span=None, torso=None,
-                  joint_balls: bool = True) -> None:
+                  joint_balls: bool = True,
+                  segment_meshes: dict | None = None) -> None:
     """Pose every segment at `frame_index`.
 
     Each segment mesh is stretched and placed between `kin.prox_pos[t, s]` and
@@ -597,16 +646,22 @@ def draw_skeleton(vis: meshcat.Visualizer, skeleton: Skeleton,
     Every entry is a `[3]` point or a `[T,3]` trajectory; trajectories are
     indexed at `frame_index`, so the same tuple works here and in `animate`.
     """
+    segment_meshes = segment_meshes or {}
     if build:
         build_scene(vis, skeleton, girth_fraction, top_girth_fraction,
                     root=root, pelvis_span=pelvis_span, torso=torso,
-                    joint_balls=joint_balls)
+                    joint_balls=joint_balls, segment_meshes=segment_meshes)
     t = int(frame_index)
     for s, name in enumerate(skeleton.segment_names):
         prox = kin.prox_pos[t, s]
         dist = kin.dist_pos[t, s]
-        vis[f"{root}/skeleton/{name}"].set_transform(
-            segment_transform(prox, dist, skeleton.length[s]))
+        if s in segment_meshes:
+            # rigid mesh (e.g. the foot wedge): full segment pose, no stretch
+            vis[f"{root}/skeleton/{name}"].set_transform(
+                _rigid(kin.r_world[t, s], prox))
+        else:
+            vis[f"{root}/skeleton/{name}"].set_transform(
+                segment_transform(prox, dist, skeleton.length[s]))
         if joint_balls:
             vis[f"{root}/skeleton/{name}_joint"].set_transform(
                 _rigid(kin.r_world[t, s], prox))
@@ -980,6 +1035,7 @@ def animate(vis: meshcat.Visualizer, skeleton: Skeleton,
             girth_fraction: float = GIRTH_FRACTION,
             top_girth_fraction: float = TOP_GIRTH_FRACTION,
             pelvis_span=None, torso=None,
+            segment_meshes: dict | None = None,
             ) -> anim.Animation:
     """Build and send a meshcat `Animation` over the whole trial.
 
@@ -1024,10 +1080,11 @@ def animate(vis: meshcat.Visualizer, skeleton: Skeleton,
     Returns the `Animation` (already sent to the viewer when `play=True`) so
     callers can inspect or re-send it.
     """
+    segment_meshes = segment_meshes or {}
     build_scene(vis, skeleton, girth_fraction, top_girth_fraction,
                 ground=True, force_arrow=ground is not None, root=root,
                 pelvis_span=pelvis_span, torso=torso,
-                joint_balls=joint_balls)
+                joint_balls=joint_balls, segment_meshes=segment_meshes)
     n_frames = int(kin.prox_pos.shape[0])
     step = max(1, int(decimate))
     fps = max(1.0, float(kin.rate) / step * float(realtime_scale))
@@ -1039,10 +1096,16 @@ def animate(vis: meshcat.Visualizer, skeleton: Skeleton,
             for s, name in enumerate(skeleton.segment_names):
                 prox = kin.prox_pos[t, s]
                 dist = kin.dist_pos[t, s]
-                # the stretch has to ride a separate scale track, so that the
-                # quaternion track only ever sees an unscaled rotation.
-                _frame_stretch(frame, f"{root}/skeleton/{name}", prox, dist,
-                               float(skeleton.length[s]))
+                if s in segment_meshes:
+                    # rigid mesh (the foot wedge): full segment pose, and no
+                    # scale track — its quaternion must stay unscaled.
+                    frame[f"{root}/skeleton/{name}"].set_transform(
+                        _rigid(kin.r_world[t, s], prox))
+                else:
+                    # the stretch has to ride a separate scale track, so that
+                    # the quaternion track only sees an unscaled rotation.
+                    _frame_stretch(frame, f"{root}/skeleton/{name}", prox,
+                                   dist, float(skeleton.length[s]))
                 if joint_balls:
                     frame[f"{root}/skeleton/{name}_joint"].set_transform(
                         _rigid(kin.r_world[t, s], prox))
@@ -1088,7 +1151,7 @@ def animate(vis: meshcat.Visualizer, skeleton: Skeleton,
 
     # a sane initial pose + camera so the static HTML looks right before play
     draw_skeleton(vis, skeleton, kin, 0, build=False, root=root,
-                  joint_balls=joint_balls)
+                  joint_balls=joint_balls, segment_meshes=segment_meshes)
     if ground is not None:
         draw_ground_force(vis, ground, 0, force_scale, head_length,
                           plane_height, root=root)

@@ -160,3 +160,86 @@ def test_two_leg_matches_serial_and_conserves_energy():
     unmodelled = body_mass - skr.mass.sum() - skl.mass[:3].sum()
     mean_fz = two.residual_force[i, 2].mean()
     assert abs(mean_fz + unmodelled * 9.81) < 0.05 * body_mass * 9.81
+
+
+# ---------------------------------------------------------------------------
+# io_c3d: static calibration carried as virtual points (synthetic)
+# ---------------------------------------------------------------------------
+
+def _synthetic_calibration():
+    """A StaticCalibration with one triangle cluster and one virtual point."""
+    from boneid.io_c3d import StaticCalibration
+
+    neutral = np.array([[0.0, 0.0, 0.0],
+                        [0.1, 0.0, 0.0],
+                        [0.0, 0.12, 0.0]])
+    point = np.array([0.05, 0.04, -0.3])          # off-cluster joint centre
+    r0 = rot_y(np.array([0.3]))[0]                # static anatomical frame
+    return StaticCalibration(
+        path="synthetic", side="r", sex="male", body_mass=70.0,
+        cluster_neutral={"foot": neutral}, points={"ankle": point},
+        r_static=np.stack([r0] * 4), lengths={}, foot_heel_local=np.zeros(3))
+
+
+def test_virtual_point_reconstruction_is_exact_for_rigid_motion():
+    """A calibrated point carried by the cluster fit must reproduce the
+    rigidly-moved point exactly, and the fit residual must be ~zero."""
+    from boneid.core import fit_rigid_transform
+    from boneid.io_c3d import virtual_points
+
+    cal = _synthetic_calibration()
+    neutral = cal.cluster_neutral["foot"]
+    angles = np.linspace(0.0, 1.2, 40)
+    r_true = rot_y(angles)                                   # [T,3,3]
+    d_true = np.stack([0.3 * angles, 0.1 * angles, 0 * angles], axis=1)
+    moving = np.einsum("tij,mj->tmi", r_true, neutral) + d_true[:, None]
+
+    poses = {"foot": fit_rigid_transform(neutral, moving)}
+    pts = virtual_points(poses, cal)
+    expected = np.einsum("tij,j->ti", r_true, cal.points["ankle"]) + d_true
+    np.testing.assert_allclose(pts["ankle"], expected, atol=1e-10)
+    np.testing.assert_allclose(poses["foot"][2], 0.0, atol=1e-10)
+    # and the carried frame is r_true @ r_static
+    r_carried = np.einsum("tij,jk->tik", poses["foot"][0], cal.r_static[0])
+    np.testing.assert_allclose(
+        r_carried, np.einsum("tij,jk->tik", r_true, cal.r_static[0]),
+        atol=1e-10)
+
+
+def test_despike_removes_label_swap_but_keeps_real_motion():
+    from boneid.io_c3d import _despike, _fill_gaps
+
+    rate = 300.0
+    t = np.arange(300) / rate
+    x = np.stack([0.5 * np.sin(2 * np.pi * 1.5 * t),      # ~4.7 m/s peak: real
+                  np.zeros_like(t), np.zeros_like(t)], axis=1)
+    swapped = x.copy()
+    swapped[100:130, 0] += 0.1                            # 30 m/s jumps in+out
+    cleaned = _fill_gaps(_despike(swapped.copy(), rate))
+    # the 0.1 m excursion is gone; what's left is the linear-bridge chord
+    # error over the 0.1 s span of a 1.5 Hz sine (~0.03 m), not the swap
+    assert np.abs(cleaned - x).max() < 0.03
+    untouched = _fill_gaps(_despike(x.copy(), rate))
+    np.testing.assert_array_equal(untouched, x)           # real motion kept
+
+
+def test_unswap_labels_restores_permanent_swap():
+    """Two markers that permanently exchange labels mid-trial are unswapped
+    by trajectory continuity; a lone real fast motion is left alone."""
+    from boneid.io_c3d import _unswap_labels
+
+    rate = 300.0
+    t = np.arange(600) / rate
+    truth_a = np.stack([0.3 * np.sin(2 * np.pi * t), np.zeros_like(t),
+                        0.6 + 0.02 * np.cos(2 * np.pi * t)], axis=1)
+    truth_b = truth_a + np.array([0.02, 0.01, -0.09])     # cluster-mate below
+    rec_a, rec_b = truth_a.copy(), truth_b.copy()
+    rec_a[300:], rec_b[300:] = truth_b[300:], truth_a[300:]   # permanent swap
+
+    markers = {"A": rec_a, "B": rec_b,
+               "C": truth_a + np.array([0.5, 0.5, 0.0])}      # bystander
+    swaps = _unswap_labels(markers, rate)
+    assert [(s[1], s[2]) for s in swaps] in ([("A", "B")], [("B", "A")])
+    np.testing.assert_allclose(markers["A"], truth_a, atol=1e-12)
+    np.testing.assert_allclose(markers["B"], truth_b, atol=1e-12)
+    np.testing.assert_allclose(markers["C"], truth_a + [0.5, 0.5, 0.0])

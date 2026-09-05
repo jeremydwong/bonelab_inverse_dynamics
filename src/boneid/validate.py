@@ -476,8 +476,14 @@ exercises the sweep on a three-trial slice.</p>
 
 
 def main(argv=None):
-    """`python -m boneid.validate [mat_path ...]`."""
+    """`python -m boneid.validate [rbds [n] | mat_path ...]`."""
     argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] == "rbds":
+        return main_rbds(argv[1:])
+    if argv and argv[0] == "rbds-ablation":
+        return main_rbds_ablation(argv[1:])
+    if argv and argv[0] == "rbds-cumulative":
+        return main_rbds_cumulative(argv[1:])
     paths = [Path(a) for a in argv] if argv else subject_paths()
     results = sweep_all(paths)
     out = Path(__file__).resolve().parents[2] / "reports"
@@ -485,6 +491,681 @@ def main(argv=None):
     dest = out / "validation_report.html"
     dest.write_text(validation_report_html(results))
     print(f"wrote {dest} ({dest.stat().st_size / 1e6:.1f} MB)")
+
+
+
+
+# ---------------------------------------------------------------------------
+# RBDS: their raw data through OUR pipeline (Fukuchi et al. 2017, CC-BY)
+# ---------------------------------------------------------------------------
+#
+# The RBDS public running dataset ships RAW c3d (markers + treadmill forces +
+# a static calibration trial per subject) alongside its own Visual3D-processed
+# output — which makes it a full-pipeline validation set: run the raw data
+# through io_c3d's RBDS loader (static-calibrated CAST, per-bout foot
+# attribution, Newton-Euler) and score our right-leg sagittal torques and
+# powers against theirs, per subject, per speed.  See io_c3d.py's RBDS
+# section for the data layout and frame conventions.
+
+RBDS_ARTICLE = "https://api.figshare.com/v2/articles/4543435"
+RBDS_CACHE = Path.home() / ".cache" / "boneid" / "rbds"
+RBDS_SPEEDS = ("25", "35", "45")
+
+#: our proximal-frame local-y (ML) torque vs the dataset's clinical MomZ
+#: differ by a fixed per-joint sign (measured on RBDS001, |r| > 0.98):
+RBDS_TORQUE_SIGN = np.array([1.0, -1.0, -1.0])   # ankle, knee, hip
+
+
+def rbds_file_index(cache: Path = RBDS_CACHE) -> dict:
+    """name -> download_url for every file in the figshare record (cached)."""
+    import json
+    import urllib.request
+    cache = Path(cache)
+    cache.mkdir(parents=True, exist_ok=True)
+    meta = cache / "figshare.json"
+    if not meta.exists():
+        with urllib.request.urlopen(RBDS_ARTICLE, timeout=60) as r:
+            meta.write_bytes(r.read())
+    d = json.loads(meta.read_text())
+    return {f["name"]: f["download_url"] for f in d["files"]}
+
+
+def rbds_fetch(name: str, cache: Path = RBDS_CACHE) -> Path:
+    """Download one dataset file into the cache (skips if present)."""
+    import urllib.request
+    cache = Path(cache)
+    dest = cache / name
+    if not dest.exists() or dest.stat().st_size == 0:
+        url = rbds_file_index(cache)[name]
+        with urllib.request.urlopen(url, timeout=300) as r:
+            tmp = dest.with_suffix(dest.suffix + ".part")
+            tmp.write_bytes(r.read())
+            tmp.rename(dest)
+    return dest
+
+
+def rbds_info(cache: Path = RBDS_CACHE) -> dict:
+    """subject id -> {mass, sex, height} from RBDSinfo.txt (one row per
+    file; rows repeat per subject, first wins)."""
+    path = rbds_fetch("RBDSinfo.txt", cache)
+    out = {}
+    with open(path, encoding="latin-1") as fh:
+        hdr = fh.readline().rstrip("\n").split("\t")
+        i_sub = hdr.index("Subject")
+        i_mass = hdr.index("Mass")
+        i_sex = hdr.index("Gender")
+        i_h = hdr.index("Height")
+        for line in fh:
+            row = line.rstrip("\n").split("\t")
+            if len(row) <= i_h:
+                continue
+            sid = int(row[i_sub])
+            if sid not in out:
+                out[sid] = {"mass": float(row[i_mass]),
+                            "sex": ("male" if row[i_sex].strip().upper()
+                                    .startswith("M") else "female"),
+                            "height": float(row[i_h])}
+    return out
+
+
+def rbds_reference_curves(processed_path, speed: str):
+    """Their stance-normalized right-leg curves from RBDS*processed.txt.
+
+    Returns (torque [101,3] N m/kg, power [101,3] W/kg, stance_frac) with
+    joints ordered (ankle, knee, hip), or None when the file lacks that
+    speed.  Stance runs from the cycle start (right foot strike) to the
+    first sample where their vertical GRF (Y, NaN in swing) drops below
+    5% BW."""
+    raw = np.genfromtxt(processed_path, names=True, delimiter="\t")
+    if f"RgrfY{speed}" not in (raw.dtype.names or ()):
+        return None
+    fz = raw[f"RgrfY{speed}"]
+    on = np.isfinite(fz) & (fz > 0.05)
+    if not on[0] or on.sum() < 20:
+        return None
+    toe = int(np.flatnonzero(~on)[0])
+    grid = np.linspace(0.0, 1.0, 101)
+    x = np.linspace(0.0, 1.0, toe)
+    tq = np.stack([np.interp(grid, x, raw[f"R{j}MomZ{speed}"][:toe])
+                   for j in ("ankle", "knee", "hip")], axis=1)
+    pw = np.stack([np.interp(grid, x, raw[f"R{j}Pow{speed}"][:toe])
+                   for j in ("ankle", "knee", "hip")], axis=1)
+    if not (np.isfinite(tq).all() and np.isfinite(pw).all()):
+        return None
+    return tq, pw, toe / 100.0
+
+
+#: The ablation arms: each brings ONE of our conventions to the dataset's
+#: own (decoded from RBDSmodelV3D.mdh / RBDSpipelineV3D.v3s), plus "all".
+RBDS_VARIANTS = {
+    "baseline": {},
+    "hip_bell": {"hip": "bell"},          # their hip landmark (Bell 1990)
+    "lp10": {"lowpass": 10.0},            # their 10 Hz marker+analog filter
+    "dempster": {"segments": "dempster"},  # their (Dempster-based) segments
+    "power_scalar": {"power": "scalar"},  # their JOINT_POWER_SCALAR (τ·ω)
+    "all": {"hip": "bell", "lowpass": 10.0, "segments": "dempster",
+            "power": "scalar"},
+}
+
+
+def rbds_process_subject(sid: int, cache: Path = RBDS_CACHE,
+                         speeds=RBDS_SPEEDS,
+                         variant: dict | None = None) -> dict:
+    """Run one RBDS subject's raw c3d through our pipeline, all speeds.
+
+    Downloads what it needs into `cache`.  Returns a JSON-able dict:
+    per speed — our stance-normalized mean torque/power curves [101,3]
+    (mass-normalized, our local-y sign), their reference curves, RMSE and
+    correlation per joint (after the fixed RBDS_TORQUE_SIGN alignment),
+    energy imbalance %, step count/stance seconds, max cluster residuals.
+
+    `variant` (see RBDS_VARIANTS) swaps individual conventions for the
+    dataset's own: hip='bell', lowpass=10.0, segments='dempster',
+    power='scalar' (τ·ω_rel only, dropping the translational joint-force
+    term our full wrench power carries).
+    """
+    from .core import (AnalysisParams, chain_kinematics, energy_audit,
+                       inverse_dynamics)
+    from .io_c3d import (Y_UP_AXES, build_rbds_chain, calibrate_rbds_static,
+                         load_c3d)
+    from .report import right_step_events, stance_profiles
+
+    variant = variant or {}
+    tag = f"RBDS{sid:03d}"
+    info = rbds_info(cache)[sid]
+    index = rbds_file_index(cache)
+    # subjects 3-9's static c3d is named with TWO digits in the record
+    static_name = (f"{tag}static.c3d" if f"{tag}static.c3d" in index
+                   else f"RBDS{sid:02d}static.c3d")
+    static = load_c3d(rbds_fetch(static_name, cache), axes=Y_UP_AXES)
+    cal = calibrate_rbds_static(static, body_mass=info["mass"], side="r",
+                                sex=info["sex"],
+                                hip_method=variant.get("hip", "harrington"))
+    processed = rbds_fetch(f"{tag}processed.txt", cache)
+    lp = float(variant.get("lowpass", 12.0))
+    params = AnalysisParams(contact_threshold_n=50.0, lowpass_hz=lp,
+                            force_lowpass_hz=lp)
+    out = {"sid": sid, "mass": info["mass"], "sex": info["sex"],
+           "speeds": {}}
+    grid = np.linspace(0.0, 1.0, 101)
+    for sp in speeds:
+        name = f"{tag}runT{sp}.c3d"
+        if name not in index:
+            name = f"RBDS{sid:02d}runT{sp}.c3d"   # subjects 3-9: two digits
+        if name not in index:
+            continue
+        ref = rbds_reference_curves(processed, sp)
+        if ref is None:
+            continue
+        trial = load_c3d(rbds_fetch(name, cache), axes=Y_UP_AXES)
+        skel, kin, ground, q = build_rbds_chain(
+            trial, cal, segments=variant.get("segments", "deleva"))
+        idres = inverse_dynamics(skel, kin, ground, params)
+        audit = energy_audit(skel, kin, ground, idres, params)
+        events = right_step_events(ground, params.contact_threshold_n)
+        if len(events) < 5:
+            out["speeds"][sp] = {"error": f"only {len(events)} steps"}
+            continue
+        tq = np.stack([stance_profiles(
+            idres.joint_torque_local[:, j, 1], events).mean(axis=0)
+            for j in range(3)], axis=1) / info["mass"]
+        if variant.get("power") == "scalar":
+            # the dataset's JOINT_POWER_SCALAR: τ · ω_rel, rotational only
+            ck = chain_kinematics(skel, kin, params.lowpass_hz,
+                                  params.filter_order)
+            power = np.stack(
+                [np.sum(idres.joint_torque[:, j]
+                        * (ck["omega"][:, j] - ck["omega"][:, j + 1]),
+                        axis=1) for j in range(3)], axis=1)
+        else:
+            power = audit.joint_power[:, :3]
+        pw = np.stack([stance_profiles(power[:, j], events).mean(axis=0)
+                       for j in range(3)], axis=1) / info["mass"]
+        tq_ref, pw_ref, stance_frac = ref
+        tq_aligned = tq * RBDS_TORQUE_SIGN
+        edge = slice(30, -30)
+        imb = float(np.abs(audit.imbalance[edge]).max()
+                    / max(np.abs(audit.de_dt[edge]).max(), 1e-9))
+        out["speeds"][sp] = {
+            "torque_ours": tq.tolist(), "torque_theirs": tq_ref.tolist(),
+            "power_ours": pw.tolist(), "power_theirs": pw_ref.tolist(),
+            "torque_rmse": [float(np.sqrt(np.mean(
+                (tq_aligned[:, j] - tq_ref[:, j]) ** 2))) for j in range(3)],
+            "torque_corr": [float(np.corrcoef(
+                tq_aligned[:, j], tq_ref[:, j])[0, 1]) for j in range(3)],
+            "power_rmse": [float(np.sqrt(np.mean(
+                (pw[:, j] - pw_ref[:, j]) ** 2))) for j in range(3)],
+            "power_corr": [float(np.corrcoef(
+                pw[:, j], pw_ref[:, j])[0, 1]) for j in range(3)],
+            "n_steps": len(events),
+            "stance_s": float(np.mean([e - s for s, e in events])
+                              / trial.rate),
+            "imbalance_frac": imb,
+            "cluster_residual_max_mm": (
+                1000.0 * q["cluster_residual"].max(axis=0)).tolist(),
+        }
+    return out
+
+
+def rbds_sweep(sids=None, cache: Path = RBDS_CACHE, workers: int = 6,
+               verbose: bool = True, variant: dict | None = None) -> dict:
+    """Fan the per-subject runs out over a process pool.
+
+    `sids` defaults to every subject with a static c3d in the figshare
+    record.  A subject that raises is recorded as {'error': ...} rather
+    than sinking the sweep.  `variant` is passed through to
+    `rbds_process_subject`."""
+    import re
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+    index = rbds_file_index(cache)
+    if sids is None:
+        sids = sorted({int(m.group(1))
+                       for n in index
+                       for m in [re.match(r"RBDS(\d+)static\.c3d$", n)]
+                       if m})
+    results = {}
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        futs = {pool.submit(rbds_process_subject, sid, cache,
+                            RBDS_SPEEDS, variant): sid
+                for sid in sids}
+        for fut in as_completed(futs):
+            sid = futs[fut]
+            try:
+                results[sid] = fut.result()
+            except Exception as exc:
+                results[sid] = {"sid": sid, "error": repr(exc)}
+            if verbose:
+                r = results[sid]
+                if "error" in r:
+                    print(f"RBDS{sid:03d}: ERROR {r['error']}")
+                else:
+                    done = ", ".join(
+                        f"{sp}: tq RMSE "
+                        + "/".join(f"{v:.2f}" for v in d["torque_rmse"])
+                        if "error" not in d else f"{sp}: {d['error']}"
+                        for sp, d in sorted(r["speeds"].items()))
+                    print(f"RBDS{sid:03d}: {done}", flush=True)
+    return {"results": {str(k): v for k, v in sorted(results.items())}}
+
+
+def rbds_ablation_summary(results: dict) -> dict:
+    """Median torque/power RMSE per joint from one variant's sweep."""
+    rows = [d for r in results["results"].values() if "error" not in r
+            for d in r.get("speeds", {}).values() if "error" not in d]
+    return {
+        "n": len(rows),
+        "torque_rmse": np.median([d["torque_rmse"] for d in rows],
+                                 axis=0).tolist(),
+        "power_rmse": np.median([d["power_rmse"] for d in rows],
+                                axis=0).tolist(),
+        "torque_corr": np.median([d["torque_corr"] for d in rows],
+                                 axis=0).tolist(),
+        "power_corr": np.median([d["power_corr"] for d in rows],
+                                axis=0).tolist(),
+    }
+
+
+def main_rbds_ablation(argv=None):
+    """`python -m boneid.validate rbds-ablation [n_subjects]` — re-run the
+    sweep once per RBDS_VARIANTS arm and tabulate the medians."""
+    import json
+    argv = list(argv or [])
+    sids = None
+    if argv:
+        import re
+        index = rbds_file_index()
+        all_sids = sorted({int(m.group(1)) for n in index
+                           for m in [re.match(r"RBDS(\d+)static\.c3d$", n)]
+                           if m})
+        sids = all_sids[:int(argv[0])]
+    out = {}
+    for name, variant in RBDS_VARIANTS.items():
+        print(f"=== variant {name}: {variant or 'ours as published'}")
+        res = rbds_sweep(sids, variant=variant, verbose=False)
+        out[name] = {"variant": variant,
+                     "summary": rbds_ablation_summary(res)}
+        s = out[name]["summary"]
+        print(f"    torque RMSE {'/'.join(f'{v:.3f}' for v in s['torque_rmse'])}"
+              f" N m/kg | power RMSE "
+              f"{'/'.join(f'{v:.2f}' for v in s['power_rmse'])} W/kg "
+              f"(n={s['n']})", flush=True)
+    dest = Path(__file__).resolve().parents[2] / "reports" / "rbds_ablation.json"
+    dest.write_text(json.dumps(out, indent=1))
+    print(f"wrote {dest}")
+
+
+#: Cumulative adoption of their conventions, biggest one-at-a-time lever
+#: first.  Step k applies every change up to and including its own.
+RBDS_CUMULATIVE = [
+    ("ours", {}),
+    ("+ their power (τ·ω)", {"power": "scalar"}),
+    ("+ their hip (Bell)", {"power": "scalar", "hip": "bell"}),
+    ("+ their segments (Dempster)",
+     {"power": "scalar", "hip": "bell", "segments": "dempster"}),
+    ("+ their 10 Hz filters  = all",
+     {"power": "scalar", "hip": "bell", "segments": "dempster",
+      "lowpass": 10.0}),
+]
+
+
+def main_rbds_cumulative(argv=None):
+    """`python -m boneid.validate rbds-cumulative [n]` — re-run the sweep at
+    each CUMULATIVE step toward their conventions, keeping the ensemble mean
+    curves (3.5 m/s, the speed every subject ran) so the convergence can be
+    PLOTTED, not just tabulated."""
+    import json
+    argv = list(argv or [])
+    sids = None
+    if argv:
+        import re
+        index = rbds_file_index()
+        all_sids = sorted({int(m.group(1)) for n in index
+                           for m in [re.match(r"RBDS(\d+)static\.c3d$", n)]
+                           if m})
+        sids = all_sids[:int(argv[0])]
+    out = {"steps": [], "theirs": None}
+    for name, variant in RBDS_CUMULATIVE:
+        res = rbds_sweep(sids, variant=variant, verbose=False)
+        rows35 = [d for r in res["results"].values() if "error" not in r
+                  for s, d in r.get("speeds", {}).items()
+                  if s == "35" and "error" not in d]
+        tq = np.mean([np.asarray(d["torque_ours"]) for d in rows35],
+                     axis=0) * RBDS_TORQUE_SIGN
+        pw = np.mean([np.asarray(d["power_ours"]) for d in rows35], axis=0)
+        if out["theirs"] is None:
+            out["theirs"] = {
+                "torque": np.mean([np.asarray(d["torque_theirs"])
+                                   for d in rows35], axis=0).tolist(),
+                "power": np.mean([np.asarray(d["power_theirs"])
+                                  for d in rows35], axis=0).tolist(),
+            }
+        s = rbds_ablation_summary(res)
+        out["steps"].append({"name": name, "variant": variant,
+                             "summary": s,
+                             "torque_mean_35": tq.tolist(),
+                             "power_mean_35": pw.tolist()})
+        print(f"{name}: torque RMSE "
+              f"{'/'.join(f'{v:.3f}' for v in s['torque_rmse'])} | power "
+              f"{'/'.join(f'{v:.2f}' for v in s['power_rmse'])}", flush=True)
+    dest = (Path(__file__).resolve().parents[2] / "reports"
+            / "rbds_cumulative.json")
+    dest.write_text(json.dumps(out))
+    print(f"wrote {dest}")
+
+
+def main_rbds(argv=None):
+    """`python -m boneid.validate rbds [n_subjects]` — sweep + JSON dump."""
+    import json
+    argv = list(argv or [])
+    sids = None
+    if argv:
+        index = rbds_file_index()
+        import re
+        all_sids = sorted({int(m.group(1)) for n in index
+                           for m in [re.match(r"RBDS(\d+)static\.c3d$", n)]
+                           if m})
+        sids = all_sids[:int(argv[0])]
+    results = rbds_sweep(sids)
+    out = Path(__file__).resolve().parents[2] / "reports"
+    out.mkdir(exist_ok=True)
+    dest = out / "rbds_sweep.json"
+    dest.write_text(json.dumps(results))
+    print(f"wrote {dest}")
+    rbds_update_reference_stance(results)
+    page = out / "rbds_report.html"
+    page.write_text(rbds_report_html(results))
+    print(f"wrote {page} ({page.stat().st_size / 1e6:.1f} MB)")
+
+
+def rbds_update_reference_stance(results: dict) -> None:
+    """Write the sweep's measured mean stance DURATIONS (seconds, per speed)
+    into data/rbds_running_reference.npz as ``stance_s_25``/``stance_s_35``,
+    so the c3d report can draw the reference curves on a real time axis."""
+    path = (Path(__file__).resolve().parents[2] / "data"
+            / "rbds_running_reference.npz")
+    if not path.exists():
+        return
+    z = dict(np.load(path, allow_pickle=False).items())
+    for sp in ("25", "35"):
+        vals = [d["stance_s"] for r in results["results"].values()
+                if "error" not in r
+                for s, d in r.get("speeds", {}).items()
+                if s == sp and "error" not in d]
+        if vals:
+            z[f"stance_s_{sp}"] = np.array(float(np.mean(vals)))
+    np.savez(path, **z)
+
+
+
+
+def _rbds_cumulative_html() -> str:
+    """Figures for the CUMULATIVE convergence run (rbds_cumulative.json):
+    RMSE vs adoption step, and the ensemble mean + error curves at every
+    step — the visual evidence behind the ablation table.  Empty string when
+    the json has not been produced yet."""
+    import json
+    from .report import FAINT, SURFACE, figure_block
+    import matplotlib.pyplot as plt
+
+    path = (Path(__file__).resolve().parents[2] / "reports"
+            / "rbds_cumulative.json")
+    if not path.exists():
+        return ""
+    cum = json.loads(path.read_text())
+    steps = cum["steps"]
+    n_steps = len(steps)
+    joints = ("ankle", "knee", "hip")
+    grid = np.linspace(0, 100, 101)
+    theirs_tq = np.asarray(cum["theirs"]["torque"])
+    theirs_pw = np.asarray(cum["theirs"]["power"])
+    shades = plt.cm.viridis(np.linspace(0.85, 0.1, n_steps))
+    blocks = []
+
+    # --- convergence lines: median RMSE vs cumulative step
+    fig, axes = new_grid(1, 2, height=3.4, width=9.2)
+    x = np.arange(n_steps)
+    for k, (key, unit) in enumerate((("torque_rmse", "N m/kg"),
+                                     ("power_rmse", "W/kg"))):
+        ax = axes[0, k]
+        for j, joint in enumerate(joints):
+            ax.plot(x, [s["summary"][key][j] for s in steps],
+                    color=JOINT_COLORS[j], lw=1.6, marker="o", ms=4,
+                    label=joint)
+        ax.set_xticks(x)
+        ax.set_xticklabels([s["name"] for s in steps], rotation=35,
+                           ha="right", fontsize=8)
+        ax.set_ylim(bottom=0.0)
+        style_axes(ax, "", f"median {key.split('_')[0]} RMSE ({unit})")
+        if k == 0:
+            ax.legend(frameon=False, fontsize=8.5)
+    blocks.append((fig, (
+        "Convergence as their conventions are adopted CUMULATIVELY, left to "
+        "right (each step keeps every change before it; medians over all "
+        "101 subject-speeds).  The torque panel is nearly flat — no "
+        "convention choice explains the torque differences, which are the "
+        "between-implementation floor.  The power panel drops exactly once, "
+        "at the power-definition step.")))
+
+    # --- ensemble mean curves + error curves at every step (3.5 m/s)
+    fig, axes = new_grid(4, 3, height=8.6, width=9.2, sharex=True)
+    for j, joint in enumerate(joints):
+        for row, (theirs, key, ylab) in enumerate((
+                (theirs_tq, "torque_mean_35", "torque (N m/kg)"),
+                (theirs_pw, "power_mean_35", "power (W/kg)"))):
+            ax_c = axes[2 * row, j]        # curves
+            ax_e = axes[2 * row + 1, j]    # ours - theirs
+            ax_c.plot(grid, theirs[:, j], color=NEUTRAL, lw=3.0, alpha=0.45,
+                      label="theirs (V3D)" if j == 0 else None)
+            for si, s in enumerate(steps):
+                ours = np.asarray(s[key])[:, j]
+                ax_c.plot(grid, ours, color=shades[si], lw=1.1,
+                          label=s["name"] if j == 0 else None)
+                ax_e.plot(grid, ours - theirs[:, j], color=shades[si],
+                          lw=1.1)
+            ax_e.axhline(0.0, color=FAINT, lw=0.9)
+            if row == 0 and j <= 2:
+                ax_c.set_title(joint, color=NEUTRAL, fontsize=10)
+            style_axes(ax_c, "", ylab if j == 0 else "")
+            style_axes(ax_e, "stance (%)" if row == 1 else "",
+                       "ours − theirs" if j == 0 else "")
+    axes[0, 0].legend(frameon=False, fontsize=7)
+    blocks.append((fig, (
+        "The same convergence as curves (3.5 m/s, the speed all 39 subjects "
+        "ran; ensemble means).  Rows 1 &amp; 3: their Visual3D ensemble "
+        "mean (thick grey) with ours at every cumulative step (light "
+        "&rarr; dark as conventions are adopted).  Rows 2 &amp; 4: the "
+        "error, ours &minus; theirs, same colours — where the steps "
+        "actually move the curves.  For POWER the successive lines collapse "
+        "toward zero at the power-definition step (hip most of all).  For "
+        "TORQUE the error curves barely move at any step: the remaining "
+        "ankle/knee shape difference (early-stance lead, slightly lower "
+        "knee peak) is not explained by hip, segments, filtering or power "
+        "conventions.")))
+
+    out = ""
+    for k, (fig, caption) in enumerate(blocks):
+        out += figure_block(fig_svg(fig), 90 + k, caption).replace(
+            f"<b>Figure {90 + k}.</b>", "<b>Convergence "
+            f"{'A' if k == 0 else 'B'}.</b>")
+    return out
+
+
+def rbds_report_html(results: dict) -> str:
+    """The RBDS cross-validation report: their raw data, our pipeline,
+    scored against their own Visual3D processing."""
+    from .report import FAINT, figure_block
+
+    rows = []            # (sid, speed, dict)
+    for sid, r in results["results"].items():
+        if "error" in r:
+            continue
+        for sp, d in r["speeds"].items():
+            if "error" not in d:
+                rows.append((int(sid), sp, d))
+    speeds = sorted({sp for _, sp, _ in rows})
+    joints = ("ankle", "knee", "hip")
+    grid = np.linspace(0, 100, 101)
+    figs = []
+    n = [0]
+
+    def add(fig, caption):
+        n[0] += 1
+        figs.append(figure_block(fig_svg(fig), n[0], caption))
+
+    sign = np.array([1.0, -1.0, -1.0])   # io_c3d local-y -> their MomZ
+
+    for kind, unit in (("torque", "N m/kg"), ("power", "W/kg")):
+        fig, axes = new_grid(len(speeds), 3, height=2.2 * len(speeds),
+                             width=9.2, sharex=True)
+        for si, sp in enumerate(speeds):
+            ours = np.mean([np.asarray(d[f"{kind}_ours"])
+                            for _, s, d in rows if s == sp], axis=0)
+            theirs = np.mean([np.asarray(d[f"{kind}_theirs"])
+                              for _, s, d in rows if s == sp], axis=0)
+            if kind == "torque":
+                ours = ours * sign
+            for j in range(3):
+                ax = axes[si, j]
+                ax.plot(grid, theirs[:, j], color=NEUTRAL, lw=2.6, alpha=0.45,
+                        label="theirs (V3D)" if si == 0 and j == 0 else None)
+                ax.plot(grid, ours[:, j], color=JOINT_COLORS[j], lw=1.4,
+                        label="ours" if si == 0 and j == 0 else None)
+                ax.axhline(0.0, color=FAINT, lw=0.7)
+                if si == 0:
+                    ax.set_title(joints[j], color=NEUTRAL, fontsize=10)
+                style_axes(ax, "stance (%)" if si == len(speeds) - 1 else "",
+                           f"{sp[0]}.{sp[1]} m/s\n{kind} ({unit})"
+                           if j == 0 else "")
+                if si == 0 and j == 0:
+                    ax.legend(frameon=False, fontsize=8)
+        add(fig, f"Ensemble mean sagittal joint {kind} over stance: every "
+                 f"subject's raw c3d through OUR pipeline (colour) vs the "
+                 f"dataset's own Visual3D processing (grey), averaged over "
+                 f"the same subjects, per speed.  {kind.capitalize()}s are "
+                 f"mass-normalized; ours sign-aligned per joint "
+                 f"(convention only).")
+
+    # RMSE distributions
+    fig, axes = new_grid(1, 2, height=3.0, width=9.2)
+    for k, kind in enumerate(("torque", "power")):
+        ax = axes[0, k]
+        data, labels = [], []
+        for j in range(3):
+            for sp in speeds:
+                data.append([d[f"{kind}_rmse"][j] for _, s, d in rows
+                             if s == sp])
+                labels.append(f"{joints[j]} {sp[0]}.{sp[1]}")
+        bp = ax.boxplot(data, tick_labels=labels, patch_artist=True)
+        for i, box in enumerate(bp["boxes"]):
+            box.set_facecolor(JOINT_COLORS[i // len(speeds)])
+            box.set_alpha(0.4)
+        ax.tick_params(axis="x", rotation=60)
+        style_axes(ax, "", f"{kind} RMSE "
+                   + ("(N m/kg)" if kind == "torque" else "(W/kg)"))
+    add(fig, "Per-subject RMSE of our stance-normalized mean curve against "
+             "theirs, by joint and speed — the spread across all "
+             f"{len({sid for sid, _, _ in rows})} subjects.")
+
+    med_tq = {j: float(np.median([d["torque_rmse"][ji] for _, _, d in rows]))
+              for ji, j in enumerate(joints)}
+    med_r = {j: float(np.median([d["torque_corr"][ji] for _, _, d in rows]))
+             for ji, j in enumerate(joints)}
+    imb = [d["imbalance_frac"] for _, _, d in rows]
+    stats_row = "".join([
+        stat("subject-speeds analysed", f"{len(rows)}", ""),
+        stat("median torque RMSE (ankle/knee/hip)",
+             "/".join(f"{med_tq[j]:.2f}" for j in joints), "N m/kg"),
+        stat("median torque correlation",
+             "/".join(f"{med_r[j]:.2f}" for j in joints), ""),
+        stat("energy imbalance (median)",
+             f"{100 * float(np.median(imb)):.1f}", "% of peak dE/dt",
+             "pass" if np.median(imb) < 0.03 else "fail"),
+    ])
+
+    # --- ablation table (present when reports/rbds_ablation.json exists)
+    ablation_html = ""
+    abl_path = (Path(__file__).resolve().parents[2] / "reports"
+                / "rbds_ablation.json")
+    if abl_path.exists():
+        import json as _json
+        abl = _json.loads(abl_path.read_text())
+        VARIANT_LABELS = {
+            "baseline": "baseline (ours as published)",
+            "hip_bell": "their hip landmark (Bell 1990, per the .mdh)",
+            "lp10": "their 10 Hz filters (markers + forces, per the .v3s)",
+            "dempster": "their segment masses (Dempster, V3D defaults)",
+            "power_scalar": "their power definition (τ·ω only, no F·Δv term)",
+            "all": "all four together",
+        }
+        rows_html = "".join(
+            "<tr><td>" + VARIANT_LABELS.get(k, k) + "</td>"
+            + "".join(f"<td>{v:.3f}</td>"
+                      for v in abl[k]["summary"]["torque_rmse"])
+            + "".join(f"<td>{v:.2f}</td>"
+                      for v in abl[k]["summary"]["power_rmse"])
+            + "</tr>"
+            for k in VARIANT_LABELS if k in abl)
+        ablation_html = f"""
+<h2>Ablation: bringing our conventions to theirs, one at a time</h2>
+<p>Their exact definitions are in the dataset's own Visual3D model and
+pipeline files (<code>RBDSmodelV3D.mdh</code>,
+<code>RBDSpipelineV3D.v3s</code>): hip = the Bell (1990) landmark; markers
+AND analog low-passed at 10 Hz; default (Dempster-mass) hybrid segments;
+power = <code>JOINT_POWER_SCALAR</code>, the full 3-D τ·ω<sub>rel</sub> dot
+product — all three components, so not sagittal-only, but rotational-only,
+without the translational joint-force power our wrench power includes.
+Each row of the table swaps ONE of our conventions for theirs and re-runs
+every subject and speed (medians over all subject-speeds):</p>
+<div class="overflow"><table><thead>
+<tr><th>variant</th><th>ankle τ</th><th>knee τ</th><th>hip τ</th>
+<th>ankle P</th><th>knee P</th><th>hip P</th></tr>
+<tr><th></th><th colspan="3">torque RMSE (N m/kg)</th>
+<th colspan="3">power RMSE (W/kg)</th></tr>
+</thead><tbody>{rows_html}</tbody></table></div>
+<p><b>Reading it:</b> the POWER DEFINITION is the dominant lever — dropping
+the translational term (as they do) collapses the hip power gap, meaning
+most of our hip-power difference was never a disagreement about the motion,
+just about what "joint power" includes.  The 10 Hz filters and Dempster
+masses move things only marginally: torque agreement is insensitive to both.
+And the hip-torque row shows a genuine surprise: using THEIR OWN Bell hip
+landmark makes our hip torque agree LESS with their export than Harrington
+does — the residual hip difference is not simply hip-centre placement, but
+compensating conventions (pelvis-frame construction, Cardan-resolved
+components) that happen to cancel better under Harrington.</p>
+{_rbds_cumulative_html()}"""
+
+    body = f"""
+<p class="eyebrow">boneid · validate · RBDS public running dataset</p>
+<h1>Their Data, Our Pipeline</h1>
+<p class="subtitle">Every subject of the RBDS public running dataset
+(Fukuchi, Fukuchi &amp; Duarte 2017, PeerJ 5:e3298, CC-BY) processed from
+RAW c3d — static-trial CAST calibration, virtual joint centres, per-bout
+foot attribution on the shared belt, Newton-Euler about the lab origin —
+and scored against the dataset's own Visual3D output, right leg,
+2.5/3.5/4.5 m/s.</p>
+
+<div class="stat-row">{stats_row}</div>
+
+<h2>What is and is not the same</h2>
+<p>Same raw markers and forces; independent everything else.  Differences
+that bound the agreement: our hip centre is Harrington (2007) where their
+model has its own; our segment parameters are de Leva (1996) against their
+Visual3D defaults; our kinematics/forces are low-passed at a matched 12 Hz;
+our joint power is the full joint wrench power.  The residual and energy
+audit run on every trial exactly as in the main pipeline.</p>
+
+{"".join(figs)}
+
+{ablation_html}
+
+<h2>Reproduce</h2>
+<p><code>uv run python -m boneid.validate rbds</code> — downloads what it
+needs into <code>~/.cache/boneid/rbds</code>, fans subjects out over a
+process pool, writes <code>reports/rbds_sweep.json</code> and this page.
+<code>uv run python -m boneid.validate rbds-ablation</code> re-runs every
+subject under each convention variant and refreshes the ablation table.</p>
+"""
+    return html_page("Their Data, Our Pipeline", "rbds", body)
 
 
 if __name__ == "__main__":

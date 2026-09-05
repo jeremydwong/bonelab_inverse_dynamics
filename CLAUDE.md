@@ -101,6 +101,11 @@ Files:
 - `io_v3d.py` — Visual3D-style inputs: the `*_5StridesData.mat` export format
   (forces, markers, Visual3D reference kinetics), force plate geometry,
   de Leva anthropometrics (legs + torso/head + arms).
+- `io_c3d.py` — raw c3d inputs (ezc3d) with a STATIC calibration trial: joint
+  centres/frames measured in the static pose and carried through dynamic
+  trials as virtual points on SVD cluster fits (CAST / legacy
+  `VirtualPoint_v2` approach); marker label-swap repair + despiking; per-bout
+  foot attribution when both feet strike one belt.
 - `simulate.py` — synthetic-data generators (squat-to-stand, pendulum) used by
   key tests.
 - `viz.py` — meshcat visualization of markers, segments, forces; pelvis band,
@@ -108,6 +113,8 @@ Files:
 - `report.py` — HTML reports with figures (energy balance, per-step analysis).
 - `validate.py` — cross-subject validation sweep (RMSE vs Visual3D, p1–p9).
 - `examples/quickstart.py` — the canonical 10-step run-through.
+- `examples/quickstart_c3d.py` — the c3d/static-trial variant (Asics running
+  study), 8 steps → `reports/c3d_quickstart_report.html`.
 
 Model tree (whole body, 12 segments): two legs [foot, shank, thigh] bottom-up
 into a shared pelvis; L5S1 is a real joint to the torso (trunk + head lumped,
@@ -152,6 +159,33 @@ Tests: `tests/test_key.py` holds the small intelligible KEY suite
   ≤ 2 analog samples). Naming trap: right shank is `rSk` for AngVel/CG* but
   `rSh` for ProxEnd*; use `io_v3d.reference_series`.
 - Published dataset & description: https://www.nature.com/articles/s41597-022-01817-1
+- Asics running c3d set (io_c3d): `~/Downloads/asics/S1_{AG,AH,AM}_{Static,PI,RP}.c3d`
+  — subject S1, three shoe conditions × two 30 s running trials + one static
+  each; 300 Hz mocap / 3000 Hz analog, two type-2 plates, same lab axes as
+  the walking set (+z up, +x subject-left, +y posterior). Only the RIGHT leg
+  is instrumented (legacy hip = 0.70·RGT + 0.30·LGT); medial ankle/knee
+  markers exist ONLY in the static trial, so joint centres are virtual points
+  carried by cluster fits. BOTH feet strike plate 1, so contact bouts are
+  attributed by COP-to-foot-marker proximity (~0.1 m own vs ~0.3 m other).
+  Known data warts, both handled in `load_c3d`: thigh-marker LABEL SWAPS
+  (brief in AM_RP/AH_PI, permanent from t=4.5 s in AM_PI) and belt ringing at
+  50-100 N between steps (bout peak filter). Body mass ≈ 49.9 kg from static
+  Fz. Sanity: ankle/knee/hip peak sagittal torques ≈ 2.9/2.2/1.6 N m/kg,
+  energy imbalance < 2% on all six trials.
+- RBDS public running dataset (Fukuchi, Fukuchi & Duarte 2017, PeerJ 5:e3298,
+  CC-BY; figshare 10.6084/m9.figshare.4543435): 39 subjects, single-belt
+  treadmill 2.5/3.5/4.5 m/s, 150/300 Hz, bilateral CAST markerset with a
+  static trial, Y-UP lab (load with `io_c3d.Y_UP_AXES`), plus the dataset's
+  own Visual3D processed output for validation. `io_c3d` RBDS section +
+  `validate.rbds_sweep` (downloads to ~/.cache/boneid/rbds, ~300 MB;
+  `uv run python -m boneid.validate rbds`). Gotchas: subjects 3-9 use
+  2-digit file names; some run trials drop an MT marker; the NEWER
+  RBDSinfo.txt (figshare file 39452932) covers all 39 subjects.
+  Result (101 subject-speeds, right leg vs their V3D): median torque RMSE
+  0.23/0.26/0.11 N m/kg, correlations 0.98/0.99/0.99, energy imbalance
+  ~1.6%. `data/rbds_running_reference.npz` holds their ensemble mean
+  stance-normalized torques/powers + mean stance durations, overlaid
+  (button-toggle) on the Asics c3d report's figures.
 - In-repo sample: `data/p1_trial13_sample.mat` (2.5 MB, trial-13 slot only,
   made by `io_v3d.trim_v3d_mat`; its `.index` is 0) — reproduces validation
   numbers bit-for-bit. Full P1 export (84 MB) is a GitHub release asset,

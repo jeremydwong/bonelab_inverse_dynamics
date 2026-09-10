@@ -289,3 +289,49 @@ Three tiers, largest to smallest:
   running exists in this data), including Visual3D's own computed kinetics
   for cross-validation.
 - Paper: https://www.nature.com/articles/s41597-022-01817-1
+
+### Included Asics data
+
+The complete Asics S1 dataset is included in `data/asics`: nine C3D files
+(AG/AH/AM shoes × Static/PI/RP recordings). The entire `data/` directory is
+about 50 MB and is tracked directly in Git. Run
+`uv run python examples/quickstart_c3d.py` to regenerate the C3D report from
+the included AM static and RP running recordings; no external data path is
+needed. `uv run python examples/regenerate_reports.py` rebuilds all local
+HTML reports (the P1–P9 reports still require their external MAT exports).
+
+### Joint work: explicit 3-DOF / 6-DOF comparison
+
+The serial, two-leg and whole-body energy audits already use **6-DOF** power:
+`M · (ω_dist − ω_prox) + F · (v_dist − v_prox)`, with material velocities
+on both segments evaluated at the same wrench reference point. Segment poses
+are measured, with no hinge or ball-joint constraint imposed by the solver.
+The rotational and translational contributions are now exposed separately as
+`audit.joint_power_rotational` and `audit.joint_power_translational`.
+
+```python
+from boneid.core import joint_power, joint_work
+p6 = joint_power(audit, dof=6)   # default: full wrench power, W
+p3 = joint_power(audit, dof=3)   # same motion, rotational terms only
+w6 = joint_work(audit, dof=6, window=slice(5, -5))  # positive / negative / net J
+w3 = joint_work(audit, dof=3, window=slice(5, -5))
+```
+
+P1 and C3D reports show both power traces and work differences. The existing
+hip-centre and legacy-physics comparison plots use rotational power; use
+`hjc_comparison(trial, dof=6)` for the parallel full-wrench hip-centre analysis.
+Changing this power definition does not refit or constrain the measured motion.
+Positive/negative 6-DOF work is integrated **after** summing the power terms.
+
+Rationale: [Zelik, Takahashi & Sawicki (2015), *Six degree-of-freedom analysis
+of hip, knee, ankle and foot provides updated understanding of biomechanical
+work during human walking*, J Exp Biol 218:876–886](https://doi.org/10.1242/jeb.115451)
+showed that rotational-only estimates missed positive work and described
+6-DOF power's insensitivity to joint-centre location. Moving the wrench
+reference point changes rotational power, but the translational term cancels
+that change when segment motion and inertial properties remain fixed.
+This makes 6-DOF a defensible default for work with uncertain joint centres.
+It does not remove marker artefact or velocity noise. Our hip-centre variants
+also rebuild segment frames, COMs and inertias, so their 6-DOF totals need not
+coincide. Foot deformation still requires the separately reported
+distal-to-foot power; 6-DOF joint power is not isolated muscle or cartilage work.

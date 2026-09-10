@@ -159,7 +159,7 @@ Tests: `tests/test_key.py` holds the small intelligible KEY suite
   ≤ 2 analog samples). Naming trap: right shank is `rSk` for AngVel/CG* but
   `rSh` for ProxEnd*; use `io_v3d.reference_series`.
 - Published dataset & description: https://www.nature.com/articles/s41597-022-01817-1
-- Asics running c3d set (io_c3d): `~/Downloads/asics/S1_{AG,AH,AM}_{Static,PI,RP}.c3d`
+- Asics running c3d set (io_c3d): `data/asics/S1_{AG,AH,AM}_{Static,PI,RP}.c3d`
   — subject S1, three shoe conditions × two 30 s running trials + one static
   each; 300 Hz mocap / 3000 Hz analog, two type-2 plates, same lab axes as
   the walking set (+z up, +x subject-left, +y posterior). Only the RIGHT leg

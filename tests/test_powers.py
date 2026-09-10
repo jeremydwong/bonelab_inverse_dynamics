@@ -222,3 +222,50 @@ def test_real_com_and_ud_power():
             assert abs(work) > 1e-3            # not identically zero
             assert neg < -1.0                  # real absorption exists
             assert early_neg < -0.5            # collision phase absorbs
+
+
+def test_joint_translation_work():
+    """A translating, nonrotating distal body needs force power, not torque power."""
+    from boneid.core import (Skeleton, SegmentKinematics, GroundWrench,
+                             joint_power, joint_work)
+    t = np.linspace(0, 1, 101)
+    pos = np.zeros((len(t), 2, 3))
+    pos[:, 0, 2] = t  # 1 m/s upwards against gravity
+    skel = Skeleton(['distal', 'proximal'], ['joint'], np.ones(2),
+                    np.zeros((2, 3)), np.zeros((2, 3, 3)), np.ones(2))
+    kin = SegmentKinematics(t, 100., np.tile(np.eye(3), (len(t), 2, 1, 1)),
+                            pos, pos.copy())
+    ground = GroundWrench(t, 100., np.zeros((len(t), 3)), np.zeros((len(t), 3)))
+    res = inverse_dynamics(skel, kin, ground, RAW)
+    audit = energy_audit(skel, kin, ground, res, RAW)
+    np.testing.assert_allclose(joint_power(audit, dof=3), 0, atol=1e-10)
+    np.testing.assert_allclose(joint_power(audit, dof=6), 9.81, atol=1e-9)
+    np.testing.assert_allclose(joint_work(audit)[:, 0], [9.81, 0, 9.81], atol=1e-9)
+    np.testing.assert_allclose(audit.imbalance[INT], 0, atol=1e-8)
+    with pytest.raises(ValueError):
+        joint_power(audit, dof=1)
+
+
+def test_joint_work_clips_total_before_integration():
+    from dataclasses import replace
+    from boneid.core import joint_work
+    skel, kin, ground, _ = simulate_squat_to_stand()
+    audit = energy_audit(skel, kin, ground, inverse_dynamics(skel, kin, ground, RAW), RAW)
+    # Opposing components: +10 W rotation and -9 W translation = +1 W total.
+    audit = replace(audit, joint_power=np.ones_like(audit.joint_power),
+                    joint_power_rotational=np.full_like(audit.joint_power, 10.),
+                    joint_power_translational=np.full_like(audit.joint_power, -9.))
+    np.testing.assert_allclose(joint_work(audit)[0], kin.t[-1] - kin.t[0])
+    np.testing.assert_allclose(joint_work(audit)[1], 0)
+
+
+def test_joint_decomposition_whole_body_sample():
+    from boneid import io_v3d
+    from boneid.report import whole_body_run, joint_power_tau_omega
+    trial = io_v3d.load_v3d_trial('data/p1_trial13_sample.mat', 0)
+    chain, su, ku, whole, audit = whole_body_run(trial, RAW)
+    np.testing.assert_allclose(audit.joint_power,
+        audit.joint_power_rotational + audit.joint_power_translational)
+    for k, res in enumerate((whole.right, whole.left)):
+        np.testing.assert_allclose(audit.joint_power_rotational[:, 3*k:3*k+3],
+            joint_power_tau_omega(chain[3*k], chain[3*k+1], res, RAW))

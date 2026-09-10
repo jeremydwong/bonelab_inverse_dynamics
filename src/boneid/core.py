@@ -119,13 +119,46 @@ class EnergyAudit:
     t: np.ndarray                   # [T]
     kinetic: np.ndarray             # [T] J
     potential: np.ndarray           # [T] J
-    joint_power: np.ndarray         # [T,J] W, tau_j . (omega_dist - omega_prox)
-                                    #   (tau_j acts ON the distal segment)
+    joint_power: np.ndarray         # [T,J] W, full 6-DOF wrench power
     ground_power: np.ndarray        # [T] W
     residual_power: np.ndarray      # [T] W
     de_dt: np.ndarray               # [T] W, d(KE+PE)/dt by central difference
     power_total: np.ndarray         # [T] W, sum of the three power sources
     imbalance: np.ndarray           # [T] W, de_dt - power_total
+    joint_power_rotational: np.ndarray | None = None  # [T,J] W, 3-DOF
+    joint_power_translational: np.ndarray | None = None  # [T,J] W, force term
+
+
+def joint_power(audit: EnergyAudit, *, dof: int = 6) -> np.ndarray:
+    """Select full wrench power (6) or rotational-only power (3).
+
+    This selects power bookkeeping for the SAME measured segment motion and
+    inverse-dynamics wrenches; it does not constrain or refit the kinematics.
+    The energy audit always retains all six terms.
+    """
+    if dof == 6:
+        return audit.joint_power
+    if dof != 3:
+        raise ValueError("dof must be 3 or 6")
+    if audit.joint_power_rotational is None:
+        raise ValueError("audit has no rotational decomposition; recompute it")
+    return audit.joint_power_rotational
+
+
+def joint_work(audit: EnergyAudit, *, dof: int = 6,
+               window: slice = slice(None)) -> np.ndarray:
+    """[3,J] positive, signed negative, net work (J) in the selected window.
+
+    Sum rotational and translational power BEFORE clipping/integration for
+    6-DOF work. Positive work of the sum is not the sum of positive works.
+    """
+    p = joint_power(audit, dof=dof)[window]
+    t = audit.t[window]
+    if len(t) < 2:
+        raise ValueError("work window must contain at least two samples")
+    return np.stack([np.trapezoid(np.maximum(p, 0), t, axis=0),
+                     np.trapezoid(np.minimum(p, 0), t, axis=0),
+                     np.trapezoid(p, t, axis=0)])
 
 
 # ---------------------------------------------------------------------------
@@ -509,7 +542,7 @@ def energy_audit(skeleton: Skeleton, kin: SegmentKinematics,
     # it, catching joint-center inconsistencies between the two segments.
     j_n = s_n - 1
     joint_power = np.zeros((t_n, j_n))
-    v_prox_all = finite_difference(ck["prox"], kin.rate)  # [T,S,3]
+    rotational = np.zeros_like(joint_power)
     for j in range(j_n):
         w_rel = ck["omega"][:, j] - ck["omega"][:, j + 1]
         joint_pt = ck["prox"][:, j]
@@ -519,7 +552,8 @@ def energy_audit(skeleton: Skeleton, kin: SegmentKinematics,
         v_on_prox = (ck["v_com"][:, j + 1]
                      + np.cross(ck["omega"][:, j + 1],
                                 joint_pt - ck["com"][:, j + 1]))
-        joint_power[:, j] = (np.sum(idres.joint_torque[:, j] * w_rel, axis=1)
+        rotational[:, j] = np.sum(idres.joint_torque[:, j] * w_rel, axis=1)
+        joint_power[:, j] = (rotational[:, j]
                              + np.sum(idres.joint_force[:, j]
                                       * (v_on_dist - v_on_prox), axis=1))
 
@@ -538,7 +572,9 @@ def energy_audit(skeleton: Skeleton, kin: SegmentKinematics,
         t=kin.t, kinetic=ke, potential=pe, joint_power=joint_power,
         ground_power=ground_power, residual_power=residual_power,
         de_dt=de_dt, power_total=power_total,
-        imbalance=de_dt - power_total)
+        imbalance=de_dt - power_total,
+        joint_power_rotational=rotational,
+        joint_power_translational=joint_power - rotational)
 
 
 # ---------------------------------------------------------------------------
@@ -694,6 +730,7 @@ def energy_audit_two_legs(skel_r: Skeleton, kin_r: SegmentKinematics,
     pe = np.zeros(t_n)
     ground_power = np.zeros(t_n)
     joint_power = np.zeros((t_n, 6))
+    rotational = np.zeros_like(joint_power)
 
     pel_skel, pel_kin = slice_chain(skel_r, kin_r, [3])
     ck_pel = chain_kinematics(pel_skel, pel_kin, params.lowpass_hz,
@@ -741,8 +778,10 @@ def energy_audit_two_legs(skel_r: Skeleton, kin_r: SegmentKinematics,
                 v_prox = (ck_pel["v_com"][:, 0]
                           + np.cross(w_prox,
                                      ck["prox"][:, j] - ck_pel["com"][:, 0]))
+            rotational[:, col0 * 3 + j] = np.sum(
+                res.joint_torque[:, j] * (w_dist - w_prox), axis=1)
             joint_power[:, col0 * 3 + j] = (
-                np.sum(res.joint_torque[:, j] * (w_dist - w_prox), axis=1)
+                rotational[:, col0 * 3 + j]
                 + np.sum(res.joint_force[:, j] * (v_dist - v_prox), axis=1))
 
     # pelvis segment energy + residual power at L5S1
@@ -765,7 +804,9 @@ def energy_audit_two_legs(skel_r: Skeleton, kin_r: SegmentKinematics,
         t=kin_r.t, kinetic=ke, potential=pe, joint_power=joint_power,
         ground_power=ground_power, residual_power=residual_power,
         de_dt=de_dt, power_total=power_total,
-        imbalance=de_dt - power_total)
+        imbalance=de_dt - power_total,
+        joint_power_rotational=rotational,
+        joint_power_translational=joint_power - rotational)
 
 
 # ---------------------------------------------------------------------------
@@ -1023,6 +1064,7 @@ def energy_audit_whole_body(skel_r: Skeleton, kin_r: SegmentKinematics,
     pe = np.zeros(t_n)
     ground_power = np.zeros(t_n)
     joint_power = np.zeros((t_n, 11))
+    rotational_terms = []
 
     def accumulate(skel, ck, s):
         i_w = inertia_world(ck["r"][:, s], skel.inertia_local[s])
@@ -1036,7 +1078,8 @@ def energy_audit_whole_body(skel_r: Skeleton, kin_r: SegmentKinematics,
         w_p = ck_p["omega"][:, s_p]
         v_d = ck_d["v_com"][:, s_d] + np.cross(w_d, point - ck_d["com"][:, s_d])
         v_p = ck_p["v_com"][:, s_p] + np.cross(w_p, point - ck_p["com"][:, s_p])
-        return (np.sum(torque * (w_d - w_p), axis=1)
+        rotational_terms.append(np.sum(torque * (w_d - w_p), axis=1))
+        return (rotational_terms[-1]
                 + np.sum(force * (v_d - v_p), axis=1))
 
     pel_skel, pel_kin = slice_chain(skel_r, kin_r, [3])
@@ -1110,13 +1153,16 @@ def energy_audit_whole_body(skel_r: Skeleton, kin_r: SegmentKinematics,
             whole.elbow_force[:, k], whole.elbow_torque[:, k],
             ck_arm["prox"][:, 0], ck_arm, 0, ck_arm, 1)
 
+    rotational = np.stack(rotational_terms, axis=1)
     de_dt = finite_difference(ke + pe, kin_r.rate)
     power_total = ground_power + joint_power.sum(axis=1) + residual_power
     return EnergyAudit(
         t=kin_r.t, kinetic=ke, potential=pe, joint_power=joint_power,
         ground_power=ground_power, residual_power=residual_power,
         de_dt=de_dt, power_total=power_total,
-        imbalance=de_dt - power_total)
+        imbalance=de_dt - power_total,
+        joint_power_rotational=rotational,
+        joint_power_translational=joint_power - rotational)
 
 
 # ---------------------------------------------------------------------------

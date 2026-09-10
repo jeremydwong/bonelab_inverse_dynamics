@@ -647,6 +647,52 @@ def hjc_offset_mm(trial, method: str, side: str, edge: int = EDGE) -> float:
     return float(1000.0 * np.linalg.norm(d[sl], axis=1).mean())
 
 
+def joint_dof_comparison_html(audit, names, edge: int = 5) -> str:
+    """Same-motion 3/6-DOF comparison, with signed work in a stated window."""
+    from html import escape
+    from .core import joint_power, joint_work
+    sl = slice(edge, -edge) if edge else slice(None)
+    p3 = joint_power(audit, dof=3)
+    p6 = joint_power(audit, dof=6)
+    w3 = joint_work(audit, dof=3, window=sl)
+    w6 = joint_work(audit, dof=6, window=sl)
+    fig, axes = new_grid(rows=len(names), cols=1, height=1.7 * len(names),
+                         sharex=True, sharey=True)
+    for j, ax in enumerate(np.asarray(axes).reshape(-1)):
+        ax.plot(audit.t[sl], p3[sl, j], label="3-DOF rotational", lw=1)
+        ax.plot(audit.t[sl], p6[sl, j], label="6-DOF total", lw=1)
+        ax.plot(audit.t[sl], (p6 - p3)[sl, j], label="translational", lw=0.8,
+                ls=":")
+        style_axes(ax, "time (s)", f"{names[j]} (W)")
+        if j == 0:
+            ax.legend(frameon=False, fontsize=8)
+    rows = "".join(
+        f"<tr><td>{escape(name)}</td>"
+        + "".join(f"<td>{v[0,j]:.2f} / {v[1,j]:.2f} / {v[2,j]:.2f}</td>"
+                  for v in (w3, w6, w6-w3)) + "</tr>"
+        for j, name in enumerate(names))
+    return (
+        '<h2>3-DOF versus 6-DOF joint work</h2>'
+        '<p>Same segment motion and joint wrenches. 3-DOF uses '
+        'M·(ω_dist−ω_prox); 6-DOF adds F·(v_dist−v_prox), with both '
+        'material velocities evaluated at the same wrench reference point. '
+        'The energy audit always uses 6-DOF. This is a power-definition '
+        'comparison, not a constrained-kinematics refit.</p>'
+        f'<img src="{fig_svg(fig)}" style="width:100%" alt="3-DOF and 6-DOF joint powers">'
+        f'<p>Work over {audit.t[sl][0]:.3f}–{audit.t[sl][-1]:.3f} s '
+        '(whole retained window, not per stride). Each cell: positive / '
+        'signed negative / net J. Components are summed before clipping.</p>'
+        '<table><thead><tr><th>Joint</th><th>3-DOF (J)</th><th>6-DOF (J)</th>'
+        '<th>6−3 difference (J)</th></tr></thead><tbody>' + rows + '</tbody></table>'
+        '<p><a href="https://doi.org/10.1242/jeb.115451">Zelik, Takahashi '
+        '&amp; Sawicki (2015)</a>: full wrench power accounts for translation '
+        'and is invariant to shifting the wrench reference point with segment '
+        'motion held fixed. Rebuilding segment frames/COMs under another hip '
+        'centre convention can still change total power. Translational power '
+        'may include marker artefact and model error; it is not isolated '
+        'cartilage or muscle work. Distal-to-foot power remains separate.</p>')
+
+
 def joint_power_tau_omega(skeleton, kin, idres, params=None) -> np.ndarray:
     """[T,3] joint power τ·ω_rel for [ankle, knee, hip] of one leg chain.
 
@@ -665,16 +711,18 @@ def joint_power_tau_omega(skeleton, kin, idres, params=None) -> np.ndarray:
         for j in range(3)], axis=1)
 
 
-def hjc_comparison(trial, params=None, edge: int = EDGE) -> dict:
+def hjc_comparison(trial, params=None, edge: int = EDGE, *, dof: int = 3) -> dict:
     """Run the whole-body pipeline once per hip-centre convention.
 
     Returns `{method: {...}}` with, per method and per side, the joint powers
-    (τ·ω_rel), the joint reaction force magnitudes, their integrated
+    (rotational for dof=3, full wrench for dof=6), reaction forces, integrated
     positive/negative work and peaks, plus the offset from the landmark centre.
     """
-    from .core import inverse_dynamics_whole_body
+    from .core import inverse_dynamics_whole_body, energy_audit, joint_power
+    if dof not in (3, 6):
+        raise ValueError("dof must be 3 or 6")
     params = params or p1_params()
-    sl = slice(edge, -edge)
+    sl = slice(edge, -edge) if edge else slice(None)
     out = {}
     for method in HJC_METHODS:
         chain, skel_u, kin_u = whole_body_chain(trial, params, method)
@@ -684,7 +732,8 @@ def hjc_comparison(trial, params=None, edge: int = EDGE) -> dict:
         for k, side in enumerate(SIDES):
             skel, kin = chain[3 * k], chain[3 * k + 1]
             res = whole.right if side == "r" else whole.left
-            p = joint_power_tau_omega(skel, kin, res, params)
+            p = joint_power(energy_audit(skel, kin, chain[3 * k + 2],
+                                         res, params), dof=dof)
             f = np.linalg.norm(res.joint_force, axis=2)          # [T,3]
             entry["offset_mm"][side] = hjc_offset_mm(trial, method, side, edge)
             entry["power"][side] = p
@@ -1343,6 +1392,61 @@ def p1_report_html(trial, chain, skel_u, kin_u, whole, audit, params, sweep,
              f"threshold on running data (Fox 2023, bioRxiv 555836, "
              f"comparing RRA/MocoTrack/AddBiomechanics).  Near zero on "
              f"average, honest instant to instant.")
+
+    # ---- 6c. is Visual3D's own residual in the same range? ---------------
+    # Their model stops at the pelvis, so their exported pelvis-top wrench
+    # (rPvProxEndForce) carries the whole unmodeled upper body — the same
+    # role our two-leg residual played before the torso and arms were
+    # modeled.  Subtracting our upper-body DEMAND (the L5S1 wrench our
+    # whole-body model measures from the same markers) leaves the part of
+    # THEIR pelvis-top force that rigid-body dynamics does not explain.
+    v3d_pv = io.reference_series(trial, "rPvProxEndForce")
+    implied = v3d_pv - whole.l5s1_force
+    imp_mean = implied[edge:-edge].mean(axis=0)
+    imp_fluct = np.sqrt(((implied[edge:-edge] - imp_mean) ** 2).mean(axis=0))
+    imp_peak = float(np.abs(implied[edge:-edge]).max())
+    ours_fluct = np.sqrt((whole.residual_force[edge:-edge] ** 2).mean(axis=0))
+    r_z = float(np.corrcoef(v3d_pv[edge:-edge, 2],
+                            whole.l5s1_force[edge:-edge, 2])[0, 1])
+    fig, axes = new_grid(1, 2, height=3.0, width=9.2)
+    axes[0, 0].plot(t, v3d_pv[:, 2], color=NEUTRAL, lw=2.4, alpha=0.45,
+                    label="V3D pelvis-top Fz")
+    axes[0, 0].plot(t, whole.l5s1_force[:, 2], color=JOINT_COLORS[0], lw=1.2,
+                    label="our L5S1 Fz")
+    style_axes(axes[0, 0], "time (s)", "pelvis-top vertical force (N)")
+    axes[0, 0].legend(frameon=False, fontsize=8.5)
+    for c in range(3):
+        axes[0, 1].plot(t, implied[:, c], color=JOINT_COLORS[c], lw=1.1,
+                        label=f"implied F{lab[c]}")
+    axes[0, 1].plot(t, whole.residual_force[:, 2], color=FAINT, lw=1.6,
+                    label="our residual Fz (scale ref)")
+    style_axes(axes[0, 1], "time (s)", "V3D implied residual (N)")
+    axes[0, 1].legend(frameon=False, fontsize=8, ncol=2)
+    add(fig, f"Is Visual3D's own leftover in the same range as ours?  Left: "
+             f"the top of THEIR chain — Visual3D's exported pelvis-proximal "
+             f"force — against our L5S1 wrench, the same physical quantity "
+             f"estimated independently (vertical correlation r = {r_z:.2f}; "
+             f"their mean {v3d_pv[edge:-edge, 2].mean():.0f} N vs ours "
+             f"{whole.l5s1_force[edge:-edge, 2].mean():.0f} N — the ~"
+             f"{abs(v3d_pv[edge:-edge, 2].mean() - whole.l5s1_force[edge:-edge, 2].mean()):.0f} N "
+             f"offset is anthropometric bookkeeping: where the pelvis ends "
+             f"and how much mass sits above it, ~5 kg between the two "
+             f"segment tables).  Right: subtracting our measured upper-body "
+             f"demand from their pelvis-top force leaves V3D's IMPLIED "
+             f"residual: fluctuation RMS ({imp_fluct[0]:.0f}, "
+             f"{imp_fluct[1]:.0f}, {imp_fluct[2]:.0f}) N, peak "
+             f"{imp_peak:.0f} N — against our whole-body residual's "
+             f"({ours_fluct[0]:.0f}, {ours_fluct[1]:.0f}, "
+             f"{ours_fluct[2]:.0f}) N and {res_peak:.0f} N (grey trace for "
+             f"scale).  ASSUMPTIONS, stated plainly: the upper-body demand "
+             f"comes from OUR de Leva torso+arm model on the shared "
+             f"markers, so their implied residual mixes their leg-analysis "
+             f"error with our upper-body-model error, and their pelvis "
+             f"segment differs from ours.  TENTATIVE CONCLUSION: the two "
+             f"analyses leave the same order of unexplained force — "
+             f"V3D's implied residual is, if anything, somewhat smaller "
+             f"(heavier filtering); our heel-strike residual spikes are "
+             f"not an artefact peculiar to our implementation.")
 
     # ---- 8b. the L5S1 joint wrench, and the cross-trial check ------------
     fig, axes = new_grid(1, 3, height=3.0, width=9.2)
@@ -2020,6 +2124,9 @@ e.g. <code>uv run python -m boneid.report v3d {trial.path} {trial.index}</code>.
 and <code>notebooks/p1_report.ipynb</code> is the same analysis step by step in
 a notebook.</p>
 """
+    body += joint_dof_comparison_html(audit,
+        ["R ankle", "R knee", "R hip", "L ankle", "L knee", "L hip",
+         "L5/S1", "R shoulder", "R elbow", "L shoulder", "L elbow"])
     return html_page("Subject P1 Inverse Dynamics", "p1", body)
 
 
@@ -2886,8 +2993,9 @@ angular velocity in the script — says it returned the second time derivative
 of the room-frame Cardan angles, 12 Hz low-passed, rather than the true
 angular-acceleration vector dω/dt with ω = unskew(Ṙ R<sup>T</sup>). Those
 agree only for rotation about one fixed coordinate axis. Because the source is
-lost, this one is behind a switch: <code>cardan_alpha=True</code> (the
-default, because the legacy did do this) and <code>cardan_alpha=False</code>
+unavailable in this checkout, this one is behind a switch:
+<code>cardan_alpha=True</code> (the default, representing the presumed
+implementation) and <code>cardan_alpha=False</code>
 for the two verified mistakes alone. Every figure below shows both.</li>
 </ul>
 <p><b>What is <em>not</em> reproduced.</b> The legacy also had genuine
@@ -2995,6 +3103,48 @@ pins the behaviour: on the KEY-GYRO simulation, whose entire required torque
 <em>is</em> ω × (I<sub>w</sub>ω), the asicssource path returns approximately
 zero — proof that the reimplementation really does reproduce the bug rather
 than approximate it.</p>
+
+<h2 id="appendix-missing-files">Appendix A — Missing files to request from the lab</h2>
+<p>The files below are absent from the inspected
+<code>matlab-inverse-dynamics/</code> tree. “Missing” means unavailable in
+this checkout; it does not establish that the lab has lost them. The call
+sites identify the expected filenames and roles, but their implementations
+still need to be inspected. Line references below are to
+<code>Asics_Moments4JCF_v3.m</code> unless otherwise stated.</p>
+<p><b>First priority: <code>RoomSegAng.m</code>.</b> This is the source needed
+to confirm or reject assumption (c). Until it is recovered, results including
+(c) describe the presumed implementation; they do not establish what the
+original routine actually computed.</p>
+<div class="overflow"><table class="missing-files">
+<thead><tr><th scope="col">File to request</th><th scope="col">Evidence / use</th><th scope="col">What we can directly assess</th></tr></thead>
+<tbody>
+<tr><td><code>RoomSegAng.m</code></td><td>Active calls, lines 442–447.</td><td>Whether angular acceleration is a Cardan-angle second derivative or dω/dt; rotation convention, units, differentiation, filtering and endpoint handling.</td></tr>
+<tr><td><code>multiprod.m</code></td><td>Active calls, lines 370–380, 421; <code>inv3d.m:38</code>.</td><td>Exact multidimensional product semantics underlying the inertia-transform and moment-balance findings. Include the original package version and dependencies.</td></tr>
+<tr><td><code>matexp.m</code></td><td>Active calls, lines 369–379.</td><td>How each local inertia matrix is replicated and its dimensions arranged before rotation.</td></tr>
+<tr><td><code>VirtualPoint_v2.m</code></td><td>Active calls, lines 334–341.</td><td>Cluster fitting, virtual joint centres, rotation-matrix direction and missing-marker handling. <code>VirtualPoint.m</code> is present, but equivalence to v2 has not been established.</td></tr>
+<tr><td><code>getViconForces_Motek.m</code></td><td>Active call, line 285.</td><td>Force/moment signs and units, plate rotation, origins, offsets, slope correction and COP calculation.</td></tr>
+<tr><td><code>ContactEvents_Motek.m</code></td><td>Active call, line 288.</td><td>Heel-strike/toe-off thresholds, COP criteria, event indices and off-contact handling.</td></tr>
+<tr><td><code>G2L.m</code></td><td>Active calls, lines 473–484.</td><td>Global-to-local force and moment transformation, transpose convention and component order used in reported kinetics and powers.</td></tr>
+<tr><td><code>SIMMpatellaCS.m</code></td><td>Active call, line 420.</td><td>Patellar coordinate-system construction, knee-angle units and tibial scaling; restore this dependency for a full script run.</td></tr>
+<tr><td><code>TreadOffsets.m</code></td><td>Commented-out call, line 274.</td><td>Treadmill offset correction, if enabled in the version used by the lab. Not required by this commented-out path.</td></tr>
+<tr><td><code>generateMotFile.m</code></td><td>Commented-out call, line 322.</td><td>GRF motion-file export format and units, if that export was used. Not required by this commented-out path.</td></tr>
+</tbody></table></div>
+<p><b>Please supply the versions used for the original analysis</b>, together
+with their helper files, toolbox/package versions and MATLAB path setup.
+A copy of the actual batch script used by the lab would let us check whether
+it differs from this checkout.</p>
+<p>For an end-to-end assessment, also request one matched static/dynamic C3D
+trial pair, its subject anthropometrics and force-plate calibration/offset
+settings, and the corresponding saved MATLAB outputs (ideally segment
+rotations, angular velocities/accelerations, global/local moments and powers).
+These are supporting materials to request, not additional named files whose
+absence has been established here. They would allow us to compare recovered
+code with the original outputs and then reassess the report’s assumptions.</p>
+<style>
+  .missing-files {{ width: 100%; min-width: 680px; }}
+  .missing-files th, .missing-files td {{ text-align: left; vertical-align: top; }}
+  .missing-files td:first-child {{ width: 25%; }}
+</style>
 """
     return html_page("Implication of Asics", "", body)
 
@@ -4137,4 +4287,553 @@ midpoints.</p>
 <p><code>uv run python examples/quickstart_c3d.py [data_dir] [condition] [trial]</code>
 — edit the config block at the top of the script for your study.</p>
 """
+    body += joint_dof_comparison_html(audit, skeleton.joint_names)
     return html_page(title, "c3d", body)
+
+
+# ---------------------------------------------------------------------------
+# Interactive playground (p1): the quickstart with knobs, computed in JS
+# ---------------------------------------------------------------------------
+
+def _b64_f32(a: np.ndarray) -> str:
+    import base64
+    return base64.b64encode(
+        np.ascontiguousarray(a, dtype=np.float32).tobytes()).decode()
+
+
+def playground_data(trial, cutoffs=(8.0, 12.0, 20.0)) -> dict:
+    """Everything the in-browser whole-body recursion needs, precomputed.
+
+    The lag/threshold/force-filter knobs only touch the GROUND WRENCH and
+    the recursion — pure per-frame algebra — while the expensive part
+    (cluster-free marker kinematics: filtered poses, accelerations, and the
+    rotational term I·α + ω×(I·ω) per segment) depends only on the KINEMATIC
+    cutoff, so it is computed here once per cutoff choice and embedded.
+    The JS then mirrors `core.inverse_dynamics_whole_body` exactly:
+    3-segment leg recursions, pelvis balance with both hip reactions
+    (top output = the L5S1 wrench), 2-segment arm recursions, torso balance
+    (top output = the residual at the torso COM).
+    """
+    from . import io_v3d as io
+    from .core import (AnalysisParams, _alpha_of, _rot_term, chain_kinematics,
+                       slice_chain, wrench_from_cop)
+
+    params = p1_params()
+    skel_r, kin_r, _ = io.build_chain(trial, side="r")
+    skel_l, kin_l, _ = io.build_chain(trial, side="l")
+    skel_u, kin_u = io.build_upper_body(trial)
+
+    units = {}
+    for c_i, hz in enumerate(cutoffs):
+        p = AnalysisParams(lowpass_hz=float(hz), force_lowpass_hz=0.0,
+                           contact_threshold_n=params.contact_threshold_n)
+
+        def pack(skel, kin, name):
+            ck = chain_kinematics(skel, kin, p.lowpass_hz, p.filter_order)
+            alpha = _alpha_of(ck, kin.rate, p, None)
+            s_n = ck["com"].shape[1]
+            rot = np.stack([_rot_term(ck["r"][:, s], skel.inertia_local[s],
+                                      ck["omega"][:, s], alpha[:, s], None)
+                            for s in range(s_n)], axis=1)
+            units[f"c{c_i}_{name}"] = {
+                "com": _b64_f32(ck["com"]), "acc": _b64_f32(ck["a_com"]),
+                "prox": _b64_f32(ck["prox"]), "rot": _b64_f32(rot),
+                "n_seg": s_n}
+
+        pack(*slice_chain(skel_r, kin_r, [0, 1, 2]), "legR")
+        pack(*slice_chain(skel_l, kin_l, [0, 1, 2]), "legL")
+        pack(*slice_chain(skel_r, kin_r, [3]), "pelvis")
+        pack(skel_u, kin_u, "upper")     # [r_fa, r_ua, l_fa, l_ua, torso]
+
+    # analog-rate ground wrench about the origin, masked exactly as
+    # io_v3d.ground_wrench does (COP is garbage below 20 N)
+    f = trial.force.copy()                      # [Ta,2,3]
+    m = np.empty_like(f)
+    for pl in range(f.shape[1]):
+        on = f[:, pl, 2] > 20.0
+        m[:, pl] = wrench_from_cop(trial.force[:, pl], trial.cop[:, pl],
+                                   trial.free_moment[:, pl], np.zeros(3))
+        f[~on, pl] = 0.0
+        m[~on, pl] = 0.0
+
+    ref = np.stack([io.reference_series(trial, n)[:, 0]
+                    for side in ("r", "l")
+                    for n in v3d_ref_torque(side)])     # [6,T] sagittal
+
+    return {
+        "T": len(trial.t), "rate": trial.rate,
+        "Ta": len(trial.t_analog), "arate": trial.analog_rate,
+        "cutoffs": list(map(float, cutoffs)),
+        "mass": {"legR": skel_r.mass[:3].tolist(),
+                 "legL": skel_l.mass[:3].tolist(),
+                 "pelvis": float(skel_r.mass[3]),
+                 "upper": skel_u.mass.tolist()},
+        "units": units,
+        "wf": _b64_f32(f), "wm": _b64_f32(m),
+        "ref": _b64_f32(ref),
+        "body_mass": float(io.estimate_body_mass(trial)),
+    }
+
+
+PLAYGROUND_TEMPLATE = r"""<title>Inverse Dynamics Playground</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root { --paper:#f7f6f2; --card:#fcfcfb; --ink:#1c1b18; --ink2:#52514e;
+          --accent:#2a78d6; --rule:#dedcd4; }
+  html { color-scheme: light; }
+  body { background:var(--paper); color:var(--ink); margin:0;
+         font:16px/1.55 "IBM Plex Sans",system-ui,sans-serif; }
+  main { max-width:900px; margin:0 auto; padding:44px 24px 96px; }
+  h1,h2 { font-family:"Source Serif 4",Georgia,serif; line-height:1.15; }
+  h1 { font-size:2.05rem; margin:0 0 4px; }
+  h2 { font-size:1.3rem; margin:34px 0 8px; border-top:1px solid var(--rule);
+       padding-top:22px; }
+  p { max-width:68ch; }
+  .eyebrow { font:600 .72rem/1 "IBM Plex Mono",monospace; letter-spacing:.14em;
+             text-transform:uppercase; color:var(--accent); margin:0 0 10px; }
+  .subtitle { color:var(--ink2); }
+  pre.cmds { background:var(--card); border:1px solid var(--rule);
+             border-radius:6px; padding:14px 16px; overflow-x:auto;
+             font:12.5px/1.75 "IBM Plex Mono",monospace; color:var(--ink2); }
+  pre.cmds b { color:var(--ink); font-weight:500; }
+  pre.cmds .p { color:var(--accent); font-weight:600; }
+  .controls { display:flex; gap:10px; margin:18px 0; }
+  .ctl { background:var(--card); border:1px solid var(--rule); border-radius:6px;
+         padding:8px 12px; flex:1; min-width:0; }
+  .ctl .k { font:600 .62rem/1.3 "IBM Plex Mono",monospace; letter-spacing:.06em;
+            text-transform:uppercase; color:var(--ink2); white-space:nowrap; }
+  .ctl .v { font-size:1.05rem; font-weight:600; margin:2px 0 4px;
+            font-variant-numeric:tabular-nums; white-space:nowrap; }
+  input[type=range] { width:100%; accent-color:var(--accent); margin:0; }
+  select { font:inherit; font-size:.95rem; padding:1px 4px;
+           border:1px solid var(--rule); border-radius:4px; background:#fff; }
+  .chips { display:flex; gap:10px; flex-wrap:wrap; margin:16px 0; }
+  .chip { background:var(--card); border:1px solid var(--rule); border-radius:6px;
+          padding:8px 12px; flex:1; min-width:140px; }
+  .chip .k { font:500 .62rem/1.2 "IBM Plex Mono",monospace; letter-spacing:.06em;
+             text-transform:uppercase; color:var(--ink2); }
+  .chip .v { font-size:1.2rem; font-weight:600; font-variant-numeric:tabular-nums; }
+  .chip .u { font-size:.78rem; color:var(--ink2); font-weight:400; }
+  .grid { display:grid; grid-template-columns:1fr 262px; gap:14px;
+          align-items:start; }
+  .panel { background:var(--card); border:1px solid var(--rule); border-radius:6px;
+           padding:10px; }
+  .panel.muted { opacity:.85; }
+  canvas { width:100%; display:block; }
+  .torques { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+  figcaption,.note { font-size:.84rem; color:var(--ink2); padding-top:6px;
+                     line-height:1.45; }
+  @media (max-width:760px){ .grid { grid-template-columns:1fr; } }
+</style>
+<main>
+<p class="eyebrow">boneid · interactive · subject P1 · trial 13</p>
+<h1>Inverse Dynamics Playground</h1>
+<p class="subtitle">The whole-body quickstart with its choices exposed.
+Every control is a real analysis decision; changing one re-runs the full
+12-segment Newton&ndash;Euler recursion <b>in your browser</b> on the
+embedded walking trial (120&nbsp;Hz mocap / 1200&nbsp;Hz forces) and
+redraws everything below.</p>
+
+<h2>The ten commands</h2>
+<p>Exactly the calls <code>examples/quickstart.py</code> makes, with the
+knob values substituted where they enter (<span style="color:var(--accent);
+font-weight:600">blue</span> = live):</p>
+<pre class="cmds"> 1  <b>trial</b>  = load_v3d_trial("p1_5StridesData.mat", trial=13)
+ 2  <b>forces</b> ride on the trial at 1200 Hz; the offset knob evaluates F(t &minus; &tau;), &tau; = <span class="p" id="c_lag">0</span> ms
+ 3  <b>mass</b>   = estimate_body_mass(trial)  &rarr; 85.0 kg   (full-stride mean of &Sigma;Fz/g; computed ONCE,
+    held fixed across every knob &mdash; and insensitive to &tau; anyway: &plusmn;50 ms moves it &lt;0.2%)
+ 4  <b>params</b> = AnalysisParams(contact_threshold_n=<span class="p c_thr">20</span>, lowpass_hz=<span class="p" id="c_k">12</span>, force_lowpass_hz=<span class="p" id="c_f">50</span>)
+ 5  <b>chains</b>: build_chain(trial, side="r"|"l"), build_upper_body(trial)
+ 6  <b>contact</b> = detect_contact(ground.force[:,2], threshold=<span class="p c_thr">20</span>)
+ 7  <b>whole</b>  = inverse_dynamics_whole_body(legs, upper, params)
+ 8  <b>outputs</b>: whole.right/.left.joint_torque, whole.residual_force
+ 9  <b>audit</b>  = energy_audit_whole_body(...)   (see the main report)
+10  <b>figures</b> below, live</pre>
+
+<div class="controls">
+  <div class="ctl"><div class="k">kinematic low-pass</div>
+    <div class="v"><select id="kcut"><option>8</option>
+      <option selected>12</option><option>20</option></select> Hz</div></div>
+  <div class="ctl"><div class="k">force low-pass</div>
+    <div class="v"><select id="fcut"><option selected>50</option>
+      <option>25</option><option>12</option></select> Hz</div></div>
+  <div class="ctl"><div class="k">contact threshold</div>
+    <div class="v"><span id="thrv">20</span> N</div>
+    <input id="thr" type="range" min="10" max="60" step="5" value="20"></div>
+</div>
+
+<h2>The result</h2>
+<div class="chips" id="chips"></div>
+<div class="grid">
+  <div>
+    <div class="panel"><canvas id="cRes" height="200"></canvas>
+      <figcaption>Whole-body residual force at the torso COM &mdash; the
+      model&rsquo;s error term (x blue, y orange, z green).</figcaption></div>
+    <div class="torques" style="margin-top:14px">
+      <div class="panel"><canvas id="cT0" height="180"></canvas></div>
+      <div class="panel"><canvas id="cT1" height="180"></canvas></div>
+      <div class="panel"><canvas id="cT2" height="180"></canvas></div>
+    </div>
+    <figcaption style="padding:6px 2px 0">Sagittal net joint torques:
+    right leg solid, left dashed, Visual3D&rsquo;s export grey (computed by
+    them at zero offset, so it is the fixed reference).</figcaption>
+  </div>
+  <div class="panel">
+    <div class="k" style="font:600 .62rem/1.3 'IBM Plex Mono',monospace;
+      letter-spacing:.06em; text-transform:uppercase; color:var(--ink2)">
+      force &harr; mocap time offset</div>
+    <div style="font-size:1.15rem; font-weight:600; margin:2px 0 4px">
+      &tau; = <span id="lagv">0</span> ms</div>
+    <input id="lag" type="range" min="-50" max="50" step="1" value="0">
+    <canvas id="cLag" height="190" style="margin-top:10px"></canvas>
+    <figcaption>Sum of squared residual force over the whole trial, at
+    every offset &tau; (dot = current) &mdash; the time-sweep sync check.
+    The two systems are <i>assumed</i> synchronized; using the residual to
+    detect mis-sync is an established idea: &ldquo;If the other sources of
+    experimental error are small, it is possible that residual forces can
+    be helpful for identifying the presence or sensitivity of
+    mis-synchronization&rdquo; (Lemaire &amp; Kuo 2024, bioRxiv 600392,
+    who report residuals growing ~1% body weight per ms in walking; see
+    also G&uuml;nther et al. 2005). Squaring
+    SHARPENS the minimum rather than blurring it (&plusmn;5 ms raises the
+    sum-squared 9% vs 4% for mean-absolute; both agree on the location to
+    1 ms) &mdash; but the bottom is still shallow, so single-digit-ms lags
+    remain uninferable. The minimum near &minus;7 ms rather than 0 matches
+    the ~8 ms internal processing delay Lemaire &amp; Kuo measured on the
+    same lab&rsquo;s Bertec treadmill that recorded this very
+    dataset.</figcaption>
+  </div>
+</div>
+<div class="panel muted" style="margin-top:14px">
+  <canvas id="cGrf" height="150"></canvas>
+  <figcaption>For reference only: vertical force per belt (right blue,
+  left green), detected contact shaded, threshold dashed.</figcaption></div>
+<p class="note">Same physics as <code>boneid.core</code>: legs bottom-up,
+pelvis balanced with both hip reactions, arms into the torso, torso balance
+&rarr; residual. Segment kinematics precomputed per filter choice by
+<code>report.playground_data</code>; wrench shifting, filtering, contact
+detection and every joint balance run live in ~100 lines of JS.
+Prefer Python? The same ten steps, knobs and time-sweep live as a notebook:
+<code>notebooks/p1_playground.ipynb</code> (also on Colab via the repo).</p>
+</main>
+<script>
+const D = __DATA__;
+function f32(b64){ const s=atob(b64); const u=new Uint8Array(s.length);
+  for(let i=0;i<s.length;i++) u[i]=s.charCodeAt(i);
+  return new Float32Array(u.buffer); }
+const T=D.T, RATE=D.rate, TA=D.Ta, ARATE=D.arate, G=[0,0,-9.81], E0=10;
+const WF=f32(D.wf), WM=f32(D.wm), REF=f32(D.ref);
+const UNITS={};
+for(const k in D.units){ const u=D.units[k];
+  UNITS[k]={n:u.n_seg, com:f32(u.com), acc:f32(u.acc),
+            prox:f32(u.prox), rot:f32(u.rot)}; }
+function v(arr,t,s,c,nseg){ return arr[(t*nseg+s)*3+c]; }
+function cross(a,b){ return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2],
+                             a[0]*b[1]-a[1]*b[0]]; }
+function filtfilt(x, fc, fs){
+  const c=1/Math.tan(Math.PI*fc/fs), c2=c*c, s2=Math.SQRT2*c;
+  const a0=1+s2+c2, b0=1/a0, b1=2/a0, b2=1/a0,
+        a1=2*(1-c2)/a0, a2=(1-s2+c2)/a0;
+  function pass(src){ const y=new Float32Array(src.length);
+    let x1=src[0],x2=src[0],y1=src[0],y2=src[0];
+    for(let i=0;i<src.length;i++){ const xi=src[i];
+      const yi=b0*xi+b1*x1+b2*x2-a1*y1-a2*y2;
+      y[i]=yi; x2=x1; x1=xi; y2=y1; y1=yi; }
+    return y; }
+  const fwd=pass(x); fwd.reverse(); const back=pass(fwd); back.reverse();
+  return back; }
+// pre-filter the analog wrench once per force-cutoff; lag only re-samples
+let FCOLS=null, FCUT=-1;
+function beltWrench(lagS, fcut){
+  if(fcut!==FCUT){ FCOLS=[];
+    for(let p=0;p<2;p++){ const cols=[];
+      for(let arr of [WF,WM]) for(let c=0;c<3;c++){
+        const col=new Float32Array(TA);
+        for(let k=0;k<TA;k++) col[k]=arr[(k*2+p)*3+c];
+        cols.push(filtfilt(col, fcut, ARATE)); }
+      FCOLS.push(cols); }
+    FCUT=fcut; }
+  const out=[];
+  for(let p=0;p<2;p++){
+    const cols=FCOLS[p];
+    const F=new Float32Array(T*3), M=new Float32Array(T*3);
+    for(let i=0;i<T;i++){
+      const ta=(i/RATE - lagS)*ARATE;
+      const k=Math.max(0, Math.min(TA-2, Math.floor(ta)));
+      const w=Math.max(0, Math.min(1, ta-k));
+      for(let c=0;c<3;c++){
+        F[i*3+c]=cols[c][k]*(1-w)+cols[c][k+1]*w;
+        M[i*3+c]=cols[3+c][k]*(1-w)+cols[3+c][k+1]*w; }
+    }
+    out.push({F:F, M:M});
+  }
+  return out; }
+function serial(unit, masses, Fd, Md, Pd){
+  const n=unit.n, J=[];
+  for(let j=0;j<n;j++) J.push({f:new Float32Array(T*3),
+                               m:new Float32Array(T*3)});
+  for(let i=0;i<T;i++){
+    let fd=[Fd[i*3],Fd[i*3+1],Fd[i*3+2]],
+        md=[Md[i*3],Md[i*3+1],Md[i*3+2]],
+        pd=[Pd[i*3],Pd[i*3+1],Pd[i*3+2]];
+    for(let s=0;s<n;s++){
+      const m=masses[s];
+      const com=[v(unit.com,i,s,0,n),v(unit.com,i,s,1,n),v(unit.com,i,s,2,n)];
+      const acc=[v(unit.acc,i,s,0,n),v(unit.acc,i,s,1,n),v(unit.acc,i,s,2,n)];
+      const rot=[v(unit.rot,i,s,0,n),v(unit.rot,i,s,1,n),v(unit.rot,i,s,2,n)];
+      const pp=[v(unit.prox,i,s,0,n),v(unit.prox,i,s,1,n),v(unit.prox,i,s,2,n)];
+      const fp=[0,0,0], mp=[0,0,0];
+      for(let c=0;c<3;c++) fp[c]=m*acc[c]-fd[c]-m*G[c];
+      const c1=cross([pd[0]-com[0],pd[1]-com[1],pd[2]-com[2]],fd);
+      const c2=cross([pp[0]-com[0],pp[1]-com[1],pp[2]-com[2]],fp);
+      for(let c=0;c<3;c++) mp[c]=rot[c]-md[c]-c1[c]-c2[c];
+      for(let c=0;c<3;c++){ J[s].f[i*3+c]=fp[c]; J[s].m[i*3+c]=mp[c]; }
+      fd=[-fp[0],-fp[1],-fp[2]]; md=[-mp[0],-mp[1],-mp[2]]; pd=pp;
+    }
+  }
+  return J; }
+function balance(unit, mass, loads, aboutCom){
+  const rf=new Float32Array(T*3), rm=new Float32Array(T*3);
+  for(let i=0;i<T;i++){
+    const com=[v(unit.com,i,0,0,1),v(unit.com,i,0,1,1),v(unit.com,i,0,2,1)];
+    const acc=[v(unit.acc,i,0,0,1),v(unit.acc,i,0,1,1),v(unit.acc,i,0,2,1)];
+    const rot=[v(unit.rot,i,0,0,1),v(unit.rot,i,0,1,1),v(unit.rot,i,0,2,1)];
+    const fs=[0,0,0], ms=[0,0,0];
+    for(const L of loads){
+      const f=[-L.f[i*3],-L.f[i*3+1],-L.f[i*3+2]];
+      const m=[-L.m[i*3],-L.m[i*3+1],-L.m[i*3+2]];
+      const p=[L.p[i*3],L.p[i*3+1],L.p[i*3+2]];
+      const cr=cross([p[0]-com[0],p[1]-com[1],p[2]-com[2]],f);
+      for(let c=0;c<3;c++){ fs[c]+=f[c]; ms[c]+=m[c]+cr[c]; }
+    }
+    for(let c=0;c<3;c++){
+      rf[i*3+c]=mass*acc[c]-fs[c]-mass*G[c];
+      rm[i*3+c]=rot[c]-ms[c]; }
+    if(!aboutCom){
+      const pp=[v(unit.prox,i,0,0,1),v(unit.prox,i,0,1,1),v(unit.prox,i,0,2,1)];
+      const cr=cross([pp[0]-com[0],pp[1]-com[1],pp[2]-com[2]],
+                     [rf[i*3],rf[i*3+1],rf[i*3+2]]);
+      for(let c=0;c<3;c++) rm[i*3+c]-=cr[c];
+    }
+  }
+  return {f:rf, m:rm}; }
+function subProx(unit, s){
+  const out=new Float32Array(T*3); const n=unit.n;
+  for(let i=0;i<T;i++) for(let c=0;c<3;c++) out[i*3+c]=v(unit.prox,i,s,c,n);
+  return out; }
+function subUnit(unit, s){
+  const n=unit.n, com=new Float32Array(T*3), acc=new Float32Array(T*3),
+        prox=new Float32Array(T*3), rot=new Float32Array(T*3);
+  for(let i=0;i<T;i++) for(let c=0;c<3;c++){
+    com[i*3+c]=v(unit.com,i,s,c,n); acc[i*3+c]=v(unit.acc,i,s,c,n);
+    prox[i*3+c]=v(unit.prox,i,s,c,n); rot[i*3+c]=v(unit.rot,i,s,c,n); }
+  return {n:1, com:com, acc:acc, prox:prox, rot:rot}; }
+function subChain(unit, idx){
+  const n=unit.n, m=idx.length;
+  const com=new Float32Array(T*m*3), acc=new Float32Array(T*m*3),
+        prox=new Float32Array(T*m*3), rot=new Float32Array(T*m*3);
+  for(let i=0;i<T;i++) for(let k=0;k<m;k++) for(let c=0;c<3;c++){
+    const o=(i*m+k)*3;
+    com[o+c]=v(unit.com,i,idx[k],c,n); acc[o+c]=v(unit.acc,i,idx[k],c,n);
+    prox[o+c]=v(unit.prox,i,idx[k],c,n); rot[o+c]=v(unit.rot,i,idx[k],c,n); }
+  return {n:m, com:com, acc:acc, prox:prox, rot:rot}; }
+function run(lagMs, kIdx, fcut){
+  const belts=beltWrench(lagMs/1000, fcut);
+  const legR=UNITS["c"+kIdx+"_legR"], legL=UNITS["c"+kIdx+"_legL"];
+  const pelv=UNITS["c"+kIdx+"_pelvis"], up=UNITS["c"+kIdx+"_upper"];
+  const zero=new Float32Array(T*3);
+  const JR=serial(legR, D.mass.legR, belts[1].F, belts[1].M, zero);
+  const JL=serial(legL, D.mass.legL, belts[0].F, belts[0].M, zero);
+  const l5=balance(pelv, D.mass.pelvis,
+    [{f:JR[2].f, m:JR[2].m, p:subProx(legR,2)},
+     {f:JL[2].f, m:JL[2].m, p:subProx(legL,2)}], false);
+  const armR=serial(subChain(up,[0,1]), [D.mass.upper[0],D.mass.upper[1]],
+                    zero, zero, zero);
+  const armL=serial(subChain(up,[2,3]), [D.mass.upper[2],D.mass.upper[3]],
+                    zero, zero, zero);
+  const res=balance(subUnit(up,4), D.mass.upper[4],
+    [{f:l5.f, m:l5.m, p:subProx(pelv,0)},
+     {f:armR[1].f, m:armR[1].m, p:subProx(subChain(up,[0,1]),1)},
+     {f:armL[1].f, m:armL[1].m, p:subProx(subChain(up,[2,3]),1)}], true);
+  return {belts:belts, torq:[JR[0].m,JR[1].m,JR[2].m,JL[0].m,JL[1].m,JL[2].m],
+          res:res}; }
+function meanAbsRes(r){ let s=0,n2=0;
+  for(let i=E0;i<T-E0;i++){ const x=r.res.f[i*3],y=r.res.f[i*3+1],
+    z=r.res.f[i*3+2]; s+=Math.sqrt(x*x+y*y+z*z); n2++; }
+  return s/n2; }
+function sumSqRes(r){ let s=0;
+  for(let i=E0;i<T-E0;i++){ const x=r.res.f[i*3],y=r.res.f[i*3+1],
+    z=r.res.f[i*3+2]; s+=x*x+y*y+z*z; }
+  return s/1e6; }
+// plotting ----------------------------------------------------------
+const COL=["#2a78d6","#eb6834","#1baf7a"], NEU="#52514e", FAINT="#b9b8b2";
+const JN=["ankle","knee","hip"];
+function niceTicks(lo,hi,n){ const span=hi-lo, raw=span/n,
+  mag=Math.pow(10,Math.floor(Math.log10(raw))),
+  step=[1,2,5,10].map(m=>m*mag).find(s=>span/s<=n+1)||10*mag;
+  const t=[]; for(let x=Math.ceil(lo/step)*step; x<=hi+1e-9; x+=step)
+    t.push(+x.toFixed(6)); return t; }
+function panel(ctx,x0,y0,w,h,xlo,xhi,lo,hi,title,yunit,xunit){
+  ctx.fillStyle="#fff"; ctx.fillRect(x0,y0,w,h);
+  ctx.strokeStyle=FAINT; ctx.strokeRect(x0,y0,w,h);
+  ctx.fillStyle=NEU; ctx.font="10px IBM Plex Sans";
+  for(const ty of niceTicks(lo,hi,4)){
+    const y=y0+h*(hi-ty)/(hi-lo);
+    ctx.strokeStyle="#eceae4"; ctx.beginPath();
+    ctx.moveTo(x0,y); ctx.lineTo(x0+w,y); ctx.stroke();
+    ctx.textAlign="right"; ctx.fillText(ty, x0-3, y+3); }
+  for(const tx of niceTicks(xlo,xhi,5)){
+    const x=x0+w*(tx-xlo)/(xhi-xlo);
+    ctx.textAlign="center"; ctx.fillText(tx, x, y0+h+11); }
+  if(lo<0&&hi>0){ const zy=y0+h*hi/(hi-lo);
+    ctx.strokeStyle=FAINT; ctx.beginPath();
+    ctx.moveTo(x0,zy); ctx.lineTo(x0+w,zy); ctx.stroke(); }
+  ctx.textAlign="left"; ctx.fillStyle=NEU;
+  ctx.font="600 10.5px IBM Plex Sans";
+  ctx.fillText(title, x0+5, y0+12);
+  ctx.font="10px IBM Plex Sans";
+  if(yunit) ctx.fillText(yunit, x0+5, y0+24);
+  if(xunit){ ctx.textAlign="right"; ctx.fillText(xunit, x0+w, y0+h+22); } }
+function line(ctx,x0,y0,w,h,lo,hi,ys,stride,off,color,width,dash){
+  ctx.strokeStyle=color; ctx.lineWidth=width;
+  if(dash) ctx.setLineDash(dash);
+  ctx.beginPath();
+  for(let i=0;i<T;i++){
+    const x=x0+w*i/(T-1), y=y0+h*(hi-ys[i*stride+off])/(hi-lo);
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); }
+  ctx.stroke(); ctx.setLineDash([]); ctx.lineWidth=1; }
+function prep(id,hcss){ const cv=document.getElementById(id);
+  cv.style.height=hcss+"px";
+  cv.width=cv.clientWidth*2; cv.height=hcss*2;
+  const ctx=cv.getContext("2d"); ctx.scale(2,2);
+  return [ctx, cv.clientWidth, hcss]; }
+const DUR=(T-1)/RATE;
+function draw(r, thr, lagSweep, lagNow){
+  // residual (with real axes)
+  { const [g,W,H]=prep("cRes",200); const x0=40,y0=6,w=W-x0-8,h=H-28;
+    let lo=1e9,hi=-1e9;
+    for(let i=0;i<T;i++) for(let c=0;c<3;c++){
+      lo=Math.min(lo,r.res.f[i*3+c]); hi=Math.max(hi,r.res.f[i*3+c]); }
+    const pad=.06*(hi-lo); lo-=pad; hi+=pad;
+    panel(g,x0,y0,w,h,0,DUR,lo,hi,"residual force at torso COM","N","time (s)");
+    for(let c=0;c<3;c++) line(g,x0,y0,w,h,lo,hi,r.res.f,3,c,COL[c],1.2); }
+  // 3 torques, R solid / L dashed / V3D grey
+  const rms=[];
+  for(let j=0;j<6;j++){ let s=0,n2=0;
+    for(let i=E0;i<T-E0;i++){ const d=r.torq[j][i*3]-REF[j*T+i]; s+=d*d; n2++; }
+    rms.push(Math.sqrt(s/n2)); }
+  for(let jj=0;jj<3;jj++){
+    const [g,W,H]=prep("cT"+jj,180); const x0=34,y0=6,w=W-x0-6,h=H-28;
+    let lo=1e9,hi=-1e9;
+    for(const j of [jj,jj+3]) for(let i=0;i<T;i++){
+      lo=Math.min(lo,r.torq[j][i*3],REF[j*T+i]);
+      hi=Math.max(hi,r.torq[j][i*3],REF[j*T+i]); }
+    const pad=.06*(hi-lo); lo-=pad; hi+=pad;
+    panel(g,x0,y0,w,h,0,DUR,lo,hi,JN[jj],"N m","s");
+    line(g,x0,y0,w,h,lo,hi,REF.subarray(jj*T,(jj+1)*T),1,0,FAINT,2.2);
+    line(g,x0,y0,w,h,lo,hi,REF.subarray((jj+3)*T,(jj+4)*T),1,0,FAINT,2.2);
+    line(g,x0,y0,w,h,lo,hi,r.torq[jj],3,0,COL[jj],1.1);
+    line(g,x0,y0,w,h,lo,hi,r.torq[jj+3],3,0,COL[jj],1.1,[4,3]); }
+  // lag sweep
+  { const [g,W,H]=prep("cLag",190); const x0=36,y0=6,w=W-x0-6,h=H-30;
+    let hi=-1e9,lo=1e9;
+    for(const p of lagSweep){ hi=Math.max(hi,p[1]); lo=Math.min(lo,p[1]); }
+    lo=0; hi*=1.08;
+    panel(g,x0,y0,w,h,-50,50,lo,hi,"Σ|F_res|² vs τ","10⁶ N²","τ (ms)");
+    g.strokeStyle=COL[0]; g.lineWidth=1.4; g.beginPath();
+    lagSweep.forEach((p,i)=>{ const x=x0+w*(p[0]+50)/100,
+      y=y0+h*(hi-p[1])/(hi-lo);
+      if(i===0) g.moveTo(x,y); else g.lineTo(x,y); });
+    g.stroke(); g.lineWidth=1;
+    let best=lagSweep[0];
+    for(const p of lagSweep) if(p[1]<best[1]) best=p;
+    const bx=x0+w*(best[0]+50)/100, by=y0+h*(hi-best[1])/(hi-lo);
+    g.fillStyle=NEU; g.beginPath(); g.arc(bx,by,2.5,0,7); g.fill();
+    g.font="10px IBM Plex Sans"; g.textAlign="center";
+    g.fillText("min "+best[0]+" ms", bx, by-8);
+    const cur=lagSweep.reduce((a,p)=>Math.abs(p[0]-lagNow)<Math.abs(a[0]-lagNow)?p:a);
+    const cx=x0+w*(lagNow+50)/100, cy=y0+h*(hi-cur[1])/(hi-lo);
+    g.fillStyle="#eb6834"; g.beginPath(); g.arc(cx,cy,3.5,0,7); g.fill(); }
+  // GRF (reference)
+  { const [g,W,H]=prep("cGrf",150); const x0=40,y0=6,w=W-x0-8,h=H-28;
+    let hi=0; for(let p=0;p<2;p++) for(let i=0;i<T;i++)
+      hi=Math.max(hi,r.belts[p].F[i*3+2]);
+    panel(g,x0,y0,w,h,0,DUR,0,hi*1.05,"vertical force per belt","N","time (s)");
+    for(let p=0;p<2;p++){
+      g.globalAlpha=.10; g.fillStyle=p?COL[0]:COL[2];
+      for(let i=0;i<T;i++) if(r.belts[p].F[i*3+2]>thr)
+        g.fillRect(x0+w*i/(T-1),y0,1,h);
+      g.globalAlpha=1;
+      line(g,x0,y0,w,h,0,hi*1.05,r.belts[p].F,3,2,p?COL[0]:COL[2],1.2); }
+    g.strokeStyle=NEU; g.setLineDash([4,3]);
+    const ty=y0+h*(hi*1.05-thr)/(hi*1.05);
+    g.beginPath(); g.moveTo(x0,ty); g.lineTo(x0+w,ty); g.stroke();
+    g.setLineDash([]); }
+  return rms; }
+function chips(rms, r, lagSweep){
+  let pk=0; for(let i=E0;i<T-E0;i++)
+    for(let c=0;c<3;c++) pk=Math.max(pk,Math.abs(r.res.f[i*3+c]));
+  let best=lagSweep[0];
+  for(const p of lagSweep) if(p[1]<best[1]) best=p;
+  const items=[
+    ["mean |F residual|", meanAbsRes(r).toFixed(0)+" <span class='u'>N</span>"],
+    ["residual peak |F|", pk.toFixed(0)+" <span class='u'>N</span>"],
+    ["median torque RMS vs V3D",
+     (rms.slice().sort((a,b)=>a-b)[3]).toFixed(1)+" <span class='u'>N m</span>"],
+    ["residual-minimizing τ", best[0]+" <span class='u'>ms</span>"]];
+  document.getElementById("chips").innerHTML = items.map(
+    it=>"<div class='chip'><div class='k'>"+it[0]+
+        "</div><div class='v'>"+it[1]+"</div></div>").join(""); }
+let SWEEP=null, SWEEP_KEY="";
+function sweep(kIdx, fcut){
+  const key=kIdx+"_"+fcut;
+  if(SWEEP_KEY===key) return SWEEP;
+  SWEEP=[];
+  for(let lag=-50;lag<=50;lag+=2)
+    SWEEP.push([lag, sumSqRes(run(lag,kIdx,fcut))]);
+  SWEEP_KEY=key;
+  return SWEEP; }
+function recompute(){
+  const lag=+document.getElementById("lag").value;
+  const kv=+document.getElementById("kcut").value;
+  const kIdx={8:0,12:1,20:2}[kv];
+  const fcut=+document.getElementById("fcut").value;
+  const thr=+document.getElementById("thr").value;
+  document.getElementById("lagv").textContent=lag;
+  document.getElementById("thrv").textContent=thr;
+  document.getElementById("c_lag").textContent=lag;
+  document.getElementById("c_k").textContent=kv;
+  document.getElementById("c_f").textContent=fcut;
+  for(const el of document.querySelectorAll(".c_thr")) el.textContent=thr;
+  const sw=sweep(kIdx,fcut);
+  const r=run(lag,kIdx,fcut);
+  const rms=draw(r,thr,sw,lag);
+  chips(rms,r,sw); }
+for(const id of ["lag","kcut","fcut","thr"])
+  document.getElementById(id).addEventListener("change",recompute);
+window.addEventListener("resize",recompute);
+recompute();
+</script>
+"""
+
+
+def p1_playground_html(trial) -> str:
+    """The interactive quickstart page: `playground_data` + the JS template."""
+    import json
+    return PLAYGROUND_TEMPLATE.replace("__DATA__",
+                                       json.dumps(playground_data(trial)))
+
+
+def main_playground(argv=None):
+    from pathlib import Path
+
+    from . import io_v3d as io
+    argv = list(argv or [])
+    path = argv[0] if argv else V3D_PATH
+    index = int(argv[1]) if len(argv) > 1 else V3D_TRIAL
+    trial = io.load_v3d_trial(path, index)
+    out = Path(__file__).resolve().parents[2] / "reports"
+    out.mkdir(exist_ok=True)
+    dest = out / "p1_playground.html"
+    dest.write_text(p1_playground_html(trial))
+    print(f"wrote {dest} ({dest.stat().st_size / 1e6:.1f} MB)")

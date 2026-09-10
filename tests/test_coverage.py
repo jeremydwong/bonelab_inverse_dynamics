@@ -243,3 +243,53 @@ def test_unswap_labels_restores_permanent_swap():
     np.testing.assert_allclose(markers["A"], truth_a, atol=1e-12)
     np.testing.assert_allclose(markers["B"], truth_b, atol=1e-12)
     np.testing.assert_allclose(markers["C"], truth_a + [0.5, 0.5, 0.0])
+
+
+def test_quiet_standing_determination():
+    """The no-full-stride fallback is only legitimate for quiet standing:
+    sway-level ripple passes, gait-level fluctuation and unloaded plates
+    do not."""
+    from boneid.io_v3d import is_quiet_standing
+
+    t = np.linspace(0, 5, 600)
+    bw = 830.0
+    sway = bw + 0.02 * bw * np.sin(2 * np.pi * 0.3 * t)      # 2% sway
+    gait = bw + 0.30 * bw * np.sin(2 * np.pi * 0.9 * t)      # stride ripple
+    assert is_quiet_standing(sway)
+    assert not is_quiet_standing(gait)
+    assert not is_quiet_standing(np.full_like(t, 3.0))       # unloaded plate
+
+
+def test_body_mass_estimate_and_override_on_real_trial():
+    """On real data: <2 contacts + gait fluctuation raises (no silently
+    biased mass), and build_chain(body_mass=...) keeps the marker-measured
+    skeleton while overriding only the mass."""
+    import os
+    import pytest as _pytest
+    from dataclasses import replace
+
+    path = ("/Users/jeremy/Dropbox/Public/inverse-dynamics-test-data/"
+            "p1_5StridesData.mat")
+    if not os.path.exists(path):
+        _pytest.skip("local validation data not available")
+    from boneid.io_v3d import build_chain, estimate_body_mass, load_v3d_trial
+
+    trial = load_v3d_trial(path, 13)
+    # a partial-stride slice: too short for two right-foot contacts
+    n_a = 900                                # 0.75 s of analog
+    n_t = n_a // 10
+    short = replace(trial, t=trial.t[:n_t], t_analog=trial.t_analog[:n_a],
+                    markers={k: v[:n_t] for k, v in trial.markers.items()},
+                    landmarks={k: v[:n_t] for k, v in trial.landmarks.items()},
+                    force=trial.force[:n_a], cop=trial.cop[:n_a],
+                    free_moment=trial.free_moment[:n_a])
+    with _pytest.raises(ValueError, match="quiet standing"):
+        estimate_body_mass(short)
+
+    # the override: full auto-skeleton (marker lengths) at a supplied mass
+    skel_a, _, _ = build_chain(trial, side="r")
+    skel_b, _, _ = build_chain(trial, side="r", body_mass=70.0)
+    est = estimate_body_mass(trial)
+    np.testing.assert_allclose(skel_b.mass.sum() / skel_a.mass.sum(),
+                               70.0 / est, rtol=1e-12)
+    np.testing.assert_allclose(skel_b.length, skel_a.length)  # lengths kept

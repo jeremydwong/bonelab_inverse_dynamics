@@ -329,21 +329,58 @@ def crossover_flags(trial: V3dTrial, side: str, threshold_n: float = 20.0,
     return mine & other
 
 
+def is_quiet_standing(fz_total: np.ndarray, min_force_n: float = 200.0,
+                      max_cv: float = 0.10) -> bool:
+    """True when a summed vertical-force record looks like quiet standing.
+
+    Quiet standing holds the total vertical force at body weight with only
+    sway ripple (a few % of the mean); any gait fluctuates by tens of % at
+    stride frequency.  The determination is a coefficient-of-variation
+    threshold — std/mean below `max_cv` — plus a floor on the mean so an
+    unloaded plate is never mistaken for a very calm subject.  The default
+    10% sits well between quiet-standing sway (~1-3%) and even the gentlest
+    stepping (>20%).
+    """
+    fz_total = np.asarray(fz_total, dtype=float)
+    mean = float(fz_total.mean())
+    return mean > min_force_n and float(fz_total.std()) / mean < max_cv
+
+
 def estimate_body_mass(trial: V3dTrial, gravity: float = 9.81,
                        threshold_n: float = 20.0) -> float:
     """Body mass [kg] from the mean total vertical GRF over whole strides.
 
     Averages the summed vertical force of both plates between the first and
-    last right-foot contact onset in the cropped window, so the average spans
-    an integer number of strides (falls back to the whole window if fewer than
-    two contacts are found).  On p1 this gives 84.7-85.0 kg across all 33
-    trials (spread 0.4%).
+    last right-foot contact ONSET in the cropped window — same-foot
+    onset-to-onset is what makes the average span an integer number of
+    strides, which is the only reason the mean equals body weight during
+    gait.  On p1 this gives 84.7-85.2 kg across all populated trials
+    (spread 0.6%).
+
+    With FEWER than two contacts there is no integer-stride window, and the
+    whole-record mean is only trustworthy for QUIET STANDING (where the mean
+    is body weight regardless of windowing).  That case is now determined
+    explicitly (`is_quiet_standing`); anything else — a partial stride, a
+    hop, an unloaded plate — raises rather than returning a silently biased
+    mass.  When mass is known from elsewhere, skip this function entirely:
+    ``build_chain(trial, body_mass=...)``.
     """
     fz_total = trial.force[:, :, 2].sum(axis=1)
     p = plate_for_side(trial, "r", threshold_n)
     _, events = detect_contact(trial.force[:, p, 2], threshold_n, min_gap=120)
-    if len(events) >= 2:
-        fz_total = fz_total[events[0][0]:events[-1][0]]
+    # a bout already in progress at sample 0 has no observable onset — using
+    # sample 0 as a stride boundary would break the integer-stride window
+    onsets = [s for s, _ in events if s > 0]
+    if len(onsets) >= 2:
+        fz_total = fz_total[onsets[0]:onsets[-1]]
+    elif not is_quiet_standing(fz_total):
+        raise ValueError(
+            "estimate_body_mass: fewer than two foot contacts and the "
+            "record is not quiet standing (total Fz mean "
+            f"{fz_total.mean():.0f} N, cv "
+            f"{fz_total.std() / max(fz_total.mean(), 1e-9):.2f}) — the "
+            "whole-window mean would be biased by the partial gait cycle. "
+            "Pass the known mass instead: build_chain(trial, body_mass=...)")
     return float(fz_total.mean() / gravity)
 
 
@@ -591,7 +628,8 @@ def ground_wrench(trial: V3dTrial, plate: int,
 
 def build_chain(trial: V3dTrial, skeleton: Skeleton | None = None,
                 side: str = "r", point: np.ndarray | None = None,
-                threshold_n: float = 20.0, sex: str = "male"):
+                threshold_n: float = 20.0, sex: str = "male",
+                body_mass: float | None = None):
     """(Skeleton, SegmentKinematics, GroundWrench) for [foot, shank, thigh, pelvis].
 
     Everything lands on the trial's mocap time base (the full cropped window).
@@ -603,9 +641,12 @@ def build_chain(trial: V3dTrial, skeleton: Skeleton | None = None,
         pelvis prox = L5S1     (mid of mid-ASIS and SACR), dist = mid-hip
     Rotations follow the convention documented in `deleva_skeleton`.
 
-    If `skeleton` is None one is built with `deleva_skeleton` from
-    `estimate_body_mass` and the trial-mean segment lengths, including the
-    heel-in-foot-frame offset needed to place the foot COM.
+    If `skeleton` is None one is built with `deleva_skeleton` from the
+    trial-mean segment lengths (measured from the markers, which is the
+    point of the auto-build), including the heel-in-foot-frame offset needed
+    to place the foot COM.  The mass comes from `estimate_body_mass` unless
+    `body_mass` is given — pass a known mass whenever the record cannot
+    support the force-based estimate (no full stride, not quiet standing).
     """
     jc = joint_centers(trial, side)
     r_world = segment_frames(trial, side)
@@ -620,7 +661,8 @@ def build_chain(trial: V3dTrial, skeleton: Skeleton | None = None,
         foot_length = float(np.linalg.norm(jc["toe"] - jc["heel"],
                                            axis=1).mean())
         skeleton = deleva_skeleton(
-            body_mass=estimate_body_mass(trial, threshold_n=threshold_n),
+            body_mass=(body_mass if body_mass is not None else
+                       estimate_body_mass(trial, threshold_n=threshold_n)),
             foot_length=foot_length, shank_length=float(lengths[1]),
             thigh_length=float(lengths[2]), pelvis_length=float(lengths[3]),
             foot_heel_local=heel_local, sex=sex)
@@ -832,7 +874,8 @@ def upper_body_points(trial: V3dTrial) -> dict[str, np.ndarray]:
 
 
 def build_upper_body(trial: V3dTrial, skeleton: Skeleton | None = None,
-                     threshold_n: float = 20.0, sex: str = "male"):
+                     threshold_n: float = 20.0, sex: str = "male",
+                     body_mass: float | None = None):
     """(Skeleton, SegmentKinematics) for the 5-segment upper body.
 
     Segment order matches `deleva_upper_body`:
@@ -885,7 +928,8 @@ def build_upper_body(trial: V3dTrial, skeleton: Skeleton | None = None,
     if skeleton is None:
         seg_len = np.linalg.norm(dist_pos - prox_pos, axis=2).mean(axis=0)
         skeleton = deleva_upper_body(
-            body_mass=estimate_body_mass(trial, threshold_n=threshold_n),
+            body_mass=(body_mass if body_mass is not None else
+                       estimate_body_mass(trial, threshold_n=threshold_n)),
             torso_length=float(seg_len[4]),
             upper_arm_length=(float(seg_len[1]), float(seg_len[3])),
             forearm_length=(float(seg_len[0]), float(seg_len[2])),

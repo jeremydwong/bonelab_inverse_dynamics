@@ -8,7 +8,7 @@ and segment frames are measured once in the static pose and carried through
 the dynamic trials as virtual points on the tracking-cluster fits.
 
 Run:    uv run python examples/quickstart_c3d.py [data_dir] [condition] [trial]
-        e.g.  uv run python examples/quickstart_c3d.py ~/Downloads/asics AM RP
+        e.g.  uv run python examples/quickstart_c3d.py data/asics AM RP
 Output: reports/c3d_quickstart_report.html
 """
 
@@ -22,7 +22,7 @@ from boneid.io_c3d import build_chain, calibrate_static, load_c3d
 from boneid.report import c3d_report_html, c3d_viewer_html, right_step_events
 
 # ---- study config (the only thing you edit) -------------------------------
-DATA_DIR = Path.home() / "Downloads" / "asics"
+DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "asics"
 SUBJECT = "S1"
 CONDITION = "AM"                # shoe condition: AG / AH / AM
 TRIAL = "RP"                    # dynamic trial: PI / RP

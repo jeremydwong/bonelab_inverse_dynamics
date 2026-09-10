@@ -4,8 +4,8 @@ __pycache__/
 .venv/
 *.egg-info/
 
-# Generated reports (regenerate with `uv run python -m boneid.report` /
-# `-m boneid.validate` / `examples/quickstart.py`)
+# Generated reports (execute notebooks, then export saved outputs:
+# `uv run python examples/regenerate_reports.py`)
 reports/
 
 # Jupyter checkpoints

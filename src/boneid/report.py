@@ -8,11 +8,11 @@ Chart conventions (kept consistent across every report):
   extra series #eda100 (yellow); neutrals for reference lines.
   One axis per chart, thin marks, faint grid, no top/right spines.
 
-Run `uv run python -m boneid.report` to generate the TEST-SIMULATED-S2S
+Run `uv run python examples/regenerate_reports.py s2s_report` to generate the TEST-SIMULATED-S2S
 report at reports/s2s_report.html, or
-`uv run python -m boneid.report v3d [matpath] [trial_index]` for the real-data
+`uv run python examples/regenerate_reports.py p1_report` for the real-data
 walkthrough at reports/p1_report.html, or
-`uv run python -m boneid.report asics [matpath] [trial_index]` for the legacy-
+`uv run python examples/regenerate_reports.py p1_asics` for the legacy-
 physics A/B ("Implication of Asics") at reports/p1_asics.html.
 """
 
@@ -332,40 +332,18 @@ it transformed inertia one-sidedly (<code>R·I</code> instead of
 
 <h2>How to reproduce</h2>
 <p><code>uv run pytest tests/test_key.py</code> runs the KEY suite;
-<code>uv run python -m boneid.report</code> regenerates this report from
+<code>uv run python examples/regenerate_reports.py s2s_report</code> regenerates this report from
 <code>simulate_squat_to_stand()</code>.</p>
 """
     return html_page("Squat-to-Stand Verification", "s2s", body)
 
 
-def main_s2s():
-    from pathlib import Path
-
-    from .core import AnalysisParams, energy_audit, inverse_dynamics
-    from .simulate import simulate_squat_to_stand
-
-    params = AnalysisParams(lowpass_hz=0.0, force_lowpass_hz=0.0)
-    skeleton, kin, ground, truth = simulate_squat_to_stand()
-    idres = inverse_dynamics(skeleton, kin, ground, params)
-    audit = energy_audit(skeleton, kin, ground, idres, params)
-
-    viewer_html = None
-    try:
-        from . import viz
-        vis = viz.start_viewer()
-        viz.animate(vis, skeleton, kin, ground=ground, decimate=10,
-                    repetitions=10000)
-        viewer_html = viz.render_static_html(vis)
-        viz.stop_viewer(vis)
-    except Exception as exc:  # viz is optional for the report
-        print(f"viz skipped: {exc}")
-
-    out = Path(__file__).resolve().parents[2] / "reports"
-    out.mkdir(exist_ok=True)
-    path = out / "s2s_report.html"
-    path.write_text(s2s_report_html(skeleton, kin, ground, idres, audit,
-                                    truth, viewer_html))
-    print(f"wrote {path}")
+def main_s2s(argv=None):
+    """Compatibility alias for the canonical notebook build."""
+    if argv:
+        raise ValueError("Set study inputs in notebooks/s2s_report.ipynb")
+    from .notebook_reports import main as build_reports
+    return build_reports(["s2s_report"])
 
 
 # ---------------------------------------------------------------------------
@@ -1955,8 +1933,8 @@ the two joint centres, the medio-lateral axis from the malleoli, epicondyles or
 ASIS pair, and a Gram–Schmidt completion. The medio-lateral axis is flipped for
 the left leg so both segment frames are anatomically consistent (local y =
 subject's left). Angular velocity is extracted from dR/dt·Rᵀ rather than from
-Cardan-angle derivatives — the legacy MATLAB used the latter, which is only
-valid for small planar rotations.</p>
+Cardan-angle derivatives. The recovered legacy RoomSegAng also differentiates
+matrices, but uses a different matrix product (see Appendix A).</p>
 
 {figs[3]}
 {figs[4]}
@@ -2117,9 +2095,9 @@ against Visual3D.</p>
 {figs[12]}
 
 <h2>How to reproduce</h2>
-<p><code>uv run python -m boneid.report v3d</code> regenerates this page from
-<code>{trial.path}</code>; pass a path and a trial slot to point it elsewhere,
-e.g. <code>uv run python -m boneid.report v3d {trial.path} {trial.index}</code>.
+<p><code>uv run python examples/regenerate_reports.py p1_report</code> regenerates this page from
+<code>{trial.path}</code>; edit the input path and trial slot in
+<code>notebooks/p1_report.ipynb</code> to analyse another recording.
 <code>uv run pytest</code> runs the KEY suite and the loader tests behind it,
 and <code>notebooks/p1_report.ipynb</code> is the same analysis step by step in
 a notebook.</p>
@@ -2198,6 +2176,21 @@ def viewer_period(kin, decimate: int = VIEWER_DECIMATE) -> tuple[int, float, flo
     return n, fps, (n - 1) / fps
 
 
+def p1_foot_blob(trial, kin, side):
+    """Rigid visual envelope from the trial-median foot-local landmarks.
+
+    P1 has a heel, two malleoli and one fifth-metatarsal marker per foot.
+    The medial forefoot/toe tips are unmeasured; do not invent them.
+    """
+    from .viz import foot_blob_mesh
+    prefix = side.upper()[0]
+    points = np.stack([trial.markers[prefix + n]
+                       for n in ("CAL", "5TH", "MML", "LML")], axis=1)
+    local = np.einsum("tji,tmj->tmi", kin.r_world[:, 0],
+                      points - kin.prox_pos[:, 0, None, :])
+    return foot_blob_mesh(np.median(local, axis=0))
+
+
 def p1_viewer_html(trial, chain, skel_u, kin_u, params,
                    decimate: int = VIEWER_DECIMATE,
                    repetitions: int = 10000,
@@ -2259,12 +2252,14 @@ def p1_viewer_html(trial, chain, skel_u, kin_u, params,
         animation = viz.animate(vis, skel_r, vkin["r"], ground=vground["r"],
                                 decimate=decimate, repetitions=1, play=False,
                                 plane_height=floor, root=root["r"],
-                                pelvis_span=pelvis_span, torso=torso)
+                                pelvis_span=pelvis_span, torso=torso,
+                                segment_meshes={0: p1_foot_blob(trial, kin_r, "r")})
         viz.animate(vis, skel_left3, kin_left3, ground=vground["l"],
                     decimate=decimate, repetitions=1, play=False,
                     plane_height=floor, root=root["l"], animation=animation,
                     camera=False,
-                    top_girth_fraction=viz.GIRTH_FRACTION)
+                    top_girth_fraction=viz.GIRTH_FRACTION,
+                    segment_meshes={0: p1_foot_blob(trial, kin_l, "l")})
         for side in ("r", "l"):
             arm_skel, arm_kin = slice_chain(skel_u, vkin["u"],
                                             UPPER_BODY_ARM[side])
@@ -2572,7 +2567,7 @@ ASICS_VARIANTS = ("correct", "ab", "abc")
 ASICS_LABELS = {
     "correct": "corrected physics",
     "ab": "legacy (a)+(b): one-sided R·I, no gyroscopic term",
-    "abc": "legacy (a)+(b)+(c): + Cardan-angle α",
+    "abc": "(a)+(b) + hypothetical Cardan-angle α",
 }
 
 ASICS_STYLE = {                      # colour, linestyle, linewidth, zorder
@@ -2593,7 +2588,7 @@ def asics_comparison(trial, params=None, edge: int = EDGE) -> dict:
     diagnostics the prose quotes.
 
     `ab` is `cardan_alpha=False` — the two VERIFIED mistakes only; `abc` adds
-    the presumed Cardan-angle "angular acceleration". Everything else (masses,
+    the hypothetical Cardan-angle "angular acceleration". Everything else (masses,
     COMs, joint centres, forces, filtering, chain) is identical across all
     three by construction: they are the same call with different flags.
     """
@@ -2728,6 +2723,38 @@ def asics_grid(t, series, joints, ylabel, spans=None, window=None,
     return fig
 
 
+def original_dependency_status_html():
+    """Derive recovery status from the actual reference tree, never a stale list."""
+    from pathlib import Path
+    from html import escape
+    root = Path(__file__).resolve().parents[2] / "matlab-inverse-dynamics"
+    requested = {
+        "RoomSegAng.m": "Matrix derivatives; TMdot @ TM, not Cardan derivatives.",
+        "multiprod.m": "Per-frame matrix/vector multiplication.",
+        "matexp.m": "Replicates the local inertia across frames.",
+        "VirtualPoint_v2.m": "Needed: exact cluster pose and frame convention.",
+        "getViconForces_Motek.m": "Needed: Motek force calibration and coordinate conventions.",
+        "ContactEvents_Motek.m": "Needed: Motek contact-event algorithm.",
+        "G2L.m": "Inverse coordinate transform; confirm input layout with v2.",
+        "SIMMpatellaCS.m": "Patella-angle interpolation; scale argument is unused.",
+        "TreadOffsets.m": "Constant analog baseline subtraction; call is commented out.",
+        "generateMotFile.m": "GRF export; call is commented out.",
+    }
+    available = {p.name for p in root.rglob("*.m") if p.stat().st_size}
+    rows = "".join(
+        f"<tr><td><code>{escape(name)}</code></td>"
+        f"<td>{'Recovered' if name in available else 'Missing'}</td>"
+        f"<td>{escape(note)}</td></tr>" for name, note in requested.items())
+    missing = [name for name in requested if name not in available]
+    return (f"<p>{len(requested) - len(missing)} of {len(requested)} originally requested "
+            "files recovered. Status checked against the reference tree during notebook execution.</p>"
+            "<p><b>Still missing:</b> " + ", ".join(f"<code>{escape(n)}</code>" for n in missing)
+            + ". The generateMotFile call is commented out.</p>"
+            '<table class="missing-files"><thead><tr><th>Original dependency</th>'
+            '<th>Current status</th><th>Assessment</th></tr></thead><tbody>'
+            + rows + '</tbody></table>')
+
+
 def p1_asics_report_html(trial, data, params) -> str:
     """The A/B report: the legacy MATLAB's physics mistakes against the
     corrected pipeline, same subject, same trial, same everything else.
@@ -2766,7 +2793,7 @@ def p1_asics_report_html(trial, data, params) -> str:
                    joints, "sagittal torque (N m)", spans),
         "Sagittal (lab-x) net joint torque at all six leg joints over the "
         "whole trial: the corrected pipeline in colour, the legacy physics in "
-        "grey dashed (all three mistakes) and violet dotted (the two verified "
+        "grey dashed ((a)+(b) plus hypothetical Cardan α) and violet dotted (the two verified "
         "ones only). Shading is that side's stance. Rows are the two sides, "
         "columns the joint, and <b>the two panels of a column share y-limits "
         "by rule</b>. At this scale the three curves are one curve — which is "
@@ -2829,7 +2856,7 @@ def p1_asics_report_html(trial, data, params) -> str:
         "Legacy minus corrected, sagittal component (dotted/dashed) and the "
         "magnitude of the full 3-vector difference (coloured). The two "
         "verified mistakes alone, (a) one-sided R·I and (b) the missing "
-        "gyroscopic term, give the dotted curve; adding the presumed "
+        "gyroscopic term, give the dotted curve; adding the hypothetical "
         "Cardan-angle α gives the dashed one. They are of the same order and "
         "they partially CANCEL: at the right hip the (a)+(b) error is "
         f"{rms['ab'][2]:.1f} N m RMS and (a)+(b)+(c) is {rms['abc'][2]:.1f} "
@@ -2926,9 +2953,9 @@ def p1_asics_report_html(trial, data, params) -> str:
         for key, label in (
             ("a", "(a) one-sided R·I only"),
             ("b", "(b) no gyroscopic term only"),
-            ("c", "(c) Cardan-angle α only (presumed)"),
+            ("c", "(c) Cardan-angle α only (hypothetical)"),
             ("ab", "(a)+(b) — both verified mistakes"),
-            ("abc", "(a)+(b)+(c) — the legacy as it ran")))
+            ("abc", "(a)+(b) plus hypothetical Cardan α")))
     single_table = (
         '<div class="overflow"><table><thead><tr><th>mistake</th>'
         + "".join(f"<th>{name}</th>" for name in JOINT_LABELS)
@@ -2958,46 +2985,51 @@ def p1_asics_report_html(trial, data, params) -> str:
 
     body = f"""
 <p class="eyebrow">Report 4 · boneid · legacy A/B · subject P1 trial {trial.index}</p>
-<h1>Implication of Asics</h1>
-<p class="subtitle">What the legacy MATLAB's three physics mistakes actually
-cost, measured on real walking data at {speed:.2f} m/s. Same subject, same
+<h1>P1 walking — legacy ASICS equation comparison</h1>
+<p class="subtitle">Two legacy equation errors plus a separate hypothetical Cardan experiment,
+measured on real walking data at {speed:.2f} m/s. Same subject, same
 trial, same anthropometry, same joint centres, same forces, same filtering,
 same chain — <b>only the equations differ</b>.</p>
 
 <div class="stat-row">{tiles_rms}</div>
 <div class="stat-row">{tiles}</div>
 
-<h2>The three mistakes</h2>
+<h2>Two verified changes and a sensitivity experiment</h2>
 <p>The legacy pipeline (<code>Asics_Moments4JCF_v3.m</code> plus
-<code>inv3d.m</code>) computes each segment's Euler balance three ways that
-are not the Euler equation. In descending order of how sure we are:</p>
+<code>inv3d.m</code> and <code>RoomSegAng.m</code>) contains the following
+three equation errors. The plots reproduce (a) and (b); error 3 is not reproduced:</p>
 <ul>
 <li><b>(a) The inertia tensor is rotated one-sidedly.</b> VERIFIED, at
-<code>Asics_Moments4JCF_v3.m:369–380</code>:
+<code>Asics_Moments4JCF_v3.m</code>, lines <b>370, 372, 374, 376, 378, 380</b>
+(rearfoot, forefoot, foot, shank, thigh, pelvis respectively):
 <code>IfootG = multiprod(R_FootTM, Ifoot)</code> — that is
 I<sub>G</sub> = R I<sub>local</sub>, not the similarity transform
 R I<sub>local</sub> R<sup>T</sup>. The result is not symmetric, so it is not
 an inertia tensor at all; it happens to have the right magnitude and the wrong
 mixing between axes.</li>
 <li><b>(b) Euler's equation is missing its gyroscopic term.</b> VERIFIED, at
-<code>inv3d.m</code> line 38: the moment balance is
+<code>Inverse Dynamics Subroutines/inv3d.m</code>, line <b>38</b>: the moment balance is
 <code>multiprod(I,aANG)</code> and nothing else, so
 ω × (I<sub>w</sub>ω) is simply absent. The correct balance is
 d/dt(I<sub>w</sub>ω) = I<sub>w</sub>α + ω × (I<sub>w</sub>ω).</li>
-<li><b>(c) The "angular acceleration" is a Cardan-angle second derivative.</b>
-PRESUMED, and stated as such. The routine that produced it,
-<code>RoomSegAng.m</code>, is <em>missing from the repository</em>. Everything
-around it — a <code>zxy</code> Cardan sequence for every segment and joint,
-<code>filterdata1(FirstCentral(...),rate,0,12,4,0)</code> for every other
-angular velocity in the script — says it returned the second time derivative
-of the room-frame Cardan angles, 12 Hz low-passed, rather than the true
-angular-acceleration vector dω/dt with ω = unskew(Ṙ R<sup>T</sup>). Those
-agree only for rotation about one fixed coordinate axis. Because the source is
-unavailable in this checkout, this one is behind a switch:
-<code>cardan_alpha=True</code> (the default, representing the presumed
-implementation) and <code>cardan_alpha=False</code>
-for the two verified mistakes alone. Every figure below shows both.</li>
+<li><b>Error 3: incorrect angular-velocity matrix product.</b>
+The calls are in <code>Asics_Moments4JCF_v3.m</code>, lines <b>442–447</b>.
+In <code>originals/RoomSegAng.m</code>, lines <b>10–11</b> differentiate TM;
+line <b>12</b> computes <code>TMdot * TM</code> without a transpose.
+For a rotation R from segment to world, the correct products are
+<code>Rdot * Rᵀ</code> (world angular velocity) or <code>Rᵀ * Rdot</code>
+(body angular velocity). Reversing the frame convention changes the order/sign;
+it does not make <code>TMdot * TM</code> generally correct.
+Lines <b>26–28</b> extract components from this generally non-skew matrix,
+and line <b>32</b> differentiates them into angular acceleration.
+The missing <code>VirtualPoint_v2.m</code> prevents full reproduction of the
+original inputs and the resulting torque error, not identification of this
+matrix-product error for rotation-matrix inputs.</li>
 </ul>
+<p><b>Separate hypothetical experiment (c).</b> RoomSegAng does not differentiate
+Cardan angles. Curves labelled (c) test that hypothetical approximation and
+<b>do not measure error 3 above</b>. <code>cardan_alpha=False</code> isolates
+(a)+(b); neither setting reproduces RoomSegAng.</p>
 <p><b>What is <em>not</em> reproduced.</b> The legacy also had genuine
 anthropometric typos — <code>Ileg = [Ilx 0 0; 0 Ify 0; 0 0 Ilz]</code> puts the
 <em>foot's</em> transverse moment into the shank tensor, and the thigh's
@@ -3005,8 +3037,8 @@ anthropometric typos — <code>Ileg = [Ilx 0 0; 0 Ify 0; 0 0 Ilz]</code> puts th
 data-entry errors, not physics. Reproducing them would turn this into a
 different-numbers comparison instead of a same-numbers-different-equations
 one, so <code>inverse_dynamics_whole_body_asicssource</code> keeps the
-corrected de Leva anthropometrics throughout and changes only the three
-calculations above.</p>
+corrected de Leva anthropometrics throughout and changes (a), (b), and the
+separate hypothetical Cardan approximation (c).</p>
 <p>The A/B is therefore exact: both arms of it are the same function call
 (<code>core.inverse_dynamics_whole_body</code>) with a flags record set
 differently. Joint <em>forces</em> come out bit-identical — F = m a − F<sub>d</sub>
@@ -3037,7 +3069,7 @@ N m:</p>
 <p>At the right hip: (a) alone costs {rms['a'][2]:.1f} N m, (b) alone
 {rms['b'][2]:.2f} N m, (c) alone {rms['c'][2]:.1f} N m. So <b>the missing
 gyroscopic term (b) is nearly free in walking</b>, the one-sided inertia
-rotation (a) is the expensive verified mistake, and the presumed (c) is of the
+rotation (a) is the expensive verified mistake, and the hypothetical (c) is of the
 same order as (a) again — but they partially cancel, which is why all three
 together ({rms['abc'][2]:.1f} N m) come out <em>smaller</em> than (a) and (c)
 would suggest. That cancellation is luck, not structure. <b>Of the two
@@ -3092,7 +3124,7 @@ instrument available and did not build it; the imbalance was sitting there the
 whole time.</p>
 
 <h2>Reproducing this</h2>
-<p><code>uv run python -m boneid.report asics</code> regenerates this page.
+<p><code>uv run python examples/regenerate_reports.py p1_asics</code> regenerates this page.
 The comparison itself is
 <code>core.inverse_dynamics_whole_body_asicssource(skel_r, kin_r, ground_r,
 skel_l, kin_l, ground_l, skel_u, kin_u, params, cardan_alpha=True)</code> —
@@ -3104,32 +3136,9 @@ pins the behaviour: on the KEY-GYRO simulation, whose entire required torque
 zero — proof that the reimplementation really does reproduce the bug rather
 than approximate it.</p>
 
-<h2 id="appendix-missing-files">Appendix A — Missing files to request from the lab</h2>
-<p>The files below are absent from the inspected
-<code>matlab-inverse-dynamics/</code> tree. “Missing” means unavailable in
-this checkout; it does not establish that the lab has lost them. The call
-sites identify the expected filenames and roles, but their implementations
-still need to be inspected. Line references below are to
-<code>Asics_Moments4JCF_v3.m</code> unless otherwise stated.</p>
-<p><b>First priority: <code>RoomSegAng.m</code>.</b> This is the source needed
-to confirm or reject assumption (c). Until it is recovered, results including
-(c) describe the presumed implementation; they do not establish what the
-original routine actually computed.</p>
-<div class="overflow"><table class="missing-files">
-<thead><tr><th scope="col">File to request</th><th scope="col">Evidence / use</th><th scope="col">What we can directly assess</th></tr></thead>
-<tbody>
-<tr><td><code>RoomSegAng.m</code></td><td>Active calls, lines 442–447.</td><td>Whether angular acceleration is a Cardan-angle second derivative or dω/dt; rotation convention, units, differentiation, filtering and endpoint handling.</td></tr>
-<tr><td><code>multiprod.m</code></td><td>Active calls, lines 370–380, 421; <code>inv3d.m:38</code>.</td><td>Exact multidimensional product semantics underlying the inertia-transform and moment-balance findings. Include the original package version and dependencies.</td></tr>
-<tr><td><code>matexp.m</code></td><td>Active calls, lines 369–379.</td><td>How each local inertia matrix is replicated and its dimensions arranged before rotation.</td></tr>
-<tr><td><code>VirtualPoint_v2.m</code></td><td>Active calls, lines 334–341.</td><td>Cluster fitting, virtual joint centres, rotation-matrix direction and missing-marker handling. <code>VirtualPoint.m</code> is present, but equivalence to v2 has not been established.</td></tr>
-<tr><td><code>getViconForces_Motek.m</code></td><td>Active call, line 285.</td><td>Force/moment signs and units, plate rotation, origins, offsets, slope correction and COP calculation.</td></tr>
-<tr><td><code>ContactEvents_Motek.m</code></td><td>Active call, line 288.</td><td>Heel-strike/toe-off thresholds, COP criteria, event indices and off-contact handling.</td></tr>
-<tr><td><code>G2L.m</code></td><td>Active calls, lines 473–484.</td><td>Global-to-local force and moment transformation, transpose convention and component order used in reported kinetics and powers.</td></tr>
-<tr><td><code>SIMMpatellaCS.m</code></td><td>Active call, line 420.</td><td>Patellar coordinate-system construction, knee-angle units and tibial scaling; restore this dependency for a full script run.</td></tr>
-<tr><td><code>TreadOffsets.m</code></td><td>Commented-out call, line 274.</td><td>Treadmill offset correction, if enabled in the version used by the lab. Not required by this commented-out path.</td></tr>
-<tr><td><code>generateMotFile.m</code></td><td>Commented-out call, line 322.</td><td>GRF motion-file export format and units, if that export was used. Not required by this commented-out path.</td></tr>
-</tbody></table></div>
-<p><b>Please supply the versions used for the original analysis</b>, together
+<h2 id="appendix-missing-files">Appendix A — Original dependency recovery status</h2>
+{original_dependency_status_html()}
+<p><b>For the remaining missing routines, supply the versions used for the original analysis</b>, together
 with their helper files, toolbox/package versions and MATLAB path setup.
 A copy of the actual batch script used by the lab would let us check whether
 it differs from this checkout.</p>
@@ -3146,60 +3155,23 @@ code with the original outputs and then reassess the report’s assumptions.</p>
   .missing-files td:first-child {{ width: 25%; }}
 </style>
 """
-    return html_page("Implication of Asics", "", body)
+    return html_page("P1 walking — legacy ASICS equation comparison", "", body)
 
 
 def main_asics(argv=None):
-    from pathlib import Path
-
-    from . import io_v3d as io
-
-    argv = list(argv or [])
-    path = argv[0] if len(argv) > 0 else V3D_PATH
-    index = int(argv[1]) if len(argv) > 1 else V3D_TRIAL
-
-    params = p1_params()
-    trial = io.load_v3d_trial(path, index)
-    data = asics_comparison(trial, params)
-
-    out = Path(__file__).resolve().parents[2] / "reports"
-    out.mkdir(exist_ok=True)
-    dest = out / "p1_asics.html"
-    dest.write_text(p1_asics_report_html(trial, data, params))
-    print(f"wrote {dest} ({dest.stat().st_size / 1e6:.1f} MB)")
+    """Compatibility alias for the canonical notebook build."""
+    if argv:
+        raise ValueError("Set study inputs in notebooks/p1_asics.ipynb")
+    from .notebook_reports import main as build_reports
+    return build_reports(["p1_asics"])
 
 
 def main_v3d(argv=None):
-    from pathlib import Path
-
-    from . import io_v3d as io
-
-    argv = list(argv or [])
-    path = argv[0] if len(argv) > 0 else V3D_PATH
-    index = int(argv[1]) if len(argv) > 1 else V3D_TRIAL
-
-    params = p1_params()
-    trials = io.load_v3d_trials(path)
-    trial = next(tr for tr in trials if tr.index == index)
-    chain, skel_u, kin_u, whole, audit = whole_body_run(trial, params)
-    sweep = trial_sweep_stats(trials, params.contact_threshold_n)
-    cross = cross_trial_rms(trials, params)
-    powers = power_decomposition(trial, chain, skel_u, kin_u, params)
-    hjc = hjc_comparison(trial, params)
-
-    viewer_html = None
-    try:
-        viewer_html = p1_viewer_html(trial, chain, skel_u, kin_u, params)
-    except Exception as exc:            # viz is optional for the report
-        print(f"viz skipped: {exc}")
-
-    out = Path(__file__).resolve().parents[2] / "reports"
-    out.mkdir(exist_ok=True)
-    dest = out / "p1_report.html"
-    dest.write_text(p1_report_html(trial, chain, skel_u, kin_u, whole, audit,
-                                   params, sweep, cross, powers, hjc,
-                                   viewer_html))
-    print(f"wrote {dest} ({dest.stat().st_size / 1e6:.1f} MB)")
+    """Compatibility alias for the canonical notebook build."""
+    if argv:
+        raise ValueError("Set study inputs in notebooks/p1_report.ipynb")
+    from .notebook_reports import main as build_reports
+    return build_reports(["p1_report"])
 
 
 def main(argv=None):
@@ -3461,6 +3433,15 @@ def c3d_foot_wedge(cal):
                            cal.lengths["forefoot_width"])
 
 
+def c3d_foot_blob(cal):
+    """Rounded foot from static heel, forefoot and ankle landmarks."""
+    from .viz import foot_blob_mesh
+    if cal.foot_outline_local is None:
+        # Older callers may supply a calibration without drawing landmarks.
+        return c3d_foot_wedge(cal)
+    return foot_blob_mesh(cal.foot_outline_local)
+
+
 def c3d_viewer_html(trial, cal, skeleton, kin, ground, quality, params,
                     n_steps: int = 6, repetitions: int = 10000) -> str:
     """Meshcat snapshot of the instrumented leg + pelvis over a few steps.
@@ -3468,8 +3449,8 @@ def c3d_viewer_html(trial, cal, skeleton, kin, ground, quality, params,
     One chain [foot, shank, thigh, pelvis] with a real-width pelvis band
     spanning the two (GT-regression) hip centres, the attributed GRF arrow,
     every named marker (red) animated along, and the foot drawn as a rigid
-    WEDGE (ankle-heel-toebox triangle at the measured forefoot width) rather
-    than an ankle->toe cylinder, so it has a heel.  The clip loops, and the
+    rounded landmark envelope bounded by the static heel, forefoot, toebox
+    and ankle markers.  The clip loops, and the
     viewer's Animations panel (Open Controls) can pause and scrub it — the
     report's strip charts listen to that same clock.
     """
@@ -3496,7 +3477,7 @@ def c3d_viewer_html(trial, cal, skeleton, kin, ground, quality, params,
                                 plane_height=floor,
                                 force_threshold=params.contact_threshold_n,
                                 pelvis_span=pelvis_span,
-                                segment_meshes={0: c3d_foot_wedge(cal)})
+                                segment_meshes={0: c3d_foot_blob(cal)})
         viz.draw_markers(vis, traj, 0)
         for k, f in enumerate(range(0, len(vkin.t), decimate)):
             with animation.at_frame(vis, k) as frame:
@@ -4225,8 +4206,8 @@ def c3d_report_html(trial, static, cal, skeleton, kin, ground, quality,
             '<h2>The trial, moving — scrub it</h2>'
             '<p>The instrumented right leg and the pelvis over the first '
             'clean steps: segment volumes from the de Leva masses, the foot '
-            'as a rigid wedge (ankle-heel-toebox at the measured forefoot '
-            'width — it has a heel), the pelvis band spanning both hip '
+            'as a rounded blob bounded by static heel, forefoot, toebox and ankle '
+            'markers, the pelvis band spanning both hip '
             'centres, every named marker (red), and the attributed '
             'ground-reaction force arrow.  Drag to orbit, scroll to zoom; '
             'the clip loops.  <b>Open Controls &rarr; Animations</b> gives '
@@ -4825,15 +4806,9 @@ def p1_playground_html(trial) -> str:
 
 
 def main_playground(argv=None):
-    from pathlib import Path
+    """Compatibility alias for the canonical notebook build."""
+    if argv:
+        raise ValueError("Set study inputs in notebooks/p1_playground.ipynb")
+    from .notebook_reports import main as build_reports
+    return build_reports(["p1_playground"])
 
-    from . import io_v3d as io
-    argv = list(argv or [])
-    path = argv[0] if argv else V3D_PATH
-    index = int(argv[1]) if len(argv) > 1 else V3D_TRIAL
-    trial = io.load_v3d_trial(path, index)
-    out = Path(__file__).resolve().parents[2] / "reports"
-    out.mkdir(exist_ok=True)
-    dest = out / "p1_playground.html"
-    dest.write_text(p1_playground_html(trial))
-    print(f"wrote {dest} ({dest.stat().st_size / 1e6:.1f} MB)")

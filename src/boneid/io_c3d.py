@@ -15,7 +15,8 @@ cannot be read off the dynamic marker set directly.  Instead:
     trajectory frame-by-frame (Soderkvist & Wedin SVD fit,
     ``core.fit_rigid_transform``) and carries the static joint centres and
     frames through that pose — the classic virtual-point / CAST approach the
-    legacy ``VirtualPoint_v2`` implemented.  The per-frame fit residual is
+    legacy call sites suggest. The exact ``VirtualPoint_v2`` source remains
+    unavailable, so parity is unverified. The per-frame fit residual is
     kept as the data-quality signal.
 
 Conventions conserved from the legacy pipeline (the genuine approach):
@@ -138,6 +139,7 @@ class StaticCalibration:
     #: None = this module's Asics defaults (CLUSTERS / CLUSTER_POINTS).
     cluster_markers: dict | None = None
     point_carriers: dict | None = None
+    foot_outline_local: np.ndarray | None = None  # drawing landmarks [M,3]
 
 
 # ---------------------------------------------------------------------------
@@ -392,7 +394,11 @@ def calibrate_static(static: C3dTrial, sex: str = "male",
     return StaticCalibration(
         path=static.path, side="r", sex=sex, body_mass=body_mass,
         cluster_neutral=neutral, points=pts, r_static=r_static,
-        lengths=lengths, foot_heel_local=heel_local)
+        lengths=lengths, foot_heel_local=heel_local,
+        foot_outline_local=np.stack([
+            r_static[0].T @ (mean[n] - pts["ankle"])
+            for n in ("HeelLat", "HeelMed", "MTP1Head", "MTP5Head",
+                      "ToeboxAnt", "AnkleMed", "AnkleLat")]))
 
 
 # ---------------------------------------------------------------------------
@@ -729,7 +735,10 @@ def calibrate_rbds_static(static: C3dTrial, body_mass: float,
         cluster_neutral=neutral, points=pts, r_static=r_static,
         lengths=lengths,
         foot_heel_local=r_static[0].T @ (pts["heel"] - pts["ankle"]),
-        cluster_markers=clusters, point_carriers=CLUSTER_POINTS)
+        cluster_markers=clusters, point_carriers=CLUSTER_POINTS,
+        foot_outline_local=np.stack([
+            r_static[0].T @ (mean[p + n] - pts["ankle"])
+            for n in ("Heel.Bottom", "MT1", "MT5", "Ankle.Medial", "Ankle")]))
 
 
 def rbds_foot_centroid(trial: C3dTrial, side: str) -> np.ndarray:

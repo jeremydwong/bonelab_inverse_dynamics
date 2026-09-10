@@ -554,3 +554,34 @@ def test_draw_urdf_skeleton_unknown_link_is_an_error(vis, body):
     with pytest.raises(ValueError, match="RightFlipper"):
         viz.draw_urdf_skeleton(vis, URDF_PATH, {"RightFlipper": 0},
                                leg["kin"], 0)
+
+
+def test_foot_blob_contains_heel_extent_and_has_closed_outward_surface():
+    from scipy.spatial import ConvexHull
+    points = np.array([[-.05, 0, -.08], [.19, -.045, -.065],
+                       [.18, .04, -.065], [0, -.035, 0], [0, .035, 0]])
+    vertices, faces = viz.foot_blob_mesh(points)
+    # A missing heel or an inflated shoe would violate the measured extents.
+    np.testing.assert_allclose(vertices.min(0), points.min(0), atol=1e-12)
+    np.testing.assert_allclose(vertices.max(0), points.max(0), atol=1e-12)
+    assert ConvexHull(vertices).volume > 0
+    edges = np.sort(np.concatenate([faces[:, [0, 1]], faces[:, [1, 2]],
+                                     faces[:, [2, 0]]]), axis=1)
+    assert np.all(np.unique(edges, axis=0, return_counts=True)[1] == 2)
+    a, b, c = (vertices[faces[:, i]] for i in range(3))
+    assert np.all(np.sum(np.cross(b-a, c-a) * (a-vertices.mean(0)), axis=1) > 0)
+
+
+def test_p1_feet_use_both_ankles_and_heel():
+    from boneid import io_v3d, report
+    trial = io_v3d.load_v3d_trial(str(Path(__file__).resolve().parents[1]
+                                    / 'data/p1_trial13_sample.mat'), 0)
+    for side in ('r', 'l'):
+        _, kin, _ = io_v3d.build_chain(trial, side=side)
+        vertices, faces = report.p1_foot_blob(trial, kin, side)
+        heel_local = np.einsum('tji,tj->ti', kin.r_world[:, 0],
+                               trial.markers[side.upper()+'CAL']-kin.prox_pos[:, 0])
+        # Local z is forward: the mesh now extends behind the ankle to the heel.
+        assert vertices[:, 2].min() <= np.median(heel_local[:, 2]) + 1e-10
+        assert vertices[:, 2].min() < 0 < vertices[:, 2].max()
+        assert len(faces) > 20

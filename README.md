@@ -1,37 +1,62 @@
 # boneid — whole-body inverse dynamics
 
-Takes Visual3D-aligned forces and motion-capture kinematics, produces **net
-joint torques**, the **residual wrench** at the top of the body, and an
+Goal: 
+- end-to-end inverse dynamics pipeline. 
+
+generalized_torques = inverse_dynamics(generalized_torques, kinematics, body_masses) 
+`we are just doing F=ma` !!!
+
+the outputs are joint torques**, the **residual wrench** at the top of the body, and an
 **energy audit** on every run. Python, managed by
 [uv](https://docs.astral.sh/uv/) (`pyproject.toml` + `uv.lock` pin the whole
 environment for reproducibility).
 
-Validated against Visual3D's own computed kinetics across 9 subjects and 502
+## Validations
+- against Visual3D's own computed kinetics across 9 subjects and 502
 trial×leg comparisons of the van der Zee, Mundinger & Kuo (2022) walking
 dataset: median torque RMSE **ankle 2.5 N·m, knee 3.7 N·m, hip 11.3 N·m**
 (the hip gap is dominated by hip-joint-center convention differences, which
-the P1 report quantifies directly).
+the P1 report quantifies).
 
-This package replaces the legacy MATLAB pipeline in
-`matlab-inverse-dynamics/`, which is kept as reference only. The MATLAB
-contained real physics errors — explained slowly and completely in
-[What the MATLAB got wrong](#what-the-matlab-got-wrong-and-why) below,
-because each one is a lesson worth keeping.
+## Edwards lab Context 
+This package is meant to generalize and replace the legacy MATLAB pipeline in
+`matlab-inverse-dynamics/`, which is kept as reference. The MATLAB
+contained real physics errors — explained in
+[What the MATLAB got wrong](#what-the-matlab-got-wrong-and-why).
 
 ---
 
+## Report build — notebooks are authoritative
+
+Run `uv run python examples/regenerate_reports.py` after backend changes.
+It executes and saves all notebooks, then exports their saved outputs to HTML.
+Each HTML page names its source notebook and execution time. Run
+`uv run python examples/regenerate_reports.py --check` to verify freshness.
+For a change isolated to one notebook, pass its stem, e.g. `p1_asics`.
+Never update HTML independently or leave affected notebooks unexecuted.
+
+`p1_asics` uses **P1 Visual3D walking data** to compare equation variants from
+the ASICS script. Actual **ASICS C3D running data** is analysed by
+`c3d_quickstart_report.ipynb`. The former is not an ASICS dataset validation.
+
 ## Quick start (the entry points)
 
+### Example reports
+
+Browse the [reports table of contents](reports/toc.html).
+
+To run code locally:
 ```sh
 uv sync                                  # create the pinned environment
-uv run pytest                            # 81 tests, ~5 s
+uv run pytest                            # full physics, loader, and viewer suite
 uv run python examples/quickstart.py     # the canonical 10-step run-through
 uv run python -m boneid.report           # simulated squat-to-stand report
 uv run python -m boneid.report v3d       # subject-P1 whole-body walkthrough
 uv run python -m boneid.validate         # 9-subject validation sweep
 ```
 
-**`examples/quickstart.py` is the front door.** It is exactly ten steps, one
+
+**`notebooks/quickstart_report.ipynb` is the front door.** It is exactly ten steps, one
 high-level call per step — the same shape as the old Asics batch script
 (study config at the top, a linear pipeline below) with the hardcoding
 removed:
@@ -177,12 +202,13 @@ error cannot recur.
 
 ### Honorable mentions
 
-- "Angular acceleration" was the second derivative of Cardan angles, which is
-  only the angular acceleration vector for small or planar rotations. The
-  rewrite computes ω from `Ṙ Rᵀ` (exact) and differentiates that.
-- Ten called functions (`getViconForces_Motek`, `VirtualPoint_v2`, `G2L`,
-  `multiprod`, …) are missing from the repository — the MATLAB cannot run
-  from what is committed.
+- The recovered `RoomSegAng.m` differentiates rotation matrices, not Cardan
+  angles: our earlier assumption was incorrect. It forms `TMdot * TM`
+  without a transpose; its exact frame interpretation still depends on the
+  missing `VirtualPoint_v2.m`. Our implementation uses `dR/dt * Rᵀ`.
+- Six of the ten previously listed dependencies have been recovered. Four
+  exact filenames remain absent (three active calls and one commented export).
+  See [originals and implementation review](matlab-inverse-dynamics/originals/README.md).
 - Absolute `Z:\` paths, a ~150-line hardcoded bad-trial table keyed by
   subject number, per-condition shoe heights, and `eval`-generated variables
   for every marker name.
@@ -221,15 +247,20 @@ and a treadmill's lab frame is not its belt frame.
 
 ## Notebooks & Colab
 
-`notebooks/` holds executable equivalents of the reports; each has the
-conversion instruction in its first cell
-(`uv run jupyter nbconvert --to script notebooks/<name>.ipynb`).
+`notebooks/` holds the authoritative report sources. The canonical build
+executes them, saves their outputs, and exports those same outputs to HTML.
 
 | Notebook | Needs data? | Colab |
 |---|---|---|
 | `s2s_report.ipynb` | no — pure simulation | runs as-is once the repo is public |
 | `quickstart_report.ipynb` | yes | `DATA_URL` defaults to the GitHub release asset |
 | `p1_report.ipynb` | yes | same |
+| [`p1_asics.ipynb`](notebooks/p1_asics.ipynb) | bundled P1 MAT sample | P1 walking equation comparison; current original-dependency status |
+| `c3d_quickstart_report.ipynb` | bundled ASICS C3D | actual ASICS running analysis |
+| `p1_playground.ipynb` | P1 MAT | parameter experiments |
+| `joint_dof_comparison.ipynb` | bundled P1 MAT sample | 3-DOF / 6-DOF work |
+| `validation_report.ipynb` | local P1–P9 MAT exports | multi-subject walking validation |
+| `rbds_report.ipynb` | RBDS raw data cache/download | running validation and freshly computed convention comparisons |
 | `legacy_error_math.ipynb` | no — pure math | a worksheet deriving the three MATLAB errors, with a numerical check after every claim |
 
 Each notebook begins with a Colab bootstrap cell that is a no-op locally: on
@@ -297,7 +328,7 @@ The complete Asics S1 dataset is included in `data/asics`: nine C3D files
 about 50 MB and is tracked directly in Git. Run
 `uv run python examples/quickstart_c3d.py` to regenerate the C3D report from
 the included AM static and RP running recordings; no external data path is
-needed. `uv run python examples/regenerate_reports.py` rebuilds all local
+needed. `uv run python examples/regenerate_reports.py` executes notebooks and exports all local
 HTML reports (the P1–P9 reports still require their external MAT exports).
 
 ### Joint work: explicit 3-DOF / 6-DOF comparison

@@ -505,6 +505,44 @@ def draw_torso(vis: meshcat.Visualizer, l5s1: np.ndarray, top: np.ndarray,
     return float(radius)
 
 
+def foot_blob_mesh(landmarks_local: np.ndarray):
+    """Rounded landmark envelope, in the foot frame relative to the ankle.
+
+    Round a convex hull with small spherical caps, then fit its extents back
+    to the measured landmark bounds on each local axis. No toe length, heel
+    extension or shoe thickness is added. This is a visual envelope, not an
+    anatomical surface reconstruction. Pose rigidly via `segment_meshes`.
+    """
+    from scipy.spatial import ConvexHull
+
+    points = np.asarray(landmarks_local, dtype=float)
+    if points.ndim != 2 or points.shape[1] != 3 or len(points) < 4:
+        raise ValueError("foot blob needs at least four 3-D landmarks")
+    if not np.isfinite(points).all():
+        raise ValueError("foot landmarks must be finite")
+    lo, hi = points.min(axis=0), points.max(axis=0)
+    span = hi - lo
+    if np.min(span) < 1e-5:
+        raise ValueError("foot landmarks must span three dimensions")
+    theta = np.linspace(0, np.pi, 13)
+    phi = np.linspace(0, 2 * np.pi, 24, endpoint=False)
+    directions = np.stack(np.broadcast_arrays(
+        np.sin(theta[:, None]) * np.cos(phi),
+        np.sin(theta[:, None]) * np.sin(phi),
+        np.cos(theta[:, None])), axis=-1).reshape(-1, 3)
+    radius = 0.35 * np.min(span)
+    cloud = (points[:, None, :] + radius * directions).reshape(-1, 3)
+    cloud = lo + (cloud - cloud.min(axis=0)) / np.ptp(cloud, axis=0) * span
+    cloud = np.unique(cloud, axis=0)
+    hull = ConvexHull(cloud)
+    faces = hull.simplices.copy()
+    a, b, c = (cloud[faces[:, i]] for i in range(3))
+    reverse = np.sum(np.cross(b - a, c - a) * hull.equations[:, :3], axis=1) < 0
+    faces[reverse] = faces[reverse][:, [0, 2, 1]]
+    used, remap = np.unique(faces, return_inverse=True)
+    return cloud[used], remap.reshape(-1, 3)
+
+
 def foot_wedge_mesh(heel_local: np.ndarray, tip_local: np.ndarray,
                     width: float):
     """(vertices, faces) of a wedge-shaped foot in the FOOT SEGMENT frame.

@@ -484,13 +484,11 @@ def main(argv=None):
         return main_rbds_ablation(argv[1:])
     if argv and argv[0] == "rbds-cumulative":
         return main_rbds_cumulative(argv[1:])
-    paths = [Path(a) for a in argv] if argv else subject_paths()
-    results = sweep_all(paths)
-    out = Path(__file__).resolve().parents[2] / "reports"
-    out.mkdir(exist_ok=True)
-    dest = out / "validation_report.html"
-    dest.write_text(validation_report_html(results))
-    print(f"wrote {dest} ({dest.stat().st_size / 1e6:.1f} MB)")
+    if argv:
+        raise ValueError("Set input paths in notebooks/validation_report.ipynb")
+    from .notebook_reports import main as build_reports
+    return build_reports(["validation_report"])
+
 
 
 
@@ -854,27 +852,11 @@ def main_rbds_cumulative(argv=None):
 
 
 def main_rbds(argv=None):
-    """`python -m boneid.validate rbds [n_subjects]` — sweep + JSON dump."""
-    import json
-    argv = list(argv or [])
-    sids = None
+    """Compatibility alias for the notebook report build."""
     if argv:
-        index = rbds_file_index()
-        import re
-        all_sids = sorted({int(m.group(1)) for n in index
-                           for m in [re.match(r"RBDS(\d+)static\.c3d$", n)]
-                           if m})
-        sids = all_sids[:int(argv[0])]
-    results = rbds_sweep(sids)
-    out = Path(__file__).resolve().parents[2] / "reports"
-    out.mkdir(exist_ok=True)
-    dest = out / "rbds_sweep.json"
-    dest.write_text(json.dumps(results))
-    print(f"wrote {dest}")
-    rbds_update_reference_stance(results)
-    page = out / "rbds_report.html"
-    page.write_text(rbds_report_html(results))
-    print(f"wrote {page} ({page.stat().st_size / 1e6:.1f} MB)")
+        raise ValueError("Set subjects in notebooks/rbds_report.ipynb")
+    from .notebook_reports import main as build_reports
+    return build_reports(["rbds_report"])
 
 
 def rbds_update_reference_stance(results: dict) -> None:
@@ -898,7 +880,7 @@ def rbds_update_reference_stance(results: dict) -> None:
 
 
 
-def _rbds_cumulative_html() -> str:
+def _rbds_cumulative_html(cum=None) -> str:
     """Figures for the CUMULATIVE convergence run (rbds_cumulative.json):
     RMSE vs adoption step, and the ensemble mean + error curves at every
     step — the visual evidence behind the ablation table.  Empty string when
@@ -907,11 +889,8 @@ def _rbds_cumulative_html() -> str:
     from .report import FAINT, SURFACE, figure_block
     import matplotlib.pyplot as plt
 
-    path = (Path(__file__).resolve().parents[2] / "reports"
-            / "rbds_cumulative.json")
-    if not path.exists():
+    if cum is None:
         return ""
-    cum = json.loads(path.read_text())
     steps = cum["steps"]
     n_steps = len(steps)
     joints = ("ankle", "knee", "hip")
@@ -990,7 +969,7 @@ def _rbds_cumulative_html() -> str:
     return out
 
 
-def rbds_report_html(results: dict) -> str:
+def rbds_report_html(results: dict, *, ablations=None, cumulative=None) -> str:
     """The RBDS cross-validation report: their raw data, our pipeline,
     scored against their own Visual3D processing."""
     from .report import FAINT, figure_block
@@ -1072,6 +1051,7 @@ def rbds_report_html(results: dict) -> str:
              for ji, j in enumerate(joints)}
     imb = [d["imbalance_frac"] for _, _, d in rows]
     stats_row = "".join([
+        stat("subjects (N)", f"{len({sid for sid, _, _ in rows})}", ""),
         stat("subject-speeds analysed", f"{len(rows)}", ""),
         stat("median torque RMSE (ankle/knee/hip)",
              "/".join(f"{med_tq[j]:.2f}" for j in joints), "N m/kg"),
@@ -1082,13 +1062,10 @@ def rbds_report_html(results: dict) -> str:
              "pass" if np.median(imb) < 0.03 else "fail"),
     ])
 
-    # --- ablation table (present when reports/rbds_ablation.json exists)
+    # Comparison data must come from this execution, never implicit saved JSON.
     ablation_html = ""
-    abl_path = (Path(__file__).resolve().parents[2] / "reports"
-                / "rbds_ablation.json")
-    if abl_path.exists():
-        import json as _json
-        abl = _json.loads(abl_path.read_text())
+    if ablations is not None:
+        abl = ablations
         VARIANT_LABELS = {
             "baseline": "baseline (ours as published)",
             "hip_bell": "their hip landmark (Bell 1990, per the .mdh)",
@@ -1132,7 +1109,7 @@ landmark makes our hip torque agree LESS with their export than Harrington
 does — the residual hip difference is not simply hip-centre placement, but
 compensating conventions (pelvis-frame construction, Cardan-resolved
 components) that happen to cancel better under Harrington.</p>
-{_rbds_cumulative_html()}"""
+{_rbds_cumulative_html(cumulative)}"""
 
     body = f"""
 <p class="eyebrow">boneid · validate · RBDS public running dataset</p>
@@ -1159,11 +1136,10 @@ audit run on every trial exactly as in the main pipeline.</p>
 {ablation_html}
 
 <h2>Reproduce</h2>
-<p><code>uv run python -m boneid.validate rbds</code> — downloads what it
-needs into <code>~/.cache/boneid/rbds</code>, fans subjects out over a
-process pool, writes <code>reports/rbds_sweep.json</code> and this page.
-<code>uv run python -m boneid.validate rbds-ablation</code> re-runs every
-subject under each convention variant and refreshes the ablation table.</p>
+<p><code>uv run python examples/regenerate_reports.py rbds_report</code>
+executes the notebook, recomputes the baseline and every displayed comparison
+from the raw recordings in <code>~/.cache/boneid/rbds</code>, then exports the
+saved notebook outputs. No saved ablation JSON is used to build this page.</p>
 """
     return html_page("Their Data, Our Pipeline", "rbds", body)
 

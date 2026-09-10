@@ -236,7 +236,7 @@ def inertia_world(r: np.ndarray, inertia_local: np.ndarray) -> np.ndarray:
 
 @dataclass
 class LegacyPhysics:
-    """Which of the legacy MATLAB's three physics mistakes to reproduce.
+    """Two verified legacy equation changes and an optional hypothetical experiment.
 
     Defaults are the CORRECT physics; nothing in the normal path constructs
     one of these. `inverse_dynamics*` take it as a keyword-only argument and
@@ -259,8 +259,8 @@ def cardan_angles_zxy(r: np.ndarray) -> np.ndarray:
         a_z = atan2(-M[0,1], M[1,1])
 
     and returns them in x, y, z slots. Kept in radians here (the MATLAB
-    multiplied by 57.3 for reporting; the derivatives that fed the dynamics
-    were taken on the radian copies).
+    multiplied by 57.3 for reporting). The optional Cardan sensitivity
+    experiment differentiates these radian values, unlike RoomSegAng.
     """
     m = np.swapaxes(np.asarray(r, dtype=float), -1, -2)      # inv(TM) = R^T
     a = np.empty(m.shape[:-2] + (3,))
@@ -272,15 +272,14 @@ def cardan_angles_zxy(r: np.ndarray) -> np.ndarray:
 
 def cardan_alpha(r: np.ndarray, rate: float, cutoff: float = 12.0,
                  order: int = 4) -> np.ndarray:
-    """The legacy's "angular acceleration": the second time derivative of the
+    """A hypothetical "angular acceleration": the second time derivative of the
     zxy Cardan angles, low-passed like `filterdata1(...,12,4)` between the two
     differentiations. NOT the angular acceleration vector d(omega)/dt — the two
     agree only for rotations about a single fixed axis.
 
-    PRESUMED, not verified: `RoomSegAng.m` is missing from the repo, so this is
-    reconstructed from how the main script uses it (Cardan angles everywhere
-    else, `filterdata1(FirstCentral(...),rate,0,12,4,0)` for every other
-    angular velocity).
+    Hypothetical sensitivity experiment, not a reproduction of RoomSegAng.
+    The original recovered in September 2026 differentiates rotation matrices
+    and forms TMdot @ TM. See matlab-inverse-dynamics/originals/README.md.
     """
     ang = cardan_angles_zxy(r)
     vel = lowpass(finite_difference(ang, rate), rate, cutoff, order)
@@ -1006,17 +1005,11 @@ def inverse_dynamics_whole_body_asicssource(
         `multiprod(I,aANG)` only: the gyroscopic term omega x (I omega) is
         absent from Euler's equation.
 
-    (c) PRESUMED, and therefore switchable via `cardan_alpha` (default True,
-        because the legacy did do this) — the "angular acceleration" fed to
-        `inv3d` came from `RoomSegAng`, whose source is LOST from the repo.
-        Everything around it (Cardan `zxy` angles for every segment and joint,
-        `filterdata1(FirstCentral(...),rate,0,12,4,0)` for every other angular
-        velocity) says it returned the second time derivative of the segment's
-        room-frame Cardan angles, low-passed at 12 Hz, rather than the true
-        angular acceleration vector d(omega)/dt with omega = unskew(R' R^T).
-        `core.cardan_alpha` reproduces that; passing `cardan_alpha=False`
-        gives mistakes (a)+(b) only, which is how the report separates the
-        verified bugs from the presumed one.
+    (c) Hypothetical Cardan-angle sensitivity experiment, retained via
+        `cardan_alpha` for compatibility. The recovered RoomSegAng.m does NOT
+        implement this: it differentiates matrices and forms TMdot @ TM.
+        Neither switch setting reproduces that recovered routine. Use False
+        to isolate (a)+(b); True additionally explores a hypothetical error.
 
     NOT reproduced, on purpose: the legacy's anthropometric typos
     (`Ileg = [Ilx 0 0; 0 Ify 0; 0 0 Ilz]` uses the FOOT's transverse moment for

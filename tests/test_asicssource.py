@@ -2,13 +2,13 @@
 
 `core.inverse_dynamics_whole_body_asicssource` is an A/B twin of
 `inverse_dynamics_whole_body`: same data, same anthropometry, same joint
-centres, same chain, same filtering — only the three calculations the Asics-era
-MATLAB got wrong differ.
+centres, same chain, same filtering — only the two verified ASICS equation changes and a hypothetical
+Cardan-angle sensitivity experiment differ.
 
   (a) global inertia formed one-sidedly, I_G = R I  (not R I R^T)
   (b) Euler's equation missing the gyroscopic term omega x (I omega)
   (c) "angular acceleration" as the second derivative of zxy Cardan angles
-      (PRESUMED — `RoomSegAng.m` is lost; switchable via `cardan_alpha`)
+      (hypothetical sensitivity only; recovered `RoomSegAng.m` does not do this)
 
 Two things are checked. First, that the reimplementation really does reproduce
 bug (b): on the KEY-GYRO body, whose entire required torque IS the gyroscopic

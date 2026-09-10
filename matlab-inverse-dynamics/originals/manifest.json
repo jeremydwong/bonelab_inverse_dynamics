@@ -1,0 +1,389 @@
+{
+  "source": "/Users/jeremy/Dropbox/2019/BrentEdwards/matlab",
+  "copied_on": "2026-09-10",
+  "files": [
+    {
+      "name": "RoomSegAng.m",
+      "bytes": 1109,
+      "sha256": "9bf2090638e3715b230a5f133b9e4d3de8fe9fad08c00ad6f46dd4995e24b746"
+    },
+    {
+      "name": "multiprod.m",
+      "bytes": 24841,
+      "sha256": "6229b6a21ec124b6b391a61d707053097c38677e53b7d91514377c55aec339e7"
+    },
+    {
+      "name": "matexp.m",
+      "bytes": 3000,
+      "sha256": "d87972c9c914a3cca2d3193f813e96dba7c570efe60d482f158e2e38b5cc1b28"
+    },
+    {
+      "name": "G2L.m",
+      "bytes": 564,
+      "sha256": "4a3bff735adb8031248c00a938c93dbe2c7f3e8a9f09781ae6b3ffcae334a6e3"
+    },
+    {
+      "name": "SIMMpatellaCS.m",
+      "bytes": 1006,
+      "sha256": "e5c46b750bb24275aea6edabd241cd5dc8c4a97ae51d0afd92916e211f8647fc"
+    },
+    {
+      "name": "TreadOffsets.m",
+      "bytes": 616,
+      "sha256": "770a81f57b028c69b47b0addc0e67ffa0181f3fddd33aef9b9b320403db08e37"
+    },
+    {
+      "name": "Cardan2RM.m",
+      "bytes": 522,
+      "sha256": "331c3ca2261e93e3bd052f240f617b06c37e5eb88d99a13f1d472512eee1947e"
+    },
+    {
+      "name": "repmat2.m",
+      "bytes": 2472,
+      "sha256": "9881600afbf411f8114fd872d171e001e5eee7dd189b72af61f8a8100733e408"
+    },
+    {
+      "name": "rotx_global.m",
+      "bytes": 731,
+      "sha256": "d81c5d4a03fc8b4a3ccd02e1f712a745d42d2a95fd171004b0ca4435c4f56ffd"
+    },
+    {
+      "name": "roty_global.m",
+      "bytes": 739,
+      "sha256": "75dc43d87dc29be33aaa1d8df2ccf0f092af23699b1edf1d94d494ad7921fae0"
+    },
+    {
+      "name": "rotz_global.m",
+      "bytes": 750,
+      "sha256": "413bee7d895604f749098f706d6d80bf876bf53c9819045c14cd2d00d1aa2a1f"
+    },
+    {
+      "name": "ContactEvents.m",
+      "bytes": 1571,
+      "sha256": "3c7ae7a958c7e419352be5d7cb886f0f360d23b18bfd9847be8e55f8435bb940"
+    },
+    {
+      "name": "getViconForces.m",
+      "bytes": 2074,
+      "sha256": "b3e1a3597054b2826ca6ff7cf03dd1866b101be400bcbc604576d47a6b4e8b4b"
+    }
+  ],
+  "source_inventory": [
+    {
+      "name": "ANGLE2D.M",
+      "bytes": 1225
+    },
+    {
+      "name": "CARDAN.M",
+      "bytes": 2042
+    },
+    {
+      "name": "COPoffset.m",
+      "bytes": 4679
+    },
+    {
+      "name": "CORRECT.M",
+      "bytes": 1596
+    },
+    {
+      "name": "Cardan2RM.m",
+      "bytes": 522
+    },
+    {
+      "name": "CardanJointAngles.m",
+      "bytes": 976
+    },
+    {
+      "name": "CardanSegAngles.m",
+      "bytes": 964
+    },
+    {
+      "name": "ContactEvents.m",
+      "bytes": 1571
+    },
+    {
+      "name": "ContactEvents_Salomon.m",
+      "bytes": 1769
+    },
+    {
+      "name": "DEG2RAD.M",
+      "bytes": 356
+    },
+    {
+      "name": "DISTANCE.M",
+      "bytes": 715
+    },
+    {
+      "name": "DLTFU.M",
+      "bytes": 2111
+    },
+    {
+      "name": "DrawBones.m",
+      "bytes": 8748
+    },
+    {
+      "name": "FirstCentral.m",
+      "bytes": 327
+    },
+    {
+      "name": "G2L.m",
+      "bytes": 564
+    },
+    {
+      "name": "GSTreadmill_Locomotion.m",
+      "bytes": 40253
+    },
+    {
+      "name": "GetMarkers3.m",
+      "bytes": 412
+    },
+    {
+      "name": "Get_MF_TF.m",
+      "bytes": 1901
+    },
+    {
+      "name": "Get_MP_JC.m",
+      "bytes": 6976
+    },
+    {
+      "name": "Get_Trans_Rot.m",
+      "bytes": 4414
+    },
+    {
+      "name": "INVDLT.M",
+      "bytes": 1493
+    },
+    {
+      "name": "L2G.m",
+      "bytes": 791
+    },
+    {
+      "name": "L2L.m",
+      "bytes": 1160
+    },
+    {
+      "name": "L2L1.m",
+      "bytes": 572
+    },
+    {
+      "name": "L2L2.m",
+      "bytes": 598
+    },
+    {
+      "name": "L4P.m",
+      "bytes": 6362
+    },
+    {
+      "name": "MARKER.M",
+      "bytes": 934
+    },
+    {
+      "name": "MyPSD.m",
+      "bytes": 2433
+    },
+    {
+      "name": "Mydist.m",
+      "bytes": 104
+    },
+    {
+      "name": "NANfilterdata.m",
+      "bytes": 2012
+    },
+    {
+      "name": "NANinterpolate.m",
+      "bytes": 1365
+    },
+    {
+      "name": "NORMALFU.M",
+      "bytes": 4197
+    },
+    {
+      "name": "NewCS.m",
+      "bytes": 784
+    },
+    {
+      "name": "RAD2DEG.M",
+      "bytes": 357
+    },
+    {
+      "name": "RECONFU.M",
+      "bytes": 1980
+    },
+    {
+      "name": "RTOCARDA.m",
+      "bytes": 1506
+    },
+    {
+      "name": "RXYZSOLV.M",
+      "bytes": 1559
+    },
+    {
+      "name": "RXZYSOLV.M",
+      "bytes": 1516
+    },
+    {
+      "name": "RYXZSOLV.M",
+      "bytes": 1522
+    },
+    {
+      "name": "RYZXSOLV.M",
+      "bytes": 1527
+    },
+    {
+      "name": "RZXYSOLV.M",
+      "bytes": 1806
+    },
+    {
+      "name": "RZYXSOLV.M",
+      "bytes": 1545
+    },
+    {
+      "name": "RoomSegAng.m",
+      "bytes": 1109
+    },
+    {
+      "name": "SCREW.M",
+      "bytes": 2324
+    },
+    {
+      "name": "SIMMpatellaCS.m",
+      "bytes": 1006
+    },
+    {
+      "name": "SODER.m",
+      "bytes": 2032
+    },
+    {
+      "name": "StickFigure1.m",
+      "bytes": 3177
+    },
+    {
+      "name": "TreadOffsets.m",
+      "bytes": 616
+    },
+    {
+      "name": "VirtualPoint.m",
+      "bytes": 1557
+    },
+    {
+      "name": "arrow3.m",
+      "bytes": 30187
+    },
+    {
+      "name": "filterdata.m",
+      "bytes": 1459
+    },
+    {
+      "name": "getImpacts.m",
+      "bytes": 3593
+    },
+    {
+      "name": "getViconForces.m",
+      "bytes": 2074
+    },
+    {
+      "name": "getViconForces_Salomon.m",
+      "bytes": 2335
+    },
+    {
+      "name": "intersections.m",
+      "bytes": 9923
+    },
+    {
+      "name": "inv3d.m",
+      "bytes": 1395
+    },
+    {
+      "name": "lininterp1.m",
+      "bytes": 935
+    },
+    {
+      "name": "matexp.m",
+      "bytes": 3000
+    },
+    {
+      "name": "multiprod.m",
+      "bytes": 24841
+    },
+    {
+      "name": "multitransp.m",
+      "bytes": 1624
+    },
+    {
+      "name": "myeb.m",
+      "bytes": 3573
+    },
+    {
+      "name": "myeb2.m",
+      "bytes": 2896
+    },
+    {
+      "name": "peakdetect.m",
+      "bytes": 6242
+    },
+    {
+      "name": "pkpick.m",
+      "bytes": 1090
+    },
+    {
+      "name": "plotCS.m",
+      "bytes": 617
+    },
+    {
+      "name": "readC3D.m",
+      "bytes": 11742
+    },
+    {
+      "name": "readtext.m",
+      "bytes": 18344
+    },
+    {
+      "name": "repmat2.m",
+      "bytes": 2472
+    },
+    {
+      "name": "rotx.m",
+      "bytes": 743
+    },
+    {
+      "name": "rotx_global.m",
+      "bytes": 731
+    },
+    {
+      "name": "roty.m",
+      "bytes": 730
+    },
+    {
+      "name": "roty_global.m",
+      "bytes": 739
+    },
+    {
+      "name": "rotz.m",
+      "bytes": 741
+    },
+    {
+      "name": "rotz_global.m",
+      "bytes": 750
+    },
+    {
+      "name": "structfind.m",
+      "bytes": 3025
+    },
+    {
+      "name": "trackball.m",
+      "bytes": 9835
+    },
+    {
+      "name": "unitvec.m",
+      "bytes": 184
+    },
+    {
+      "name": "volt_to_newton.m",
+      "bytes": 1331
+    },
+    {
+      "name": "xml_read.m",
+      "bytes": 16401
+    }
+  ]
+}

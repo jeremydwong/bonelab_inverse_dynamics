@@ -1,0 +1,1243 @@
+{
+  "model": "RajagopalLaiUhlrich2023 (opensim-models master; Rajagopal 2016 + Lai 2017 + Uhlrich 2022), 80 Millard muscles in the scaled model; for SO + MocoInverse muscles replaced by DeGrooteFregly2016 (rigid tendon, passive fibre force ignored, active F-L width x1.5), subtalar/mtp/wrist welded",
+  "opensim_version": "4.6",
+  "env": "conda env 'opensim' (/Users/jeremy/.julia/conda/3/aarch64/envs/opensim), opensim-org::opensim 4.6 py311 osx-arm64",
+  "trial": "P1 trial slot 13 (data/p1_trial13_sample.mat, index 0), walking, 637 frames @120 Hz",
+  "body_mass_kg": 85.1635317211177,
+  "scaling": {
+    "factors_uniform": {
+      "pelvis": 1.1115203499721749,
+      "femur_r": 1.0165979932670206,
+      "patella_r": 1.0165979932670206,
+      "tibia_r": 1.0083997135805614,
+      "talus_r": 1.012498853423791,
+      "calcn_r": 1.012498853423791,
+      "toes_r": 1.012498853423791,
+      "humerus_r": 1.0153595999460991,
+      "ulna_r": 1.0153595999460991,
+      "radius_r": 1.0153595999460991,
+      "hand_r": 1.0153595999460991,
+      "femur_l": 1.047468157548257,
+      "patella_l": 1.047468157548257,
+      "tibia_l": 0.9829336362459917,
+      "talus_l": 1.0152008968971242,
+      "calcn_l": 1.0152008968971242,
+      "toes_l": 1.0152008968971242,
+      "humerus_l": 1.0007361119807612,
+      "ulna_l": 1.0007361119807612,
+      "radius_l": 1.0007361119807612,
+      "hand_l": 1.0007361119807612,
+      "torso": 0.9405562523219656
+    },
+    "unused_marker_ratios": {
+      "R": {
+        "foot_cal_5th": 1.2601528460228537,
+        "forearm_ep_wr": 1.1530546395599042
+      },
+      "L": {
+        "foot_cal_5th": 1.2166869744013669,
+        "forearm_ep_wr": 1.1015912136870136
+      }
+    },
+    "body_mass_kg": 85.1635317211177,
+    "model_mass_kg": 85.16353172111768,
+    "generic_mass_kg": 75.33699999999999,
+    "method": "manualScale, uniform per body; factor = trial-mean per-frame marker distance / generic-model distance (pelvis: mean of ASIS width and HJC width; femur: HJC to mid-epicondyles; tibia: mid-epicondyles to mid-malleoli; feet: mean of femur+tibia (CAL-5TH ratio 1.2+ rejected, marker not at the model's MT5 landmark); torso: mid-AC to mid-HJC; arms: AC-EP for the whole arm); mass distribution preserved"
+  },
+  "ik": {
+    "rms_mean_m": 0.014179182370486657,
+    "rms_max_m": 0.01977173,
+    "max_marker_error_mean_m": 0.03328174554160125,
+    "max_marker_error_max_m": 0.05542778,
+    "per_marker_rms_m": {
+      "RASI": 0.0167472783455028,
+      "LASI": 0.015679914845999645,
+      "SACR": 0.007564194970191221,
+      "RHJC": 0.013333532764682271,
+      "RGTR": 0.03084318024571661,
+      "RTH1": 0.019093413625494216,
+      "RTH2": 0.016468186136580194,
+      "RTH3": 0.01576632946107546,
+      "RLEP": 0.017121448946530116,
+      "RMEP": 0.02052407766505653,
+      "RSH1": 0.01046706687152795,
+      "RSH2": 0.010096292835756249,
+      "RSH3": 0.007939848645294765,
+      "RLML": 0.011587120779015886,
+      "RMML": 0.013276497114435763,
+      "RCAL": 0.012152551612447094,
+      "R5TH": 0.01873015822541924,
+      "RAC": 0.00835067097215748,
+      "REP": 0.006342360801909741,
+      "RWR": 0.009234584469028206,
+      "LHJC": 0.013014181040957909,
+      "LGTR": 0.027181516900151134,
+      "LTH1": 0.019063243836794076,
+      "LTH2": 0.017534866852372263,
+      "LTH3": 0.015193090998925969,
+      "LLEP": 0.013800827664156598,
+      "LMEP": 0.013518056662243504,
+      "LSH1": 0.006812851370187424,
+      "LSH2": 0.004681422430562321,
+      "LSH3": 0.006469996696487745,
+      "LLML": 0.009095585307904138,
+      "LMML": 0.012722283317663681,
+      "LCAL": 0.010254857866001518,
+      "L5TH": 0.0127825981662113,
+      "LAC": 0.00800851304497841,
+      "LEP": 0.00802180209484393,
+      "LWR": 0.01039834955108341
+    },
+    "weights": {
+      "RASI": 10.0,
+      "LASI": 10.0,
+      "SACR": 5.0,
+      "RHJC": 10.0,
+      "RGTR": 1.0,
+      "RTH1": 1.0,
+      "RTH2": 1.0,
+      "RTH3": 1.0,
+      "RLEP": 10.0,
+      "RMEP": 10.0,
+      "RSH1": 1.0,
+      "RSH2": 1.0,
+      "RSH3": 1.0,
+      "RLML": 10.0,
+      "RMML": 10.0,
+      "RCAL": 5.0,
+      "R5TH": 5.0,
+      "RAC": 1.0,
+      "REP": 0.5,
+      "RWR": 0.5,
+      "LHJC": 10.0,
+      "LGTR": 1.0,
+      "LTH1": 1.0,
+      "LTH2": 1.0,
+      "LTH3": 1.0,
+      "LLEP": 10.0,
+      "LMEP": 10.0,
+      "LSH1": 1.0,
+      "LSH2": 1.0,
+      "LSH3": 1.0,
+      "LLML": 10.0,
+      "LMML": 10.0,
+      "LCAL": 5.0,
+      "L5TH": 5.0,
+      "LAC": 1.0,
+      "LEP": 0.5,
+      "LWR": 0.5
+    },
+    "pass1_errors_generic_markers": {
+      "rms_mean_m": 0.03893018574568289,
+      "rms_max_m": 0.04178252,
+      "max_marker_error_mean_m": 0.09280164105180534,
+      "max_marker_error_max_m": 0.0996138
+    },
+    "placement_shift_m_pass1": {
+      "SACR": 0.029434984805135445,
+      "RGTR": 0.045364818307442774,
+      "RTH1": 0.06852657386537589,
+      "RTH2": 0.1332301196713756,
+      "RTH3": 0.107315345407497,
+      "RSH1": 0.10809059484078895,
+      "RSH2": 0.16065974651091974,
+      "RSH3": 0.15532045718123863,
+      "RCAL": 0.0178681355886274,
+      "R5TH": 0.03178002005283953,
+      "RAC": 0.0874735413129535,
+      "REP": 0.04916252128432583,
+      "RWR": 0.053828611176927374,
+      "LGTR": 0.035908461803377374,
+      "LTH1": 0.06718002235754073,
+      "LTH2": 0.05776069171932263,
+      "LTH3": 0.0563218668644561,
+      "LSH1": 0.08766281353441774,
+      "LSH2": 0.08688705565956441,
+      "LSH3": 0.12501991073890398,
+      "LCAL": 0.022745020828796873,
+      "L5TH": 0.03183905098441001,
+      "LAC": 0.08769707176234319,
+      "LEP": 0.04608428336120014,
+      "LWR": 0.052206068491787036,
+      "RLEP": 0.018953881871703493,
+      "RMEP": 0.018953881871703493,
+      "LLEP": 0.014640577738978498,
+      "LMEP": 0.014640577738978498,
+      "RLML": 0.008697181658836997,
+      "RMML": 0.008697181658836997,
+      "LLML": 0.008609672947886338,
+      "LMML": 0.008609672947886338
+    },
+    "placement_shift_m_pass2": {
+      "SACR": 0.010514052244631943,
+      "RGTR": 0.0024265460915416925,
+      "RTH1": 0.00259900527161504,
+      "RTH2": 0.002534380794140147,
+      "RTH3": 0.0023442927470162514,
+      "RSH1": 0.0024891156499354324,
+      "RSH2": 0.0025591712890443825,
+      "RSH3": 0.001999186196699702,
+      "RCAL": 0.003364245557564779,
+      "R5TH": 0.003338166309828963,
+      "RAC": 0.00588214696685153,
+      "REP": 0.00566964307858349,
+      "RWR": 0.007364303436811572,
+      "LGTR": 0.0029413198222988483,
+      "LTH1": 0.0035117801869942295,
+      "LTH2": 0.0036395696966849203,
+      "LTH3": 0.003681784102848293,
+      "LSH1": 0.0038742636842754217,
+      "LSH2": 0.0032443040291253735,
+      "LSH3": 0.003733235964497485,
+      "LCAL": 0.0040246487256883,
+      "L5TH": 0.004064683476320068,
+      "LAC": 0.0059939599328450045,
+      "LEP": 0.006952395065259992,
+      "LWR": 0.008765272745488878
+    },
+    "runtime_s": 22.00374698638916,
+    "procedure": "Three IK passes with marker placement in between (no static trial).\n\n    pass 1: scaled model, generic marker locations, ONLY anatomical markers\n            (ASIS, SACR, HJC, epicondyles, malleoli, CAL, 5TH, AC/EP/WR).\n    place:  non-fixed markers -> trial-mean body-frame position; epicondyle /\n            malleolus pairs widened to the data's separation (midpoint kept).\n    pass 2: all markers.\n    place:  non-fixed markers again, now from cluster-informed kinematics.\n    pass 3: all markers -> the IK used everywhere downstream.\n    Fixed (never moved): ASIS, HJC, epicondyle/malleolus MIDPOINTS -- these\n    define the model's pelvis, hip, knee and ankle.\n    "
+  },
+  "id": {
+    "runtime_s": 0.9388399124145508,
+    "lowpass_coordinates_hz": 12.0,
+    "excluded_forces": [
+      "Muscles"
+    ],
+    "boneid_vs_opensim_sagittal": {
+      "ankle": {
+        "rmse_Nm": 7.544872174245649,
+        "corr": 0.9916962904498446,
+        "peak_abs_Nm": 166.13159741036023,
+        "ref_peak_abs_Nm": 176.74876520084277
+      },
+      "knee": {
+        "rmse_Nm": 9.56668293065667,
+        "corr": 0.9882689813940129,
+        "peak_abs_Nm": 132.41262818474357,
+        "ref_peak_abs_Nm": 155.5942032427098
+      },
+      "hip": {
+        "rmse_Nm": 14.035425632720669,
+        "corr": 0.9572824184317079,
+        "peak_abs_Nm": 113.9544936216332,
+        "ref_peak_abs_Nm": 119.94406622848332
+      }
+    },
+    "comparison_frames": "all but 12 frames at each end"
+  },
+  "static_optimization": {
+    "runtime_s": 58.48933720588684,
+    "window_s": [
+      0.1,
+      5.2
+    ],
+    "activation_exponent": 2,
+    "use_muscle_physiology": true,
+    "convergence_criterion": 0.0001,
+    "max_iterations": 200,
+    "lowpass_coordinates_hz": 12.0,
+    "reserve_and_residual_usage_N_or_Nm": {
+      "residual_pelvis_tilt": {
+        "max_abs": 146.46016705,
+        "rms": 35.40986746285599
+      },
+      "residual_pelvis_list": {
+        "max_abs": 81.95216202,
+        "rms": 20.318522992201917
+      },
+      "residual_pelvis_rotation": {
+        "max_abs": 46.40077115,
+        "rms": 12.45867292683749
+      },
+      "residual_pelvis_tx": {
+        "max_abs": 149.74753988,
+        "rms": 51.782803408613525
+      },
+      "residual_pelvis_ty": {
+        "max_abs": 313.26999102,
+        "rms": 92.23273740561474
+      },
+      "residual_pelvis_tz": {
+        "max_abs": 173.04983231,
+        "rms": 55.31212947417588
+      },
+      "reserve_jointset_hip_r_hip_flexion_r": {
+        "max_abs": 0.03379464,
+        "rms": 0.009868167833706353
+      },
+      "reserve_jointset_hip_r_hip_adduction_r": {
+        "max_abs": 0.06792532,
+        "rms": 0.011063857424011652
+      },
+      "reserve_jointset_hip_r_hip_rotation_r": {
+        "max_abs": 0.20668586,
+        "rms": 0.02629288246116551
+      },
+      "reserve_jointset_walker_knee_r_knee_angle_r": {
+        "max_abs": 0.04606457,
+        "rms": 0.01116672921664579
+      },
+      "reserve_jointset_ankle_r_ankle_angle_r": {
+        "max_abs": 0.02323997,
+        "rms": 0.005993698486862646
+      },
+      "reserve_jointset_hip_l_hip_flexion_l": {
+        "max_abs": 0.02642034,
+        "rms": 0.008392269881706004
+      },
+      "reserve_jointset_hip_l_hip_adduction_l": {
+        "max_abs": 0.01528375,
+        "rms": 0.0055019949874843075
+      },
+      "reserve_jointset_hip_l_hip_rotation_l": {
+        "max_abs": 0.05067149,
+        "rms": 0.011497378078054303
+      },
+      "reserve_jointset_walker_knee_l_knee_angle_l": {
+        "max_abs": 0.03665309,
+        "rms": 0.00931896457522054
+      },
+      "reserve_jointset_ankle_l_ankle_angle_l": {
+        "max_abs": 0.01961929,
+        "rms": 0.005303640174252402
+      }
+    },
+    "muscle_moment_vs_opensim_id": {
+      "ankle": {
+        "rmse_Nm": 0.005760279479979713,
+        "corr": 0.9999999960710468,
+        "peak_abs_Nm": 176.74729459841302,
+        "ref_peak_abs_Nm": 176.74876520084277
+      },
+      "knee": {
+        "rmse_Nm": 0.05544370146418202,
+        "corr": 0.99999970011456,
+        "peak_abs_Nm": 155.63468784287062,
+        "ref_peak_abs_Nm": 155.5942032427098
+      },
+      "hip": {
+        "rmse_Nm": 0.012353290149176702,
+        "corr": 0.9999999803944098,
+        "peak_abs_Nm": 119.93462504651026,
+        "ref_peak_abs_Nm": 119.94406622848332
+      }
+    }
+  },
+  "dynamic_optimization": {
+    "solver": "MocoCasADiSolver (CasADi + IPOPT)",
+    "optim_solver": "ipopt",
+    "transcription_scheme": "hermite-simpson",
+    "num_mesh_intervals": 256,
+    "mesh_interval_s": 0.02,
+    "multibody_dynamics_mode": "implicit",
+    "optim_convergence_tolerance": 0.001,
+    "optim_constraint_tolerance": 0.001,
+    "optim_max_iterations": 3000,
+    "optim_hessian_approximation": "limited-memory",
+    "window_s": [
+      0.1,
+      5.2
+    ],
+    "cost": "MocoInverse default: sum of squared controls (muscle excitations + reserves/residuals, weight 1) + sum of squared muscle activations (minimize_sum_squared_activations = true)",
+    "muscle_model": "DeGrooteFregly2016, rigid tendon, passive fibre force ignored, active force-length width x1.5, fibre damping 0.1, activation dynamics tau_act/tau_deact = 0.010/0.040 s (inherited from the Rajagopal model by ModOpReplaceMusclesWithDeGrooteFregly2016), tanh smoothing b = 0.1",
+    "kinematics": "IK, low-pass 12.0 Hz, prescribed (PositionMotion)",
+    "runtime_s": 1086.8470087051392,
+    "success": true,
+    "status": "Solve_Succeeded",
+    "num_iterations": 335,
+    "objective": 153.0493635615693,
+    "reserve_and_residual_usage_N_or_Nm": {
+      "/forceset/residual_pelvis_tilt": {
+        "max_abs": 143.1729342399197,
+        "rms": 35.50869504231851
+      },
+      "/forceset/residual_pelvis_list": {
+        "max_abs": 84.54893088083402,
+        "rms": 20.301970488053122
+      },
+      "/forceset/residual_pelvis_rotation": {
+        "max_abs": 47.5949775134938,
+        "rms": 12.44082358669645
+      },
+      "/forceset/residual_pelvis_tx": {
+        "max_abs": 149.63002431281208,
+        "rms": 51.73767245960618
+      },
+      "/forceset/residual_pelvis_ty": {
+        "max_abs": 313.0729010889562,
+        "rms": 92.21819787505413
+      },
+      "/forceset/residual_pelvis_tz": {
+        "max_abs": 169.22427651265238,
+        "rms": 55.31247154932669
+      },
+      "/forceset/reserve_jointset_hip_r_hip_flexion_r": {
+        "max_abs": 1.729136969468673,
+        "rms": 0.34156438498754016
+      },
+      "/forceset/reserve_jointset_hip_r_hip_adduction_r": {
+        "max_abs": 2.408747518785435,
+        "rms": 0.5114267998780435
+      },
+      "/forceset/reserve_jointset_hip_r_hip_rotation_r": {
+        "max_abs": 5.997890880945573,
+        "rms": 0.7974883273312944
+      },
+      "/forceset/reserve_jointset_walker_knee_r_knee_angle_r": {
+        "max_abs": 2.136924447424366,
+        "rms": 0.5180492131053113
+      },
+      "/forceset/reserve_jointset_ankle_r_ankle_angle_r": {
+        "max_abs": 2.985289618963164,
+        "rms": 0.6443420463249048
+      },
+      "/forceset/reserve_jointset_hip_l_hip_flexion_l": {
+        "max_abs": 0.7173018052193498,
+        "rms": 0.2511154678893811
+      },
+      "/forceset/reserve_jointset_hip_l_hip_adduction_l": {
+        "max_abs": 0.5967123261414501,
+        "rms": 0.15503084737041206
+      },
+      "/forceset/reserve_jointset_hip_l_hip_rotation_l": {
+        "max_abs": 1.998307267244686,
+        "rms": 0.39893111451804636
+      },
+      "/forceset/reserve_jointset_walker_knee_l_knee_angle_l": {
+        "max_abs": 1.042060755989609,
+        "rms": 0.21857608061264538
+      },
+      "/forceset/reserve_jointset_ankle_l_ankle_angle_l": {
+        "max_abs": 2.517197353237718,
+        "rms": 0.3086960172595071
+      }
+    },
+    "muscle_moment_vs_opensim_id": {
+      "ankle": {
+        "rmse_Nm": 1.3552997143440357,
+        "corr": 0.9995926798556215,
+        "peak_abs_Nm": 171.81833650278702,
+        "ref_peak_abs_Nm": 176.74876520084277
+      },
+      "knee": {
+        "rmse_Nm": 1.4216427780981682,
+        "corr": 0.9993892010523642,
+        "peak_abs_Nm": 155.31765381665522,
+        "ref_peak_abs_Nm": 155.5942032427098
+      },
+      "hip": {
+        "rmse_Nm": 1.7530120931338151,
+        "corr": 0.9992878567510995,
+        "peak_abs_Nm": 119.52456227609596,
+        "ref_peak_abs_Nm": 119.94406622848332
+      }
+    }
+  },
+  "muscles": {
+    "addbrev_r": {
+      "so_peak_N": 139.22621696271514,
+      "dyn_peak_N": 163.46998182455013,
+      "so_vs_dyn_corr": 0.8414518976050842,
+      "group": "hip",
+      "crosses": [
+        "hip"
+      ]
+    },
+    "addlong_r": {
+      "so_peak_N": 375.8325232725486,
+      "dyn_peak_N": 446.86140859415787,
+      "so_vs_dyn_corr": 0.8959284906026332,
+      "group": "hip",
+      "crosses": [
+        "hip"
+      ]
+    },
+    "addmagDist_r": {
+      "so_peak_N": 219.13893663520653,
+      "dyn_peak_N": 262.44176767935073,
+      "so_vs_dyn_corr": 0.8945257776937138,
+      "group": "hip",
+      "crosses": [
+        "hip"
+      ]
+    },
+    "addmagIsch_r": {
+      "so_peak_N": 124.73459426672551,
+      "dyn_peak_N": 97.1981725857455,
+      "so_vs_dyn_corr": 0.5311832811895165,
+      "group": "hip",
+      "crosses": [
+        "hip"
+      ]
+    },
+    "addmagMid_r": {
+      "so_peak_N": 213.75498781040486,
+      "dyn_peak_N": 222.1351678780809,
+      "so_vs_dyn_corr": 0.8688938111649902,
+      "group": "hip",
+      "crosses": [
+        "hip"
+      ]
+    },
+    "addmagProx_r": {
+      "so_peak_N": 366.1754639880392,
+      "dyn_peak_N": 336.54334087218194,
+      "so_vs_dyn_corr": 0.8832881347420007,
+      "group": "hip",
+      "crosses": [
+        "hip"
+      ]
+    },
+    "bflh_r": {
+      "so_peak_N": 916.650613960977,
+      "dyn_peak_N": 769.2567166393933,
+      "so_vs_dyn_corr": 0.9081461991882488,
+      "group": "hip",
+      "crosses": [
+        "knee",
+        "hip"
+      ]
+    },
+    "bfsh_r": {
+      "so_peak_N": 301.3718669330737,
+      "dyn_peak_N": 401.71341087118,
+      "so_vs_dyn_corr": 0.827491327255522,
+      "group": "knee",
+      "crosses": [
+        "knee"
+      ]
+    },
+    "edl_r": {
+      "so_peak_N": 179.79695946845584,
+      "dyn_peak_N": 315.8689978483049,
+      "so_vs_dyn_corr": 0.8096657088156205,
+      "group": "ankle",
+      "crosses": [
+        "ankle"
+      ]
+    },
+    "ehl_r": {
+      "so_peak_N": 40.903205993230905,
+      "dyn_peak_N": 92.19110231158444,
+      "so_vs_dyn_corr": 0.7361796688511023,
+      "group": "ankle",
+      "crosses": [
+        "ankle"
+      ]
+    },
+    "fdl_r": {
+      "so_peak_N": 14.53437178566423,
+      "dyn_peak_N": 78.76248119705711,
+      "so_vs_dyn_corr": 0.5766069581665794,
+      "group": "ankle",
+      "crosses": [
+        "ankle"
+      ]
+    },
+    "fhl_r": {
+      "so_peak_N": 78.51980594033606,
+      "dyn_peak_N": 364.96779594540646,
+      "so_vs_dyn_corr": 0.7683275162359582,
+      "group": "ankle",
+      "crosses": [
+        "ankle"
+      ]
+    },
+    "gaslat_r": {
+      "so_peak_N": 917.2432534286854,
+      "dyn_peak_N": 921.6163187492502,
+      "so_vs_dyn_corr": 0.9624889156841631,
+      "group": "ankle",
+      "crosses": [
+        "ankle",
+        "knee"
+      ]
+    },
+    "gasmed_r": {
+      "so_peak_N": 2101.6627668294736,
+      "dyn_peak_N": 2199.708938825594,
+      "so_vs_dyn_corr": 0.9546111694183367,
+      "group": "ankle",
+      "crosses": [
+        "ankle",
+        "knee"
+      ]
+    },
+    "glmax1_r": {
+      "so_peak_N": 425.6772274697352,
+      "dyn_peak_N": 486.21030551992004,
+      "so_vs_dyn_corr": 0.924812453565033,
+      "group": "hip",
+      "crosses": [
+        "hip"
+      ]
+    },
+    "glmax2_r": {
+      "so_peak_N": 855.9317431244474,
+      "dyn_peak_N": 945.741511589121,
+      "so_vs_dyn_corr": 0.9746136483518406,
+      "group": "hip",
+      "crosses": [
+        "hip"
+      ]
+    },
+    "glmax3_r": {
+      "so_peak_N": 644.7894187596148,
+      "dyn_peak_N": 564.176361033935,
+      "so_vs_dyn_corr": 0.8875078710154459,
+      "group": "hip",
+      "crosses": [
+        "hip"
+      ]
+    },
+    "glmed1_r": {
+      "so_peak_N": 454.2360443098913,
+      "dyn_peak_N": 394.07136302917263,
+      "so_vs_dyn_corr": 0.9070403837829158,
+      "group": "hip",
+      "crosses": [
+        "hip"
+      ]
+    },
+    "glmed2_r": {
+      "so_peak_N": 328.8116923947431,
+      "dyn_peak_N": 362.424004957734,
+      "so_vs_dyn_corr": 0.9622837021465679,
+      "group": "hip",
+      "crosses": [
+        "hip"
+      ]
+    },
+    "glmed3_r": {
+      "so_peak_N": 508.42836650496196,
+      "dyn_peak_N": 584.5534092835388,
+      "so_vs_dyn_corr": 0.9283374327992685,
+      "group": "hip",
+      "crosses": [
+        "hip"
+      ]
+    },
+    "glmin1_r": {
+      "so_peak_N": 54.85487532949563,
+      "dyn_peak_N": 85.35324710746637,
+      "so_vs_dyn_corr": 0.6964181051749453,
+      "group": "hip",
+      "crosses": [
+        "hip"
+      ]
+    },
+    "glmin2_r": {
+      "so_peak_N": 90.15868530496971,
+      "dyn_peak_N": 121.6678803522341,
+      "so_vs_dyn_corr": 0.9357321050335917,
+      "group": "hip",
+      "crosses": [
+        "hip"
+      ]
+    },
+    "glmin3_r": {
+      "so_peak_N": 128.34312530641571,
+      "dyn_peak_N": 244.68155314993,
+      "so_vs_dyn_corr": 0.8753630448444084,
+      "group": "hip",
+      "crosses": [
+        "hip"
+      ]
+    },
+    "grac_r": {
+      "so_peak_N": 72.46130656598189,
+      "dyn_peak_N": 108.40261235250864,
+      "so_vs_dyn_corr": 0.9309672642406427,
+      "group": "knee",
+      "crosses": [
+        "knee",
+        "hip"
+      ]
+    },
+    "iliacus_r": {
+      "so_peak_N": 838.8505156648439,
+      "dyn_peak_N": 885.7844873757566,
+      "so_vs_dyn_corr": 0.9453565864556339,
+      "group": "hip",
+      "crosses": [
+        "hip"
+      ]
+    },
+    "perbrev_r": {
+      "so_peak_N": 19.77568586518741,
+      "dyn_peak_N": 117.56679025016076,
+      "so_vs_dyn_corr": 0.6322235334582678,
+      "group": "ankle",
+      "crosses": [
+        "ankle"
+      ]
+    },
+    "perlong_r": {
+      "so_peak_N": 111.1214277669047,
+      "dyn_peak_N": 560.9496609425362,
+      "so_vs_dyn_corr": 0.7675966027565871,
+      "group": "ankle",
+      "crosses": [
+        "ankle"
+      ]
+    },
+    "piri_r": {
+      "so_peak_N": 991.0368375601166,
+      "dyn_peak_N": 919.2179011866284,
+      "so_vs_dyn_corr": 0.8353676330772907,
+      "group": "hip",
+      "crosses": [
+        "hip"
+      ]
+    },
+    "psoas_r": {
+      "so_peak_N": 1437.91741350274,
+      "dyn_peak_N": 1389.6102419453248,
+      "so_vs_dyn_corr": 0.9550582482574148,
+      "group": "hip",
+      "crosses": [
+        "hip"
+      ]
+    },
+    "recfem_r": {
+      "so_peak_N": 1335.452538800517,
+      "dyn_peak_N": 1305.4106439620853,
+      "so_vs_dyn_corr": 0.9073825311848831,
+      "group": "knee",
+      "crosses": [
+        "knee",
+        "hip"
+      ]
+    },
+    "sart_r": {
+      "so_peak_N": 241.66809113248556,
+      "dyn_peak_N": 212.33642036078464,
+      "so_vs_dyn_corr": 0.8341963167129148,
+      "group": "hip",
+      "crosses": [
+        "knee",
+        "hip"
+      ]
+    },
+    "semimem_r": {
+      "so_peak_N": 1236.968277200715,
+      "dyn_peak_N": 940.0040687847431,
+      "so_vs_dyn_corr": 0.8792874084278373,
+      "group": "hip",
+      "crosses": [
+        "knee",
+        "hip"
+      ]
+    },
+    "semiten_r": {
+      "so_peak_N": 127.22554102295734,
+      "dyn_peak_N": 175.1108623753937,
+      "so_vs_dyn_corr": 0.6978290991879695,
+      "group": "hip",
+      "crosses": [
+        "knee",
+        "hip"
+      ]
+    },
+    "soleus_r": {
+      "so_peak_N": 1983.6871296234483,
+      "dyn_peak_N": 2941.3069669855936,
+      "so_vs_dyn_corr": 0.9242063636830385,
+      "group": "ankle",
+      "crosses": [
+        "ankle"
+      ]
+    },
+    "tfl_r": {
+      "so_peak_N": 161.95570141318132,
+      "dyn_peak_N": 221.453138007966,
+      "so_vs_dyn_corr": 0.941997483817103,
+      "group": "hip",
+      "crosses": [
+        "knee",
+        "hip"
+      ]
+    },
+    "tibant_r": {
+      "so_peak_N": 844.0287474657367,
+      "dyn_peak_N": 1045.955925331463,
+      "so_vs_dyn_corr": 0.8661235778855113,
+      "group": "ankle",
+      "crosses": [
+        "ankle"
+      ]
+    },
+    "tibpost_r": {
+      "so_peak_N": 211.01772349432187,
+      "dyn_peak_N": 829.341136384479,
+      "so_vs_dyn_corr": 0.7902750023579104,
+      "group": "ankle",
+      "crosses": [
+        "ankle"
+      ]
+    },
+    "vasint_r": {
+      "so_peak_N": 249.42683608643233,
+      "dyn_peak_N": 270.19501787290403,
+      "so_vs_dyn_corr": 0.9337034441217262,
+      "group": "knee",
+      "crosses": [
+        "knee"
+      ]
+    },
+    "vaslat_r": {
+      "so_peak_N": 2393.0709453858713,
+      "dyn_peak_N": 2291.0854303662,
+      "so_vs_dyn_corr": 0.9887749666751128,
+      "group": "knee",
+      "crosses": [
+        "knee"
+      ]
+    },
+    "vasmed_r": {
+      "so_peak_N": 621.303366357228,
+      "dyn_peak_N": 529.3908675563108,
+      "so_vs_dyn_corr": 0.9727029243419357,
+      "group": "knee",
+      "crosses": [
+        "knee"
+      ]
+    }
+  },
+  "conventions": {
+    "lab_to_opensim_rotation": [
+      [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ],
+      [
+        -1.0,
+        0.0,
+        0.0
+      ]
+    ],
+    "lab_to_opensim_text": "X_os = -y_lab (anterior), Y_os = z_lab (up), Z_os = -x_lab (subject right); no translation",
+    "cop": "COP slid along the force line from the plate-origin height z=-0.1746 m to lab z=0 (wrench unchanged)",
+    "moment_sign": "OpenSim generalized-force convention: + = ankle dorsiflexion, knee FLEXION (Rajagopal walker knee), hip flexion moment on the child segment",
+    "id_moment_boneid": "boneid whole_body_run(trial, p1_params()) right-leg joint_torque_local[:, j, 1] (torque on distal by proximal about the proximal frame's subject-LEFT axis) times [-1, +1, -1] for [ankle, knee, hip]",
+    "moment_arm": "OpenSim Muscle.computeMomentArm (= -dL/dq), m; so/dyn_moment = sum_m force_m * moment_arm_m",
+    "group": "argmax over crossed joints of mean |moment arm|",
+    "crosses": "max |moment arm| > 0.002 m",
+    "time": "t = i/120 s, the trial's mocap clock; SO and dyn series are NaN outside their windows"
+  },
+  "so_window_s": [
+    0.09989,
+    5.199686
+  ],
+  "dyn_window_s": [
+    0.1,
+    5.2
+  ],
+  "notes": [
+    "No static trial in the export: segment scale factors are trial-mean per-frame marker distances over the generic model's; markers were placed by iterating IK + trial-mean body-frame placement (see ik.procedure).",
+    "Visual3D's HJC landmarks are 20% wider apart than the scaled Rajagopal hips while ASIS width matches within 3%, so pelvis markers carry ~13-17 mm RMS of systematic error.",
+    "Pelvis residual forces/moments are what ID needs to close without RRA; reserves on leg joints are optimal force 1 N m (penalised like a muscle at control 1), pelvis residuals optimal force 100.",
+    "SO and MocoInverse use the identical processed model, external loads and 12 Hz-filtered IK, so differences come from activation dynamics + the excitation cost only."
+  ],
+  "fiber_kinematics": {
+    "keys": {
+      "fiber_length_norm": "[T,M] l_M / l_opt (MocoInverse output normalized_fiber_length)",
+      "fiber_velocity_norm": "[T,M] v_M / (v_max l_opt), + = lengthening (normalized_fiber_velocity)",
+      "mtu_length": "[T,M] m, musculotendon path length",
+      "tendon_length": "[T,M] m (rigid: = l_slack)",
+      "pennation": "[T,M] rad",
+      "f_iso": "[M] N",
+      "l_opt": "[M] m",
+      "l_slack": "[M] m",
+      "v_max": "[M] l_opt/s",
+      "alpha_opt": "[M] rad",
+      "passive_strain_e0": "[M] passive_fiber_strain_at_one_norm_force (only matters if passive force were on)"
+    },
+    "source": "values stored are from the MocoInverse solution (study.analyze); the SO side is an AnalyzeTool + MuscleAnalysis on the identical SO setup",
+    "so_vs_dyn_agreement": {
+      "fiber_length_norm": {
+        "max_abs_diff": 0.01920431212613105,
+        "rms_diff": 0.00024030943703813923,
+        "n": 20480,
+        "p99_abs_diff": 0.0006314825606775551,
+        "argmax_t_s": 0.4287109375,
+        "argmax_muscle": "glmax1_r"
+      },
+      "fiber_velocity_norm": {
+        "max_abs_diff": 0.009060361933419636,
+        "rms_diff": 0.0007330708639778578,
+        "n": 20480,
+        "p99_abs_diff": 0.0035009805007473367,
+        "argmax_t_s": 4.263671875,
+        "argmax_muscle": "glmax1_r"
+      },
+      "mtu_length": {
+        "max_abs_diff": 0.003277957140518817,
+        "rms_diff": 3.465958086338983e-05,
+        "n": 20480,
+        "p99_abs_diff": 4.576340085301146e-05,
+        "argmax_t_s": 0.4287109375,
+        "argmax_muscle": "glmax1_r"
+      },
+      "tendon_length": {
+        "max_abs_diff": 4.999498759428178e-09,
+        "rms_diff": 3.2797181133070677e-09,
+        "n": 20480,
+        "p99_abs_diff": 4.999498759428178e-09,
+        "argmax_t_s": 0.1,
+        "argmax_muscle": "addmagIsch_r"
+      },
+      "pennation": {
+        "max_abs_diff": 0.00783793174899916,
+        "rms_diff": 0.00013222206399154306,
+        "n": 20480,
+        "p99_abs_diff": 0.00034845776247725954,
+        "argmax_t_s": 0.4287109375,
+        "argmax_muscle": "glmax1_r"
+      }
+    },
+    "so_vs_dyn_grid": "SO/MuscleAnalysis 613 samples (AnalyzeTool grid) interpolated onto the 513 MocoInverse mesh times",
+    "geometry_identity_max_abs_m": 1.2627402263935134e-05,
+    "tendon_minus_slack_max_abs_m": 0.0,
+    "force_reconstruction": {
+      "curves_numpy_vs_opensim_max_abs": 1.3322676295501878e-15,
+      "dyn: Fiso (a fL fV + beta vM) cos(alpha)": 2.6147972675971687e-11,
+      "dyn: Fiso a fL fV cos(alpha) (no damping)": 343.1440081359553,
+      "so: Fiso a fL fV (no cos, no damping)": 4.2329949906161346e-05,
+      "so: Fiso a fL fV cos(alpha)": 166.44150377432038,
+      "so: Fiso (a fL fV + beta vM) cos(alpha)": 423.322977287556,
+      "units": "max |reconstruction - reported force| over all right-leg muscles and samples of that solver's own grid, N"
+    },
+    "model_constants": {
+      "activation_time_constant_s": [
+        0.01
+      ],
+      "deactivation_time_constant_s": [
+        0.04
+      ],
+      "activation_dynamics_smoothing_b": [
+        0.1
+      ],
+      "active_force_width_scale": [
+        1.5
+      ],
+      "fiber_damping": [
+        0.1
+      ],
+      "ignore_passive_fiber_force": [
+        true
+      ],
+      "ignore_tendon_compliance": [
+        true
+      ],
+      "ignore_activation_dynamics": [
+        false
+      ],
+      "tendon_strain_at_one_norm_force": [
+        0.049
+      ]
+    },
+    "activation_ode_check": {
+      "muscle": "addbrev_r",
+      "pairs": 5,
+      "max_abs_diff_per_s": 0.0,
+      "formula": "da/dt = [(f+0.5)/(tau_a (0.5+1.5a)) + (0.5+1.5a)(0.5-f)/tau_d] (e-a), f = 0.5 tanh(b (e-a))"
+    },
+    "v_max_lopt_per_s": [
+      10.0
+    ],
+    "operating_range_dyn_window": {
+      "addbrev_r": {
+        "lM_norm_min": 0.8783826360401794,
+        "lM_norm_max": 1.2335637096165417,
+        "lM_norm_frac_above_1": 0.7536704730831973,
+        "vM_norm_min": -0.1645170453288299,
+        "vM_norm_max": 0.14756512767670474
+      },
+      "addlong_r": {
+        "lM_norm_min": 0.8324449015872966,
+        "lM_norm_max": 1.3084148155350004,
+        "lM_norm_frac_above_1": 0.7438825448613376,
+        "vM_norm_min": -0.2309070309105795,
+        "vM_norm_max": 0.18103993836188767
+      },
+      "addmagDist_r": {
+        "lM_norm_min": 0.7554304969395887,
+        "lM_norm_max": 1.0275505759760437,
+        "lM_norm_frac_above_1": 0.1468189233278956,
+        "vM_norm_min": -0.11159102342207314,
+        "vM_norm_max": 0.10297511894661866
+      },
+      "addmagIsch_r": {
+        "lM_norm_min": 0.765328887408218,
+        "lM_norm_max": 1.1613257856737658,
+        "lM_norm_frac_above_1": 0.401305057096248,
+        "vM_norm_min": -0.15633377537535317,
+        "vM_norm_max": 0.16217606197889955
+      },
+      "addmagMid_r": {
+        "lM_norm_min": 0.6958507284046302,
+        "lM_norm_max": 0.9448291192464824,
+        "lM_norm_frac_above_1": 0.0,
+        "vM_norm_min": -0.11268024118167286,
+        "vM_norm_max": 0.1217597917496942
+      },
+      "addmagProx_r": {
+        "lM_norm_min": 0.6622956575045353,
+        "lM_norm_max": 0.9184325096153866,
+        "lM_norm_frac_above_1": 0.0,
+        "vM_norm_min": -0.10888982347570729,
+        "vM_norm_max": 0.10117014023091539
+      },
+      "bflh_r": {
+        "lM_norm_min": 0.6576000757514747,
+        "lM_norm_max": 1.340680847690369,
+        "lM_norm_frac_above_1": 0.34910277324632955,
+        "vM_norm_min": -0.2473911240354321,
+        "vM_norm_max": 0.3087649430353942
+      },
+      "bfsh_r": {
+        "lM_norm_min": 0.9213565910185271,
+        "lM_norm_max": 1.136026785077949,
+        "lM_norm_frac_above_1": 0.7438825448613376,
+        "vM_norm_min": -0.14852367554227786,
+        "vM_norm_max": 0.14598944903305963
+      },
+      "edl_r": {
+        "lM_norm_min": 0.9658961964918835,
+        "lM_norm_max": 1.2883120945855149,
+        "lM_norm_frac_above_1": 0.8743882544861338,
+        "vM_norm_min": -0.21692827879571058,
+        "vM_norm_max": 0.355430813944743
+      },
+      "ehl_r": {
+        "lM_norm_min": 1.0120295953811178,
+        "lM_norm_max": 1.3333706521225905,
+        "lM_norm_frac_above_1": 1.0,
+        "vM_norm_min": -0.2149558795605925,
+        "vM_norm_max": 0.3529200208807125
+      },
+      "fdl_r": {
+        "lM_norm_min": 0.9052712673322417,
+        "lM_norm_max": 1.0517394043400072,
+        "lM_norm_frac_above_1": 0.5024469820554649,
+        "vM_norm_min": -0.1894064442904082,
+        "vM_norm_max": 0.12837137807092056
+      },
+      "fhl_r": {
+        "lM_norm_min": 0.8133194493467698,
+        "lM_norm_max": 1.0109713440486705,
+        "lM_norm_frac_above_1": 0.08972267536704731,
+        "vM_norm_min": -0.24563338289577236,
+        "vM_norm_max": 0.16189285168192583
+      },
+      "gaslat_r": {
+        "lM_norm_min": 0.5027531363694961,
+        "lM_norm_max": 1.0974212442519662,
+        "lM_norm_frac_above_1": 0.3066884176182708,
+        "vM_norm_min": -0.6716365795733661,
+        "vM_norm_max": 0.32236570986719887
+      },
+      "gasmed_r": {
+        "lM_norm_min": 0.48124228983116824,
+        "lM_norm_max": 1.1476468771442752,
+        "lM_norm_frac_above_1": 0.3621533442088091,
+        "vM_norm_min": -0.7809973068889088,
+        "vM_norm_max": 0.34375781755421936
+      },
+      "glmax1_r": {
+        "lM_norm_min": 0.6569254248888295,
+        "lM_norm_max": 0.9855854550321719,
+        "lM_norm_frac_above_1": 0.0,
+        "vM_norm_min": -0.1042363902845706,
+        "vM_norm_max": 0.13733613901129746
+      },
+      "glmax2_r": {
+        "lM_norm_min": 0.6503404791305815,
+        "lM_norm_max": 0.9917660287721228,
+        "lM_norm_frac_above_1": 0.0,
+        "vM_norm_min": -0.1248259062581632,
+        "vM_norm_max": 0.15511725321749478
+      },
+      "glmax3_r": {
+        "lM_norm_min": 0.6770476987414288,
+        "lM_norm_max": 1.083897911154085,
+        "lM_norm_frac_above_1": 0.3295269168026101,
+        "vM_norm_min": -0.16544080748069404,
+        "vM_norm_max": 0.163585701970836
+      },
+      "glmed1_r": {
+        "lM_norm_min": 0.7476723043864745,
+        "lM_norm_max": 1.133549441055067,
+        "lM_norm_frac_above_1": 0.4730831973898858,
+        "vM_norm_min": -0.15567820047440908,
+        "vM_norm_max": 0.1661365203815771
+      },
+      "glmed2_r": {
+        "lM_norm_min": 0.7249232618925127,
+        "lM_norm_max": 1.1517458164391994,
+        "lM_norm_frac_above_1": 0.41435562805872755,
+        "vM_norm_min": -0.1743195017904727,
+        "vM_norm_max": 0.186092567751666
+      },
+      "glmed3_r": {
+        "lM_norm_min": 0.6641554871617305,
+        "lM_norm_max": 1.139674243991672,
+        "lM_norm_frac_above_1": 0.3442088091353997,
+        "vM_norm_min": -0.19237780593330217,
+        "vM_norm_max": 0.22642129496905475
+      },
+      "glmin1_r": {
+        "lM_norm_min": 0.8460842872195317,
+        "lM_norm_max": 1.0975419059223555,
+        "lM_norm_frac_above_1": 0.5970636215334421,
+        "vM_norm_min": -0.1355448311818971,
+        "vM_norm_max": 0.16029062941663885
+      },
+      "glmin2_r": {
+        "lM_norm_min": 0.7914588101246351,
+        "lM_norm_max": 1.1002199530298606,
+        "lM_norm_frac_above_1": 0.5073409461663948,
+        "vM_norm_min": -0.18941316283548446,
+        "vM_norm_max": 0.16107457797054453
+      },
+      "glmin3_r": {
+        "lM_norm_min": 0.47764152548022965,
+        "lM_norm_max": 1.131811099987714,
+        "lM_norm_frac_above_1": 0.14518760195758565,
+        "vM_norm_min": -0.3826618382894382,
+        "vM_norm_max": 0.30360329158206834
+      },
+      "grac_r": {
+        "lM_norm_min": 1.0509526731925978,
+        "lM_norm_max": 1.2980983486513422,
+        "lM_norm_frac_above_1": 1.0,
+        "vM_norm_min": -0.14446626483098352,
+        "vM_norm_max": 0.15767380823613394
+      },
+      "iliacus_r": {
+        "lM_norm_min": 0.9023030680302966,
+        "lM_norm_max": 1.1902911238718248,
+        "lM_norm_frac_above_1": 0.5530179445350734,
+        "vM_norm_min": -0.1341472590439551,
+        "vM_norm_max": 0.11370486581368602
+      },
+      "perbrev_r": {
+        "lM_norm_min": 0.9891442544394276,
+        "lM_norm_max": 1.0909412109331875,
+        "lM_norm_frac_above_1": 0.9836867862969005,
+        "vM_norm_min": -0.12603064795985025,
+        "vM_norm_max": 0.08269382101178545
+      },
+      "perlong_r": {
+        "lM_norm_min": 0.9735131274132485,
+        "lM_norm_max": 1.1004406277943428,
+        "lM_norm_frac_above_1": 0.9624796084828712,
+        "vM_norm_min": -0.15268561734215866,
+        "vM_norm_max": 0.09782197922017272
+      },
+      "piri_r": {
+        "lM_norm_min": 0.23434550674688623,
+        "lM_norm_max": 0.9658282199643744,
+        "lM_norm_frac_above_1": 0.0,
+        "vM_norm_min": -0.41412615307216255,
+        "vM_norm_max": 0.44633699727930237
+      },
+      "psoas_r": {
+        "lM_norm_min": 0.9828811907280257,
+        "lM_norm_max": 1.1871144377054998,
+        "lM_norm_frac_above_1": 0.8907014681892332,
+        "vM_norm_min": -0.08249767241537437,
+        "vM_norm_max": 0.07486760477080835
+      },
+      "recfem_r": {
+        "lM_norm_min": 0.4681946368359229,
+        "lM_norm_max": 1.4180981552688448,
+        "lM_norm_frac_above_1": 0.4828711256117455,
+        "vM_norm_min": -0.5167904518801009,
+        "vM_norm_max": 0.3681214342409446
+      },
+      "sart_r": {
+        "lM_norm_min": 1.0001759112498552,
+        "lM_norm_max": 1.1478426139233817,
+        "lM_norm_frac_above_1": 1.0,
+        "vM_norm_min": -0.07788619172006905,
+        "vM_norm_max": 0.07036647024829329
+      },
+      "semimem_r": {
+        "lM_norm_min": 0.562578624337276,
+        "lM_norm_max": 1.3890471815418868,
+        "lM_norm_frac_above_1": 0.33442088091353994,
+        "vM_norm_min": -0.3010142122028792,
+        "vM_norm_max": 0.415195047564211
+      },
+      "semiten_r": {
+        "lM_norm_min": 0.8951404051007161,
+        "lM_norm_max": 1.3541799939128523,
+        "lM_norm_frac_above_1": 0.7292006525285482,
+        "vM_norm_min": -0.17475899196863928,
+        "vM_norm_max": 0.23694170018728516
+      },
+      "soleus_r": {
+        "lM_norm_min": 0.5193018602566448,
+        "lM_norm_max": 1.0901502948809314,
+        "lM_norm_frac_above_1": 0.24143556280587275,
+        "vM_norm_min": -0.6431158343658426,
+        "vM_norm_max": 0.38335501470829314
+      },
+      "tfl_r": {
+        "lM_norm_min": 0.7093711979716845,
+        "lM_norm_max": 1.1763101819139108,
+        "lM_norm_frac_above_1": 0.5840130505709625,
+        "vM_norm_min": -0.18844015937125128,
+        "vM_norm_max": 0.24162143080508428
+      },
+      "tibant_r": {
+        "lM_norm_min": 0.9228435781839376,
+        "lM_norm_max": 1.3042231470210637,
+        "lM_norm_frac_above_1": 0.6704730831973899,
+        "vM_norm_min": -0.25367180448694504,
+        "vM_norm_max": 0.41560670615823175
+      },
+      "tibpost_r": {
+        "lM_norm_min": 0.8875788706886305,
+        "lM_norm_max": 1.076210360977073,
+        "lM_norm_frac_above_1": 0.6101141924959217,
+        "vM_norm_min": -0.23838331001373894,
+        "vM_norm_max": 0.15879964874023222
+      },
+      "vasint_r": {
+        "lM_norm_min": 0.7041669039843201,
+        "lM_norm_max": 1.0835009759787688,
+        "lM_norm_frac_above_1": 0.2169657422512235,
+        "vM_norm_min": -0.3003757754928931,
+        "vM_norm_max": 0.2550482184177618
+      },
+      "vaslat_r": {
+        "lM_norm_min": 0.7219500114698542,
+        "lM_norm_max": 1.088401574433192,
+        "lM_norm_frac_above_1": 0.233278955954323,
+        "vM_norm_min": -0.302043359939011,
+        "vM_norm_max": 0.2499096357419439
+      },
+      "vasmed_r": {
+        "lM_norm_min": 0.7339629159486064,
+        "lM_norm_max": 1.0767813444160428,
+        "lM_norm_frac_above_1": 0.21859706362153344,
+        "vM_norm_min": -0.27249052315245975,
+        "vM_norm_max": 0.23196615753426938
+      }
+    },
+    "runtime_s": {
+      "muscle_analysis": 1.5270040035247803,
+      "moco_analyze": 2.0016260147094727
+    }
+  }
+}

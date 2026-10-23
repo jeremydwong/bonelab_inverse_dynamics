@@ -1,0 +1,593 @@
+{
+  "baseline": {
+    "so": {
+      "peak_total_BW": {
+        "mean_of_stance_peaks": 5.833868271164791,
+        "sd": 0.2205064673302443,
+        "max": 6.104666788974313,
+        "n_stances": 5
+      },
+      "peak_medial_BW": {
+        "mean_of_stance_peaks": 3.9985904592914188,
+        "sd": 0.15179007786385623,
+        "max": 4.239555600872115,
+        "n_stances": 5
+      },
+      "peak_lateral_BW": {
+        "mean_of_stance_peaks": 2.0832850764867157,
+        "sd": 0.3649211472495095,
+        "max": 2.588723498067794,
+        "n_stances": 5
+      },
+      "medial_share_at_total_peak": 0.6706848617224013,
+      "medial_share_mean_stance": 0.6272674297801591,
+      "lateral_liftoff_frames_in_stance": 0,
+      "stance_frames": 348,
+      "peak_lateral_ligament_tension_BW_in_stance": 0.0
+    },
+    "dyn": {
+      "peak_total_BW": {
+        "mean_of_stance_peaks": 6.1272351077531955,
+        "sd": 0.33638932016443407,
+        "max": 6.555312077268606,
+        "n_stances": 5
+      },
+      "peak_medial_BW": {
+        "mean_of_stance_peaks": 3.978288036585714,
+        "sd": 0.14827165820934718,
+        "max": 4.153778698873591,
+        "n_stances": 5
+      },
+      "peak_lateral_BW": {
+        "mean_of_stance_peaks": 2.56779852704861,
+        "sd": 0.24385679791511955,
+        "max": 2.9148151177442703,
+        "n_stances": 5
+      },
+      "medial_share_at_total_peak": 0.6187844109197795,
+      "medial_share_mean_stance": 0.6031493883886943,
+      "lateral_liftoff_frames_in_stance": 0,
+      "stance_frames": 348,
+      "peak_lateral_ligament_tension_BW_in_stance": 0.0
+    }
+  },
+  "sweep": {
+    "table": [
+      {
+        "d_mm": 0,
+        "theta_deg": 0.0,
+        "peak_so_total_BW": 5.834913622712497,
+        "peak_so_medial_BW": 3.9990032785803535,
+        "peak_so_lateral_BW": 2.080964934323806,
+        "lateral_liftoff_stance_frames": 0,
+        "peak_lateral_ligament_tension_BW": 0.0,
+        "peak_kam_opensim_Nm": 68.86146964894962,
+        "peak_kam_boneid_Nm": 76.08984164870883,
+        "peak_knee_extension_moment_opensim_Nm": 134.43792719205376,
+        "peak_knee_extension_moment_boneid_Nm": 111.9199693405355,
+        "peak_dyn_total_BW": 6.1272351077531955,
+        "peak_dyn_medial_BW": 3.978288036585714,
+        "peak_dyn_lateral_BW": 2.56779852704861
+      },
+      {
+        "d_mm": 5,
+        "theta_deg": 1.423649300006307,
+        "peak_so_total_BW": 5.851996109599588,
+        "peak_so_medial_BW": 4.183651990648314,
+        "peak_so_lateral_BW": 1.945791728198787,
+        "lateral_liftoff_stance_frames": 0,
+        "peak_lateral_ligament_tension_BW": 0.0,
+        "peak_kam_opensim_Nm": 74.5160062053013,
+        "peak_kam_boneid_Nm": 81.95022093040753,
+        "peak_knee_extension_moment_opensim_Nm": 136.31740721805738,
+        "peak_knee_extension_moment_boneid_Nm": 112.19520211783376
+      },
+      {
+        "d_mm": 10,
+        "theta_deg": 2.847298600012614,
+        "peak_so_total_BW": 5.877928260825569,
+        "peak_so_medial_BW": 4.3774459918357,
+        "peak_so_lateral_BW": 1.8085378434996557,
+        "lateral_liftoff_stance_frames": 0,
+        "peak_lateral_ligament_tension_BW": 0.0,
+        "peak_kam_opensim_Nm": 80.16818282435284,
+        "peak_kam_boneid_Nm": 87.8174171647542,
+        "peak_knee_extension_moment_opensim_Nm": 138.05067675119759,
+        "peak_knee_extension_moment_boneid_Nm": 112.49073738182975
+      },
+      {
+        "d_mm": 15,
+        "theta_deg": 4.270947900018921,
+        "peak_so_total_BW": 5.8974990087088734,
+        "peak_so_medial_BW": 4.566405669213667,
+        "peak_so_lateral_BW": 1.6786400796239118,
+        "lateral_liftoff_stance_frames": 0,
+        "peak_lateral_ligament_tension_BW": 0.0,
+        "peak_kam_opensim_Nm": 85.80237686165133,
+        "peak_kam_boneid_Nm": 93.72445084222869,
+        "peak_knee_extension_moment_opensim_Nm": 139.65897450236523,
+        "peak_knee_extension_moment_boneid_Nm": 112.80639954767905
+      },
+      {
+        "d_mm": 20,
+        "theta_deg": 5.694597200025228,
+        "peak_so_total_BW": 5.912607184789489,
+        "peak_so_medial_BW": 4.75200299525765,
+        "peak_so_lateral_BW": 1.5381550657513565,
+        "lateral_liftoff_stance_frames": 4,
+        "peak_lateral_ligament_tension_BW": 0.05812467531851825,
+        "peak_kam_opensim_Nm": 91.38450238998537,
+        "peak_kam_boneid_Nm": 99.6554151815441,
+        "peak_knee_extension_moment_opensim_Nm": 141.2064210309678,
+        "peak_knee_extension_moment_boneid_Nm": 113.14200480310805
+      },
+      {
+        "d_mm": 25,
+        "theta_deg": 7.1182465000315345,
+        "peak_so_total_BW": 5.925172749280814,
+        "peak_so_medial_BW": 4.9406818126628025,
+        "peak_so_lateral_BW": 1.3953529939896883,
+        "lateral_liftoff_stance_frames": 7,
+        "peak_lateral_ligament_tension_BW": 0.12781702381440702,
+        "peak_kam_opensim_Nm": 97.03744637007803,
+        "peak_kam_boneid_Nm": 105.91184655185468,
+        "peak_knee_extension_moment_opensim_Nm": 142.55076874981737,
+        "peak_knee_extension_moment_boneid_Nm": 113.49736151340157,
+        "peak_dyn_total_BW": 6.210288239689073,
+        "peak_dyn_medial_BW": 4.887992379008428,
+        "peak_dyn_lateral_BW": 1.8267002143848141
+      },
+      {
+        "d_mm": 30,
+        "theta_deg": 8.541895800037842,
+        "peak_so_total_BW": 5.940053116309011,
+        "peak_so_medial_BW": 5.132114192110328,
+        "peak_so_lateral_BW": 1.2737242072457513,
+        "lateral_liftoff_stance_frames": 19,
+        "peak_lateral_ligament_tension_BW": 0.19818769823509333,
+        "peak_kam_opensim_Nm": 102.59327264609423,
+        "peak_kam_boneid_Nm": 112.18406591295782,
+        "peak_knee_extension_moment_opensim_Nm": 143.85054045794058,
+        "peak_knee_extension_moment_boneid_Nm": 113.87227063202704
+      },
+      {
+        "d_mm": 35,
+        "theta_deg": 9.96554510004415,
+        "peak_so_total_BW": 5.9545364228832565,
+        "peak_so_medial_BW": 5.32359801113885,
+        "peak_so_lateral_BW": 1.1538714599154065,
+        "lateral_liftoff_stance_frames": 40,
+        "peak_lateral_ligament_tension_BW": 0.26822885372882094,
+        "peak_kam_opensim_Nm": 108.16287116520023,
+        "peak_kam_boneid_Nm": 118.45663160860745,
+        "peak_knee_extension_moment_opensim_Nm": 144.98965467118174,
+        "peak_knee_extension_moment_boneid_Nm": 114.26652611527182
+      },
+      {
+        "d_mm": 40,
+        "theta_deg": 11.389194400050457,
+        "peak_so_total_BW": 5.965353076443785,
+        "peak_so_medial_BW": 5.514322458913287,
+        "peak_so_lateral_BW": 1.0361641631915393,
+        "lateral_liftoff_stance_frames": 90,
+        "peak_lateral_ligament_tension_BW": 0.4040170412506143,
+        "peak_kam_opensim_Nm": 113.70698354637636,
+        "peak_kam_boneid_Nm": 124.78457906074293,
+        "peak_knee_extension_moment_opensim_Nm": 146.0279441587298,
+        "peak_knee_extension_moment_boneid_Nm": 114.67991533933309
+      },
+      {
+        "d_mm": 45,
+        "theta_deg": 12.812843700056762,
+        "peak_so_total_BW": 5.964565833005451,
+        "peak_so_medial_BW": 5.70729512532648,
+        "peak_so_lateral_BW": 0.9391243807233456,
+        "lateral_liftoff_stance_frames": 183,
+        "peak_lateral_ligament_tension_BW": 0.5445436638066379,
+        "peak_kam_opensim_Nm": 119.27411358276213,
+        "peak_kam_boneid_Nm": 131.11365735399104,
+        "peak_knee_extension_moment_opensim_Nm": 146.86149554871372,
+        "peak_knee_extension_moment_boneid_Nm": 115.11221951839839
+      },
+      {
+        "d_mm": 50,
+        "theta_deg": 14.236493000063069,
+        "peak_so_total_BW": 5.96801104732966,
+        "peak_so_medial_BW": 5.901987426959918,
+        "peak_so_lateral_BW": 0.8582300910437837,
+        "lateral_liftoff_stance_frames": 231,
+        "peak_lateral_ligament_tension_BW": 0.6871466557028111,
+        "peak_kam_opensim_Nm": 124.71726104095895,
+        "peak_kam_boneid_Nm": 137.44317698623743,
+        "peak_knee_extension_moment_opensim_Nm": 147.58188650582355,
+        "peak_knee_extension_moment_boneid_Nm": 115.56321412234249,
+        "peak_dyn_total_BW": 6.217715381502256,
+        "peak_dyn_medial_BW": 5.887675803032985,
+        "peak_dyn_lateral_BW": 1.291603833211153
+      }
+    ],
+    "ik_verification": [
+      {
+        "d_mm": 0,
+        "theta_deg": 0.0,
+        "model_knee_lateral_shift_mean_mm": 0.0,
+        "model_knee_lateral_shift_sd_mm": 0.0,
+        "model_knee_lateral_shift_stance_mean_mm": 0.0,
+        "marker_knee_lateral_shift_mean_mm": 4.335068060866997e-17,
+        "ik_rms_mean_mm": 14.17770518053375,
+        "ik_max_marker_error_max_mm": 55.44392,
+        "default_pose_ankle_shift_m": [
+          -9.71445146547012e-17,
+          0.0,
+          0.0
+        ],
+        "runtime_s": 229.93412709236145,
+        "so_runtime_s": 220.14189505577087
+      },
+      {
+        "d_mm": 5,
+        "theta_deg": 1.423649300006307,
+        "model_knee_lateral_shift_mean_mm": 5.050510535272544,
+        "model_knee_lateral_shift_sd_mm": 0.01609887612315034,
+        "model_knee_lateral_shift_stance_mean_mm": 5.0554431121305665,
+        "marker_knee_lateral_shift_mean_mm": 4.977339872494977,
+        "ik_rms_mean_mm": 14.17003775510204,
+        "ik_max_marker_error_max_mm": 55.194050000000004,
+        "default_pose_ankle_shift_m": [
+          4.534401049083314e-10,
+          8.621082558746274e-05,
+          -0.009933305986252083
+        ],
+        "runtime_s": 230.16123700141907,
+        "so_runtime_s": 220.48390698432922
+      },
+      {
+        "d_mm": 10,
+        "theta_deg": 2.847298600012614,
+        "model_knee_lateral_shift_mean_mm": 10.099511396794684,
+        "model_knee_lateral_shift_sd_mm": 0.03237713813498087,
+        "model_knee_lateral_shift_stance_mean_mm": 10.108979641998815,
+        "marker_knee_lateral_shift_mean_mm": 9.94385254309595,
+        "ik_rms_mean_mm": 14.167376593406592,
+        "ik_max_marker_error_max_mm": 55.092240000000004,
+        "default_pose_ankle_shift_m": [
+          9.058434141673288e-10,
+          0.0004191861494353133,
+          -0.019861403868357594
+        ],
+        "runtime_s": 230.20793271064758,
+        "so_runtime_s": 220.43960404396057
+      },
+      {
+        "d_mm": 15,
+        "theta_deg": 4.270947900018921,
+        "model_knee_lateral_shift_mean_mm": 15.146277015495004,
+        "model_knee_lateral_shift_sd_mm": 0.04819730489170647,
+        "model_knee_lateral_shift_stance_mean_mm": 15.159682960304583,
+        "marker_knee_lateral_shift_mean_mm": 14.897395745300495,
+        "ik_rms_mean_mm": 14.177599827315543,
+        "ik_max_marker_error_max_mm": 54.93631,
+        "default_pose_ankle_shift_m": [
+          1.3569305262750575e-09,
+          0.0009987204059251908,
+          -0.029778164436633642
+        ],
+        "runtime_s": 230.65454506874084,
+        "so_runtime_s": 220.7417290210724
+      },
+      {
+        "d_mm": 20,
+        "theta_deg": 5.694597200025228,
+        "model_knee_lateral_shift_mean_mm": 20.19004916448627,
+        "model_knee_lateral_shift_sd_mm": 0.06361441834139683,
+        "model_knee_lateral_shift_stance_mean_mm": 20.206698006526317,
+        "marker_knee_lateral_shift_mean_mm": 19.83585578059221,
+        "ik_rms_mean_mm": 14.193751507064365,
+        "ik_max_marker_error_max_mm": 54.750550000000004,
+        "default_pose_ankle_shift_m": [
+          1.8064229695413658e-09,
+          0.0018244558138367228,
+          -0.03967746548060039
+        ],
+        "runtime_s": 231.05604815483093,
+        "so_runtime_s": 221.33448386192322
+      },
+      {
+        "d_mm": 25,
+        "theta_deg": 7.1182465000315345,
+        "model_knee_lateral_shift_mean_mm": 25.23095839908192,
+        "model_knee_lateral_shift_sd_mm": 0.07869612883081349,
+        "model_knee_lateral_shift_stance_mean_mm": 25.249728916784026,
+        "marker_knee_lateral_shift_mean_mm": 24.757151880334458,
+        "ik_rms_mean_mm": 14.213436907378336,
+        "ik_max_marker_error_max_mm": 54.51603,
+        "default_pose_ankle_shift_m": [
+          2.2540432020878853e-09,
+          0.0028958825972272284,
+          -0.04955319556858849
+        ],
+        "runtime_s": 230.21051502227783,
+        "so_runtime_s": 220.47997093200684
+      },
+      {
+        "d_mm": 30,
+        "theta_deg": 8.541895800037842,
+        "model_knee_lateral_shift_mean_mm": 30.267416553660162,
+        "model_knee_lateral_shift_sd_mm": 0.09348134654165773,
+        "model_knee_lateral_shift_stance_mean_mm": 30.286978144986303,
+        "marker_knee_lateral_shift_mean_mm": 29.659240402406525,
+        "ik_rms_mean_mm": 14.243945588697017,
+        "ik_max_marker_error_max_mm": 55.07987,
+        "default_pose_ankle_shift_m": [
+          2.699514958792726e-09,
+          0.00421233930014675,
+          -0.05939925782069209
+        ],
+        "runtime_s": 230.6150460243225,
+        "so_runtime_s": 220.79002594947815
+      },
+      {
+        "d_mm": 35,
+        "theta_deg": 9.96554510004415,
+        "model_knee_lateral_shift_mean_mm": 35.29922356199164,
+        "model_knee_lateral_shift_sd_mm": 0.10784128080355579,
+        "model_knee_lateral_shift_stance_mean_mm": 35.318590288387405,
+        "marker_knee_lateral_shift_mean_mm": 34.54011884386272,
+        "ik_rms_mean_mm": 14.295740690737835,
+        "ik_max_marker_error_max_mm": 55.60523,
+        "default_pose_ankle_shift_m": [
+          3.142563154145961e-09,
+          0.005773013194994736,
+          -0.06920957367273786
+        ],
+        "runtime_s": 231.26562213897705,
+        "so_runtime_s": 221.61218786239624
+      },
+      {
+        "d_mm": 40,
+        "theta_deg": 11.389194400050457,
+        "model_knee_lateral_shift_mean_mm": 40.32601277347265,
+        "model_knee_lateral_shift_sd_mm": 0.12188469392938873,
+        "model_knee_lateral_shift_stance_mean_mm": 40.3436283974156,
+        "marker_knee_lateral_shift_mean_mm": 39.397829652503894,
+        "ik_rms_mean_mm": 14.349688618524333,
+        "ik_max_marker_error_max_mm": 56.15633,
+        "default_pose_ankle_shift_m": [
+          3.582914298583262e-09,
+          0.007576940784265074,
+          -0.07897808662894718
+        ],
+        "runtime_s": 230.8991928100586,
+        "so_runtime_s": 221.15568208694458
+      },
+      {
+        "d_mm": 45,
+        "theta_deg": 12.812843700056762,
+        "model_knee_lateral_shift_mean_mm": 45.3470901701573,
+        "model_knee_lateral_shift_sd_mm": 0.13599263896334396,
+        "model_knee_lateral_shift_stance_mean_mm": 45.36132199656811,
+        "marker_knee_lateral_shift_mean_mm": 44.2304638219777,
+        "ik_rms_mean_mm": 14.428018241758242,
+        "ik_max_marker_error_max_mm": 56.88816,
+        "default_pose_ankle_shift_m": [
+          4.020296540119261e-09,
+          0.00962300839537128,
+          -0.08869876600097366
+        ],
+        "runtime_s": 231.44384098052979,
+        "so_runtime_s": 221.77065706253052
+      },
+      {
+        "d_mm": 50,
+        "theta_deg": 14.236493000063069,
+        "model_knee_lateral_shift_mean_mm": 50.36129599881406,
+        "model_knee_lateral_shift_sd_mm": 0.15014181548417774,
+        "model_knee_lateral_shift_stance_mean_mm": 50.370300323929705,
+        "marker_knee_lateral_shift_mean_mm": 49.0361642568463,
+        "ik_rms_mean_mm": 14.52203229199372,
+        "ik_max_marker_error_max_mm": 57.52116,
+        "default_pose_ankle_shift_m": [
+          4.454439858636583e-09,
+          0.011909952868183304,
+          -0.09836561063100858
+        ],
+        "runtime_s": 63.51960301399231,
+        "so_runtime_s": 54.636621952056885
+      }
+    ],
+    "moco": {
+      "0": {
+        "runtime_s": 1086.8470087051392,
+        "note": "baseline MocoInverse (data/opensim/p1_trial13_mocoinverse_*.sto)"
+      },
+      "25": {
+        "runtime_s": 1857.831472158432,
+        "window_s": [
+          0.1,
+          5.2
+        ],
+        "num_iterations": null
+      },
+      "50": {
+        "runtime_s": 1631.012689113617,
+        "window_s": [
+          0.1,
+          5.2
+        ],
+        "num_iterations": null
+      }
+    }
+  },
+  "body_mass_kg": 85.1635317211177,
+  "BW_N": 835.168948352899,
+  "d_ic_m": 0.040335988543222456,
+  "d_ic_note": "40 mm generic (Lerner 2015 generic +-20 mm; Gerus 2013 40 mm) x tibia_r uniform scale factor 1.0084",
+  "stances": {
+    "definition": "right Fz > 20 N, complete stances inside both solve windows",
+    "frames": [
+      [
+        59,
+        127
+      ],
+      [
+        175,
+        243
+      ],
+      [
+        288,
+        358
+      ],
+      [
+        405,
+        474
+      ],
+      [
+        522,
+        590
+      ]
+    ],
+    "times_s": [
+      [
+        0.49166666666666664,
+        1.0583333333333333
+      ],
+      [
+        1.4583333333333333,
+        2.025
+      ],
+      [
+        2.4,
+        2.9833333333333334
+      ],
+      [
+        3.375,
+        3.95
+      ],
+      [
+        4.35,
+        4.916666666666667
+      ]
+    ]
+  },
+  "peak_definition": "mean over the complete right stances of each stance's maximum (sd and max also given for the baseline)",
+  "assumptions": [
+    "Knee reaction = Newton-Euler of the subtree below the knee (tibia, talus, calcn, toes): IK accelerations (12 Hz low-pass, quintic spline), gravity, measured GRF + free moment, muscle path forces (tension along every path segment touching a subtree body, wrap points included). No JointReaction analysis (that realizes forward dynamics).",
+    "Reaction taken about the walker knee's tibial child-frame origin and expressed in the tibia_r body frame: compressive force = -F_y (along the tibial Y axis, which is within ~1.4 deg of the knee-ankle line), AP shear F_x, frontal (varus/valgus) moment M_x.",
+    "Medial/lateral split: two point contacts on a flat plateau perpendicular to tibial Y, at z = -/+ d_ic/2 through the knee centre. F_med + F_lat = Fc; (F_med - F_lat) d_ic/2 = -M_x (varus loads medial). Ligaments carry nothing; a negative condyle is reported as lift-off: contact clamped to 0, the tension a collateral ligament at that condyle would need is reported separately (= -raw), the other condyle keeps its raw value.",
+    "Sagittal moment along the knee DOF is not used by the contact model (it is the muscles' job); the knee reserve stays below 0.05 N m in SO.",
+    "Muscle forces: SO = OpenSim StaticOptimization (sum of squared activations, DeGrooteFregly rigid tendon, force-length-velocity); dyn = MocoInverse tendon forces. Edwards-lab SO minimizes summed squared muscle STRESS instead; with fixed fibre lengths/velocities that is activation squared weighted by 1/(fl*fv)^2 rather than a different structure, so I kept the existing solves.",
+    "external knee adduction moment (OpenSim) = -M_x of the reaction WITHOUT muscle forces (inertia + gravity + GRF), + = varus.",
+    "Varus sweep: right thigh markers (RGTR, RTH1-3, RLEP, RMEP) rigidly rotated about the hip centre and shank markers (RSH1-3, RLML, RMML) about the mid-malleoli so the mid-epicondyle point moves laterally by d, perpendicular to the hip-ankle line (lateral = epicondyle axis); hip, foot markers and GRF untouched. Model: walker_knee_r child (tibia) offset frame rotated by theta = d(1/L_thigh + 1/L_shank) about tibial X through the knee centre (L from the data, 0.412/0.394 m), i.e. a fixed varus of the tibia on the femur. Then a single IK pass with the final placed markers and the baseline weights, ID, SO."
+  ],
+  "citations": {
+    "winby2009": {
+      "cite": "Winby CR, Lloyd DG, Besier TF, Kirk TB (2009) Muscle and external load contribution to knee joint contact loads during normal gait. J Biomech 42(14):2294-2300",
+      "doi": "10.1016/j.jbiomech.2009.06.019",
+      "s2_citations": 387,
+      "used_for": "two point contacts, one per condyle, medial/lateral force from moment balance about the other condyle; muscles provide frontal-plane support"
+    },
+    "lerner2015": {
+      "cite": "Lerner ZF, DeMers MS, Delp SL, Browning RC (2015) How tibiofemoral alignment and contact locations affect predictions of medial and lateral tibiofemoral contact forces. J Biomech 48(4):644-650",
+      "doi": "10.1016/j.jbiomech.2014.12.049",
+      "s2_citations": 228,
+      "used_for": "generic contact points +-20 mm from the knee centre (40 mm apart) on the plateau, compartment force = component normal to the plateau; sensitivity: 51 N (medial) / 30 N (lateral) per degree of alignment, 41/33 N per mm of contact location"
+    },
+    "gerus2013": {
+      "cite": "Gerus P et al. (2013) Subject-specific knee joint geometry improves predictions of medial tibiofemoral contact forces. J Biomech 46:2778-2786",
+      "doi": "10.1016/j.jbiomech.2013.09.005",
+      "s2_citations": 269,
+      "used_for": "generic intercondylar distance 40 mm (from Zhao et al. 2007 instrumented-knee data)"
+    },
+    "kutzner2010": {
+      "cite": "Kutzner I et al. (2010) Loading of the knee joint during activities of daily living measured in vivo in five subjects. J Biomech 43(11):2164-2173",
+      "doi": "10.1016/j.jbiomech.2010.03.046",
+      "s2_citations": 817,
+      "used_for": "in vivo walking peak resultant 261% BW (instrumented TKA, n=5)"
+    },
+    "kutzner2013": {
+      "cite": "Kutzner I, Trepczynski A, Heller MO, Bergmann G (2013) Knee adduction moment and medial contact force - facts about their correlation during gait. PLoS One 8(12):e81036",
+      "doi": "10.1371/journal.pone.0081036",
+      "s2_citations": 253,
+      "used_for": "in vivo medial peaks 176+-27% BW (1st) / 187+-44% BW (2nd); medial ratio = 9.2*KAM(%BW*Ht) + 51 % at peaks"
+    },
+    "halder2012": {
+      "cite": "Halder A et al. (2012) Influence of limb alignment on mediolateral loading in total knee replacement. J Bone Joint Surg Am 94(11):1023-1029",
+      "doi": "10.2106/JBJS.K.00927",
+      "s2_citations": 155,
+      "used_for": "in vivo medial share 73% (1st peak) / 65% (2nd); ~5% more medial share per degree of varus"
+    },
+    "kutzner2017": {
+      "cite": "Kutzner I et al. (2017) Mediolateral force distribution at the knee joint shifts across activities and is driven by tibiofemoral alignment. Bone Joint J 99-B(6):779-787",
+      "doi": "10.1302/0301-620X.99B6.BJJ-2016-0713.R1",
+      "s2_citations": 84,
+      "used_for": "medial ratio tracks HKA alignment (R^2 0.59 dynamic single-limb), up to 88% medial in varus"
+    },
+    "fregly2012": {
+      "cite": "Fregly BJ et al. (2012) Grand challenge competition to predict in vivo knee loads. J Orthop Res 30(4):503-513",
+      "doi": "10.1002/jor.22023",
+      "s2_citations": 622,
+      "used_for": "literature total walking peaks 1.8-3.0 BW, medial share 55-88%; models tend to over-predict total force"
+    },
+    "baggaley2024": {
+      "cite": "Baggaley M, Haider I, Bruce O, Khassetarash A, Edwards WB (2024) Tibial strains are sensitive to speed perturbations, but not grade perturbations, during running. J Exp Biol 227(10):jeb246770",
+      "doi": "10.1242/jeb.246770",
+      "s2_citations": 11,
+      "used_for": "Edwards lab choices: static optimization minimizing summed squared muscle STRESS (Crowninshield & Brand 1981), force bounds from force-length-velocity; contact force = muscles + ID reaction in the tibia frame; no medial/lateral split"
+    },
+    "baggaley2022": {
+      "cite": "Baggaley M, Derrick TR, Vernillo G, Millet GY, Edwards WB (2022) Internal tibial forces and moments during graded running. J Biomech Eng 144(1):011009",
+      "doi": "10.1115/1.4051924",
+      "s2_citations": 20,
+      "used_for": "Edwards lab: SO + static equilibrium of all applied loads for internal tibial loads"
+    },
+    "miller2014": {
+      "cite": "Miller RH, Edwards WB, Brandon SC, Morton AM, Deluzio KJ (2014) Why don't most runners get knee osteoarthritis? Med Sci Sports Exerc 46(3):572-579",
+      "doi": "10.1249/MSS.0000000000000135",
+      "s2_citations": 91,
+      "used_for": "modelled peak knee contact 2.72 BW walking (8.02 BW running)"
+    }
+  },
+  "in_vivo_reference": {
+    "total_walking_peak_BW": 2.61,
+    "source": "Kutzner 2010 (261% BW)",
+    "medial_peaks_BW": [
+      1.76,
+      1.87
+    ],
+    "medial_share": [
+      0.73,
+      0.65
+    ],
+    "medial_share_source": "Halder 2012 (1st/2nd peak); Kutzner 2013 medial peaks",
+    "modelled_range_BW": [
+      1.8,
+      3.0
+    ],
+    "modelled_range_source": "Fregly 2012 review"
+  },
+  "runtimes_s": {
+    "baseline_so_moco_solves": {
+      "so": 58.48933720588684,
+      "moco": 1086.8470087051392
+    },
+    "sweep_steps": {
+      "0": 229.93412709236145,
+      "5": 230.16123700141907,
+      "10": 230.20793271064758,
+      "15": 230.65454506874084,
+      "20": 231.05604815483093,
+      "25": 230.21051502227783,
+      "30": 230.6150460243225,
+      "35": 231.26562213897705,
+      "40": 230.8991928100586,
+      "45": 231.44384098052979,
+      "50": 63.51960301399231
+    },
+    "sweep_moco": {
+      "0": 1086.8470087051392,
+      "25": 1857.831472158432,
+      "50": 1631.012689113617
+    }
+  },
+  "units": "contact *_BW arrays in body weights; moments in N m; sagittal moments in OpenSim sign (+ = knee flexion moment on the shank, so extension is negative)"
+}

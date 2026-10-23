@@ -66,6 +66,41 @@
       "name": "getViconForces.m",
       "bytes": 2074,
       "sha256": "b3e1a3597054b2826ca6ff7cf03dd1866b101be400bcbc604576d47a6b4e8b4b"
+    },
+    {
+      "name": "VirtualPoint_v2.m",
+      "bytes": 1560,
+      "sha256": "0f00c02665481baa51bc630a7c529e794c13826f2f609d5416310388089e10b8",
+      "copied_on": "2026-09-11",
+      "source": "supplied by the study author; not in the 2026-09-10 Dropbox inventory"
+    },
+    {
+      "name": "getViconForces_Motek.m",
+      "bytes": 3866,
+      "sha256": "5ad72b067c76fdc35cef3426320e8c72096bd881b56615e264bd3d70dc5e844b",
+      "copied_on": "2026-09-11",
+      "source": "supplied by the study author; not in the 2026-09-10 Dropbox inventory"
+    },
+    {
+      "name": "ContactEvents_Motek.m",
+      "bytes": 1305,
+      "sha256": "cf53a5eea113a304dbc8b214b4cdc6130e70545a93f6161bce5b49cfec79b1c5",
+      "copied_on": "2026-09-11",
+      "source": "supplied by the study author; not in the 2026-09-10 Dropbox inventory"
+    },
+    {
+      "name": "filterdata.m",
+      "bytes": 1459,
+      "sha256": "eba8b8c378298b6dd26a6a7e99be239bee92cb29d93dbaf9538ad6c61c30701b",
+      "copied_on": "2026-09-14",
+      "source": "/Users/jeremy/Dropbox/2019/BrentEdwards/matlab"
+    },
+    {
+      "name": "MyPSD.m",
+      "bytes": 2433,
+      "sha256": "6a31d3c52288f557baa6fc18cba80db00599c877c16b56fa7afbb14cf92d7323",
+      "copied_on": "2026-09-14",
+      "source": "/Users/jeremy/Dropbox/2019/BrentEdwards/matlab"
     }
   ],
   "source_inventory": [

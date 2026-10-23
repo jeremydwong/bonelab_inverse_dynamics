@@ -28,29 +28,48 @@ contained real physics errors — explained in
 
 ## Report build — notebooks are authoritative
 
-Run `uv run python examples/regenerate_reports.py` after backend changes.
+Run `./generate-reports.sh` after backend changes. This shell wrapper calls
+the canonical uv/Python report builder and forwards all arguments, for example
+`./generate-reports.sh p1_report` to rebuild only the P1 report.
 It executes and saves all notebooks, then exports their saved outputs to HTML.
 Each HTML page names its source notebook and execution time. Run
-`uv run python examples/regenerate_reports.py --check` to verify freshness.
+`./generate-reports.sh --check` to verify freshness.
 For a change isolated to one notebook, pass its stem, e.g. `p1_asics`.
 Never update HTML independently or leave affected notebooks unexecuted.
 
 `p1_asics` uses **P1 Visual3D walking data** to compare equation variants from
 the ASICS script. Actual **ASICS C3D running data** is analysed by
-`c3d_quickstart_report.ipynb`. The former is not an ASICS dataset validation.
+`asics_running_c3d.ipynb`. The former is not an ASICS dataset validation.
 
 ## Quick start (the entry points)
 
-### Example reports
+### Example reports — start at the table of contents
 
-Browse the [reports table of contents](reports/toc.html).
+[`reports/toc.html`](reports/toc.html) is a curriculum, not a directory
+listing: five chapters, each answering one question and handing its answer
+to the next. Every page opens with the steps it demonstrates and/or the
+findings it reports.
+
+1. **Known answers you can check by hand** — `tutorial_brick_2d`,
+   `tutorial_two_bricks_2d`.
+2. **The real pipeline on an idealized person** (simulated c3d files through
+   the exact Asics calls) — `tutorial_s2s_markers`, `tutorial_6dof`.
+3. **One real subject, walking** (P1, whole body) — `quickstart_report` (the
+   destination), `p1_report`, `p1_playground`.
+4. **Does it agree with Visual3D?** — `validation_report` (9 walkers),
+   `rbds_report` (39 runners).
+5. **The Asics reanalysis and the legacy MATLAB** — `asics_running_c3d`,
+   `legacy_error_math`, `p1_asics`.
+
+The chapter texts live in `boneid.notebook_reports.CHAPTERS`, the single
+source for that ordering.
 
 To run code locally:
 ```sh
 uv sync                                  # create the pinned environment
 uv run pytest                            # full physics, loader, and viewer suite
 uv run python examples/quickstart.py     # the canonical 10-step run-through
-uv run python -m boneid.report           # simulated squat-to-stand report
+uv run python -m boneid.report           # rebuild every notebook report
 uv run python -m boneid.report v3d       # subject-P1 whole-body walkthrough
 uv run python -m boneid.validate         # 9-subject validation sweep
 ```
@@ -204,11 +223,18 @@ error cannot recur.
 
 - The recovered `RoomSegAng.m` differentiates rotation matrices, not Cardan
   angles: our earlier assumption was incorrect. It forms `TMdot * TM`
-  without a transpose; its exact frame interpretation still depends on the
-  missing `VirtualPoint_v2.m`. Our implementation uses `dR/dt * Rᵀ`.
-- Six of the ten previously listed dependencies have been recovered. Four
-  exact filenames remain absent (three active calls and one commented export).
-  See [originals and implementation review](matlab-inverse-dynamics/originals/README.md).
+  without a transpose, where `TM` (per the recovered `VirtualPoint_v2.m`) is
+  the transposed SODER rotation. Our implementation uses `dR/dt * Rᵀ`.
+- The free moment computed in `getViconForces_Motek.m` is stored in the
+  z (medio-lateral) column of `Md`, so a vertical free moment enters the
+  ankle balance as a flexion/extension moment.
+- Every active dependency is now recovered (only the commented-out
+  `generateMotFile` is absent) and the whole inverse-dynamics path is ported
+  in `src/boneid/legacy.py`; the c3d running report runs that port next to
+  the corrected pipeline, and MATLAB R2024b executing the original routines
+  (`matlab-inverse-dynamics/harness/run_legacy_trial.m`) agrees with the
+  port to ~1e-11 N m. See
+  [originals and implementation review](matlab-inverse-dynamics/originals/README.md).
 - Absolute `Z:\` paths, a ~150-line hardcoded bad-trial table keyed by
   subject number, per-condition shoe heights, and `eval`-generated variables
   for every marker name.
@@ -252,16 +278,18 @@ executes them, saves their outputs, and exports those same outputs to HTML.
 
 | Notebook | Needs data? | Colab |
 |---|---|---|
-| `s2s_report.ipynb` | no — pure simulation | runs as-is once the repo is public |
-| `quickstart_report.ipynb` | yes | `DATA_URL` defaults to the GitHub release asset |
-| `p1_report.ipynb` | yes | same |
-| [`p1_asics.ipynb`](notebooks/p1_asics.ipynb) | bundled P1 MAT sample | P1 walking equation comparison; current original-dependency status |
-| `c3d_quickstart_report.ipynb` | bundled ASICS C3D | actual ASICS running analysis |
-| `p1_playground.ipynb` | P1 MAT | parameter experiments |
-| `joint_dof_comparison.ipynb` | bundled P1 MAT sample | 3-DOF / 6-DOF work |
-| `validation_report.ipynb` | local P1–P9 MAT exports | multi-subject walking validation |
-| `rbds_report.ipynb` | RBDS raw data cache/download | running validation and freshly computed convention comparisons |
-| `legacy_error_math.ipynb` | no — pure math | a worksheet deriving the three MATLAB errors, with a numerical check after every claim |
+| `tutorial_brick_2d.ipynb` | no — pure simulation | ch 1: one brick, the hand's wrench from corner markers |
+| `tutorial_two_bricks_2d.ipynb` | no — pure simulation | ch 1: a hinge, a floor, the residual as alarm |
+| `tutorial_s2s_markers.ipynb` | no — writes its own c3d | ch 2: an idealized squat-to-stand through the real Asics calls; legacy 3-D errors; noise |
+| `tutorial_6dof.ipynb` | no — writes its own c3d | ch 2: a sliding knee; the case for 6-DoF joint power |
+| `quickstart_report.ipynb` | yes | ch 3: `DATA_URL` defaults to the GitHub release asset |
+| `p1_report.ipynb` | yes | ch 3: every check on P1, incl. 3-DoF vs 6-DoF joint work |
+| `p1_playground.ipynb` | P1 MAT | ch 3: every knob exposed, time-offset sweep |
+| `validation_report.ipynb` | local P1–P9 MAT exports | ch 4: multi-subject walking validation |
+| `rbds_report.ipynb` | RBDS raw data cache/download | ch 4: running validation and convention comparisons |
+| `asics_running_c3d.ipynb` | bundled ASICS C3D | ch 5: the Asics running reanalysis, plus the ported and executed legacy MATLAB |
+| `legacy_error_math.ipynb` | no — pure math (+ one Asics trial) | ch 5: the four MATLAB errors derived, with a numerical check after every claim |
+| [`p1_asics.ipynb`](notebooks/p1_asics.ipynb) | bundled P1 MAT sample | ch 5: the two legacy physics mistakes on P1 walking, one at a time |
 
 Each notebook begins with a Colab bootstrap cell that is a no-op locally: on
 Colab it pip-installs `boneid` from GitHub and downloads the `.mat` from
@@ -277,7 +305,7 @@ git push   # if anything is uncommitted
 ```
 
 Then the badges in each notebook's first cell resolve, e.g.
-`https://colab.research.google.com/github/jeremydwong/bonelab_inverse_dynamics/blob/main/notebooks/s2s_report.ipynb`.
+`https://colab.research.google.com/github/jeremydwong/bonelab_inverse_dynamics/blob/main/notebooks/tutorial_brick_2d.ipynb`.
 If you prefer to keep the repo private: Colab can still open the notebooks
 via **File → Open notebook → GitHub** after authorizing your account, but the
 `pip install git+https://…` cell will then need a token, and the badge links

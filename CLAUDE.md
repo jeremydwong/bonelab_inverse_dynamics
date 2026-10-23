@@ -20,14 +20,14 @@ point — a study-specific batch script (Asics shoe study), not a library. Flow:
    anthropometrics from an Excel sheet (or hardcoded defaults), segment masses from
    Vaughan regressions, segment inertias from Vaughan/Zatsiorsky regressions.
 2. **Dynamic trial** → read c3d, interpolate analog forces to mocap rate,
-   rotate/zero force plates (`getViconForces_Motek` — **missing from repo**),
-   contact events by vertical-force threshold (`ContactEvents_Motek` — **missing**).
+   rotate/zero force plates (`getViconForces_Motek`),
+   contact events from smoothed-force peaks (`ContactEvents_Motek`).
 3. **Kinematics** — cluster-based pose per segment via SVD fit
    (`VirtualPoint_v2`/`SODER`), Cardan angles (`RTOCARDA`), central-difference
    velocities/accelerations (`FirstCentral`), Butterworth filtering (`filterdata1`).
 4. **Inverse dynamics** — bottom-up Newton–Euler per segment (`inv3d`),
    foot split into rearfoot/forefoot at the MTP joint by which side of the MTP
-   axis the COP falls on; moments rotated to proximal-segment frame (`G2L` — missing).
+   axis the COP falls on; moments rotated to proximal-segment frame (`G2L`).
 5. **Outputs** — Excel sheets of discrete stride metrics, SIMM/TimSIMM scale,
    motion, and kinetics files, joint powers.
 
@@ -39,12 +39,25 @@ point — a study-specific batch script (Asics shoe study), not a library. Flow:
 `unitvec`, `readC3D`, ezc3d wrappers, plotting helpers (`arrow`, `StickFigure1`,
 `plotCS`, `COP_mtpaxis_plot*`, `Main_CS`).
 
-### Functions called but MISSING from the repo
+### Originals (`matlab-inverse-dynamics/originals/`) and the Python port
 
-`getViconForces_Motek`, `ContactEvents_Motek`, `VirtualPoint_v2`, `RoomSegAng`
-(global angular vel/acc), `G2L`, `multiprod`, `matexp`, `SIMMpatellaCS`,
-`generateMotFile`, `TreadOffsets`. The MATLAB pipeline **cannot run** from this
-repo alone.
+Every routine the script actively calls is now in the repo (`RoomSegAng`,
+`multiprod`, `matexp`, `G2L`, `SIMMpatellaCS`, `TreadOffsets` recovered
+2026-09-10; `getViconForces_Motek`, `ContactEvents_Motek`, `VirtualPoint_v2`
+on 2026-09-11; only the commented-out `generateMotFile` is absent).
+`src/boneid/legacy.py` is a line-by-line Python port of the script's
+inverse-dynamics path (SIMM frame, Vaughan anthropometrics with the typos,
+foot split at the MTP axis, one-sided inertia, no gyroscopic term,
+`TMdot*TM` angular velocity, free moment in the wrong slot, no kinematic
+pre-filter, 12 Hz per-stance post-filter) with switches that correct one
+thing at a time; `asics_running_c3d` runs it against the corrected
+pipeline on the same c3d files. MATLAB R2024b IS installed
+(`/Applications/MATLAB_R2024b.app`, Signal + Statistics toolboxes, no Mac
+ezc3d MEX): `matlab-inverse-dynamics/harness/run_legacy_trial.m` runs the
+original routines on `.mat` exports of the c3d files
+(`legacy.run_matlab_legacy`), and the committed reference
+`data/asics/matlab_reference/S1_AM_RP_legacy.mat` shows the port matches the
+executed MATLAB to ~1e-11 N m (`test_port_matches_the_executed_matlab`).
 
 ### Confirmed defects in the legacy code (why we rewrote)
 
@@ -57,9 +70,17 @@ repo alone.
 - **Copy-paste inertia typo** (`Asics_Moments4JCF_v3.m:362`):
   `Ileg = [Ilx 0 0; 0 Ify 0; 0 0 Ilz]` uses the **foot's** transverse moment
   `Ify` for the shank. Thigh `Ity` regression uses foot length `A(6)`.
-- **"Angular acceleration" is Cardan-angle second derivatives** (`RoomSegAng`,
-  missing, but usage implies it) rather than the true angular acceleration
-  vector; only valid for small/planar rotations.
+- **Angular velocity from the wrong matrix product** (`originals/RoomSegAng.m`
+  line 12): `TMdot*TM` with `TM = Rᵀ` (per `VirtualPoint_v2`). For a planar
+  rotation θ from the static pose it yields −θ̇·cos 2θ instead of θ̇: right
+  size but WRONG SIGN at the static pose, zero at 45°, right sign (wrong size)
+  beyond; on S1_AM_RP the shank ω correlates −0.975 with the true one (see
+  `legacy_error_math`). Planar motion does NOT
+  forgive it (`legacy.room_seg_ang`, test `test_room_seg_ang_planar_closed_form`).
+  The earlier "Cardan second derivatives" guess was wrong.
+- **Free moment in the wrong column** (`originals/getViconForces_Motek.m`):
+  the vertical free moment `FM` is returned as `Md = [0 0 FM]`, i.e. in the
+  medio-lateral (flexion/extension) slot, up to ~10 N m in running.
 - **Hardcoded study specifics throughout**: absolute `Z:\` paths, subject lists,
   shoe/speed condition codes, force-plate offsets, a ~150-line hardcoded
   bad-trial table keyed by subject number, per-condition shoe heights.
@@ -105,16 +126,31 @@ Files:
   centres/frames measured in the static pose and carried through dynamic
   trials as virtual points on SVD cluster fits (CAST / legacy
   `VirtualPoint_v2` approach); marker label-swap repair + despiking; per-bout
-  foot attribution when both feet strike one belt.
-- `simulate.py` — synthetic-data generators (squat-to-stand, pendulum) used by
-  key tests.
+  foot attribution when both feet strike one belt. Optional torso: if the
+  static trial marks C7/CLAV/STRN/T10 + RAC/LAC, `build_chain` adds a de Leva
+  torso (L5S1 -> mid-acromion) as a 5th segment (the Asics data has none).
+- `simulate.py` — synthetic-data generators (squat-to-stand, pendulum, the
+  brick tutorials, synthetic markers) used by key tests and the tutorials.
+  `simulate_squat_to_stand_c3d` writes an idealized squat (de Leva right
+  leg + pelvis + torso of an 80 kg person, no left leg/arms) as static +
+  dynamic c3d files in the Asics markerset PLUS torso markers (via
+  `io_c3d.write_c3d`) so it runs through the REAL Asics calls; truth is
+  computed top-down and the residual is zero. The plate weighs only the
+  modelled ~56 kg, so it is analysed with `calibrate_static(body_mass=80)`.
+  `knee_slip_m` makes the knee slide (non-ideal joint) and the truth then
+  includes rotational/translational joint power: `notebooks/tutorial_6dof`
+  shows 6-DoF power recovered, the audit closing only with it, and 6-DoF
+  power invariant to where the joint centre is put.
+- `legacy.py` — faithful port of the legacy MATLAB inverse-dynamics path
+  (`run_legacy_pipeline`), with `physics="corrected"`, `free_moment_axis`
+  and `marker_lowpass_hz` switches for the comparison ladder in the c3d report.
 - `viz.py` — meshcat visualization of markers, segments, forces; pelvis band,
   mass-sized torso, URDF-skeleton option (vendored `assets/urdf/`, LGPL).
 - `report.py` — HTML reports with figures (energy balance, per-step analysis).
 - `validate.py` — cross-subject validation sweep (RMSE vs Visual3D, p1–p9).
 - `examples/quickstart.py` — the canonical 10-step run-through.
 - `examples/quickstart_c3d.py` — the c3d/static-trial variant (Asics running
-  study), 8 steps → `reports/c3d_quickstart_report.html`.
+  study), 8 steps → `reports/asics_running_c3d.html`.
 
 Model tree (whole body, 12 segments): two legs [foot, shank, thigh] bottom-up
 into a shared pelvis; L5S1 is a real joint to the torso (trunk + head lumped,
@@ -123,7 +159,8 @@ markers). The residual wrench lives at the torso and its mean is ~0 on good
 data — it measures soft-tissue/model error, not missing anatomy.
 
 Tests: `tests/test_key.py` holds the small intelligible KEY suite
-(KEY-STATIC, KEY-PENDULUM, KEY-GYRO, KEY-WRENCH-EQUIV, TEST-SIMULATED-S2S);
+(KEY-STATIC, KEY-PENDULUM, KEY-GYRO, KEY-WRENCH-EQUIV, TEST-SIMULATED-S2S,
+KEY-S2S-C3D — the whole c3d pipeline on a known body);
 `tests/test_coverage.py` holds broader coverage. Run: `uv run pytest`.
 
 ## Rules (reporting & visualization)
@@ -143,6 +180,16 @@ Tests: `tests/test_key.py` holds the small intelligible KEY suite
   extra joints (e.g. an MTP joint), or anthropometrics are only offered when
   the markerset actually supports them; otherwise say so and omit.
 - **Figures are SVG** (`report.fig_svg`), so they stay sharp at any zoom.
+- **Titles are "WHAT THIS IS: WHY IT'S HERE", in plain words.** Say what the
+  page contains, then the point of it. No teasers, no drama, no cleverness
+  ("Forces You Cannot See", "a Body With No Secrets" are out). Good:
+  "Squat-to-stand: idealized motion of four segments, no residual forces or
+  noise". Sentence case.
+- **Prose sounds like Jeremy**, the voice of jeremydwong.github.io: first
+  person, plain and a bit casual, short sentences, asides in parentheses,
+  honest hedges ("I think"), the odd "=)". Not polished essay prose. It is
+  fine for it to read as amateurish; relatability is the point. Numbers and
+  technical claims stay exact.
 
 ## Validation data
 

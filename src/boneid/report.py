@@ -8,9 +8,9 @@ Chart conventions (kept consistent across every report):
   extra series #eda100 (yellow); neutrals for reference lines.
   One axis per chart, thin marks, faint grid, no top/right spines.
 
-Run `uv run python examples/regenerate_reports.py s2s_report` to generate the TEST-SIMULATED-S2S
-report at reports/s2s_report.html, or
-`uv run python examples/regenerate_reports.py p1_report` for the real-data
+Run `uv run python examples/regenerate_reports.py` to rebuild every report
+from its notebook, or `uv run python examples/regenerate_reports.py p1_report`
+for the real-data
 walkthrough at reports/p1_report.html, or
 `uv run python examples/regenerate_reports.py p1_asics` for the legacy-
 physics A/B ("Implication of Asics") at reports/p1_asics.html.
@@ -148,202 +148,6 @@ def html_page(title: str, favicon_note: str, body: str) -> str:
 def stat(label: str, value: str, unit: str = "", cls: str = "") -> str:
     return (f'<div class="stat"><div class="k">{label}</div>'
             f'<div class="v {cls}">{value} <span class="u">{unit}</span></div></div>')
-
-
-# ---------------------------------------------------------------------------
-# TEST-SIMULATED-S2S report
-# ---------------------------------------------------------------------------
-
-def s2s_report_html(skeleton, kin, ground, idres, audit, truth,
-                    viewer_html: str | None = None) -> str:
-    """Assemble the full Report 1 HTML for the simulated squat-to-stand."""
-    t = kin.t
-    joints = skeleton.joint_names
-    figs = []
-    n = [0]
-
-    def add(fig, caption):
-        n[0] += 1
-        figs.append(figure_block(fig_svg(fig), n[0], caption))
-
-    # 1 — the movement
-    fig, ax = new_fig(height=2.9)
-    for s_i, name in enumerate(skeleton.segment_names):
-        ax.plot(t, np.degrees(truth["tilt"][:, s_i]), color=JOINT_COLORS[s_i],
-                lw=1.8, label=name)
-    style_axes(ax, "time (s)", "segment tilt from vertical (deg)")
-    ax.legend(frameon=False, fontsize=9, ncol=4, loc="upper right")
-    add(fig, "The prescribed movement: minimum-jerk segment tilts from a deep "
-             "squat to standing. Velocities and accelerations vanish at both "
-             "endpoints, giving analytic static limits for the torques.")
-
-    # 2 — ground reaction force
-    fig, ax = new_fig(height=2.9)
-    ax.plot(t, ground.force[:, 2], color=JOINT_COLORS[0], lw=1.8,
-            label="vertical")
-    ax.plot(t, ground.force[:, 0], color=JOINT_COLORS[1], lw=1.8,
-            label="fore-aft")
-    ax.axhline(skeleton.mass.sum() * 9.81, color=FAINT, lw=1.0, ls="--")
-    ax.annotate("body weight", (t[-1], skeleton.mass.sum() * 9.81),
-                ha="right", va="bottom", fontsize=8.5, color=NEUTRAL)
-    style_axes(ax, "time (s)", "ground reaction force (N)")
-    ax.legend(frameon=False, fontsize=9)
-    add(fig, "Simulated ground reaction force, computed exactly from "
-             "whole-body Newton–Euler (no force model): unweighting, then a "
-             "propulsive overshoot above body weight, settling to standing.")
-
-    # 3 — joint torques with static truth markers
-    fig, ax = new_fig(height=3.2)
-    for j, name in enumerate(joints):
-        ax.plot(t, idres.joint_torque[:, j, 1], color=JOINT_COLORS[j], lw=1.8,
-                label=name)
-        for frame, key in ((0, "static_torque_start"), (-1, "static_torque_end")):
-            ax.plot(t[frame], truth[key][name][1], "o", ms=7, mfc="none",
-                    mec=JOINT_COLORS[j], mew=1.6)
-    ax.plot([], [], "o", ms=7, mfc="none", mec=NEUTRAL, mew=1.6,
-            label="analytic static value")
-    style_axes(ax, "time (s)", "sagittal joint torque (N m)")
-    ax.legend(frameon=False, fontsize=9, ncol=2)
-    add(fig, "Net joint torques (sagittal component, acting on the distal "
-             "segment) from the inverse-dynamics recursion. Open circles are "
-             "the independently derived analytic static torques at the two "
-             "endpoints — the recursion lands on them.")
-
-    # 4 — residual wrench
-    fig, axes = new_fig(2, height=2.7)
-    bw = skeleton.mass.sum() * 9.81
-    axes[0].plot(t, idres.residual_force, lw=1.4)
-    for line, c in zip(axes[0].lines, JOINT_COLORS[:3]):
-        line.set_color(c)
-    style_axes(axes[0], "time (s)", "residual force (N)")
-    axes[0].legend(["x", "y", "z"], frameon=False, fontsize=8.5)
-    axes[1].plot(t, idres.residual_torque, lw=1.4)
-    for line, c in zip(axes[1].lines, JOINT_COLORS[:3]):
-        line.set_color(c)
-    style_axes(axes[1], "time (s)", "residual torque (N m)")
-    add(fig, f"Residual wrench at the top of the torso — the force and torque "
-             f"unexplained by the model. Peak residual force is "
-             f"{np.abs(idres.residual_force[5:-5]).max():.2e} N against a "
-             f"body weight of {bw:.0f} N.")
-
-    # 5 — energy components
-    fig, ax = new_fig(height=3.0)
-    pe0 = audit.potential[0]
-    ax.plot(t, audit.kinetic, color=JOINT_COLORS[1], lw=1.8, label="kinetic")
-    ax.plot(t, audit.potential - pe0, color=JOINT_COLORS[0], lw=1.8,
-            label="potential (rel.)")
-    ax.plot(t, audit.kinetic + audit.potential - pe0, color=NEUTRAL, lw=2.2,
-            label="total")
-    style_axes(ax, "time (s)", "energy (J)")
-    ax.legend(frameon=False, fontsize=9)
-    add(fig, "Energy across the movement: the body gains potential energy "
-             "with a transient kinetic bump mid-rise.")
-
-    # 6 — power balance
-    fig, axes = new_fig(2, height=2.9)
-    axes[0].plot(t, audit.de_dt, color=NEUTRAL, lw=2.6, alpha=0.45,
-                 label="d(KE+PE)/dt")
-    axes[0].plot(t, audit.power_total, color=JOINT_COLORS[0], lw=1.2,
-                 label="joint + ground + residual power")
-    style_axes(axes[0], "time (s)", "power (W)")
-    axes[0].legend(frameon=False, fontsize=8.5)
-    axes[1].plot(t[5:-5], audit.imbalance[5:-5], color=JOINT_COLORS[1], lw=1.4)
-    style_axes(axes[1], "time (s)", "imbalance (W)")
-    add(fig, "The energy audit. Left: the rate of change of total mechanical "
-             "energy against the summed power of every wrench in the model — "
-             "the curves are indistinguishable. Right: their difference "
-             "(note the scale), the frame-by-frame energy imbalance.")
-
-    # 7 — joint powers
-    fig, ax = new_fig(height=3.0)
-    for j, name in enumerate(joints):
-        ax.plot(t, audit.joint_power[:, j], color=JOINT_COLORS[j], lw=1.8,
-                label=name)
-    ax.plot(t, audit.ground_power + audit.residual_power, color=FAINT, lw=1.2,
-            label="ground + residual")
-    style_axes(ax, "time (s)", "power (W)")
-    ax.legend(frameon=False, fontsize=9)
-    add(fig, "Joint powers (τ · ω_rel). The hip and knee dominate the work of "
-             "raising the large torso; the ground wrench does no work on the "
-             "welded foot, and the residual power is negligible.")
-
-    # summary numbers
-    interior = slice(5, -5)
-    imb = np.abs(audit.imbalance[interior]).max()
-    scale = np.abs(audit.de_dt).max()
-    res_f = np.abs(idres.residual_force[interior]).max()
-    res_t = np.abs(idres.residual_torque[interior]).max()
-    tq = np.abs(idres.joint_torque).max()
-    work = np.trapezoid(audit.joint_power.sum(axis=1), t)
-    de = (audit.kinetic[-1] + audit.potential[-1]
-          - audit.kinetic[0] - audit.potential[0])
-
-    stats = "".join([
-        stat("peak energy imbalance", f"{imb:.2e}", "W",
-             "pass" if imb < 5e-3 * scale else "fail"),
-        stat("… relative to peak dE/dt", f"{imb / scale:.1e}", "",
-             "pass" if imb < 5e-3 * scale else "fail"),
-        stat("peak residual force", f"{res_f:.1e}", f"N (BW {bw:.0f} N)",
-             "pass" if res_f < 1e-3 * bw else "fail"),
-        stat("peak residual torque", f"{res_t:.1e}", "N m",
-             "pass" if res_t < 1e-3 * tq else "fail"),
-        stat("∫ joint power dt", f"{work:.2f}", "J"),
-        stat("ΔE total", f"{de:.2f}", "J"),
-    ])
-
-    viewer = ""
-    if viewer_html is not None:
-        esc = viewer_html.replace("&", "&amp;").replace('"', "&quot;")
-        viewer = ('<h2>3-D animation</h2><p>Meshcat rendering of the chain '
-                  '(large torso, thigh, shank, foot) with the ground-force '
-                  'arrow. Use the timeline controls in the viewer, or drag '
-                  'to orbit.</p>'
-                  f'<iframe class="viewer" srcdoc="{esc}"></iframe>')
-
-    body = f"""
-<p class="eyebrow">Report 1 · boneid · TEST-SIMULATED-S2S</p>
-<h1>Squat-to-Stand Verification</h1>
-<p class="subtitle">Inverse dynamics of a simulated 3-D, 3-joint chain
-(foot–shank–thigh–torso; ankle–knee–hip) with an 80 kg body and a large
-torso, rising from a deep squat over {t[-1]:.1f} s at {kin.rate:.0f} Hz.</p>
-
-<div class="stat-row">{stats}</div>
-
-<h2>What is being tested</h2>
-<p>The motion is prescribed (minimum-jerk segment tilts), the foot is welded
-to the ground, and the ground reaction wrench is computed <em>exactly</em>
-from whole-body dynamics — so the inverse-dynamics pipeline can be judged
-against physics rather than against another implementation. Three independent
-instruments: the residual wrench at the top of the chain must vanish, the
-joint torques must hit analytic static values at the endpoints, and the
-energy audit — d(KE+PE)/dt versus the summed wrench powers, never used inside
-the recursion — must close frame by frame.</p>
-<p>Forces are represented as a wrench about the lab origin throughout: no
-center-of-pressure division anywhere in the pipeline (a COP round-trip is
-separately verified equivalent in <code>KEY-WRENCH-EQUIV</code>).</p>
-<p>The legacy MATLAB failed here in two ways this test is built to catch:
-it transformed inertia one-sidedly (<code>R·I</code> instead of
-<code>R·I·Rᵀ</code>) and dropped the gyroscopic term
-<code>ω×(Iω)</code> from Euler's equation.</p>
-
-{"".join(figs)}
-
-{viewer}
-
-<h2>How to reproduce</h2>
-<p><code>uv run pytest tests/test_key.py</code> runs the KEY suite;
-<code>uv run python examples/regenerate_reports.py s2s_report</code> regenerates this report from
-<code>simulate_squat_to_stand()</code>.</p>
-"""
-    return html_page("Squat-to-Stand Verification", "s2s", body)
-
-
-def main_s2s(argv=None):
-    """Compatibility alias for the canonical notebook build."""
-    if argv:
-        raise ValueError("Set study inputs in notebooks/s2s_report.ipynb")
-    from .notebook_reports import main as build_reports
-    return build_reports(["s2s_report"])
 
 
 # ---------------------------------------------------------------------------
@@ -1971,6 +1775,7 @@ term, mean F<sub>z</sub> {res_mean[2]:.1f} N against a body weight of
 {bw:.0f} N:</p>
 
 {figs[8]}
+{figs[9]}
 
 <p>And the <b>L5/S1 joint wrench</b> — the wrench the torso exerts on the
 pelvis, mirroring the hips. Its mean vertical force should equal minus the
@@ -1980,12 +1785,12 @@ told the subject's total mass — yet it lands within
 {100 * abs(l5_gap) / abs(upper_n):.1f}% on this trial and stays on the
 identity line across all {len(cross['index'])} trials:</p>
 
-{figs[9]}
+{figs[10]}
 
 <h2>Step 7 — the energy audit</h2>
 
-{figs[10]}
 {figs[11]}
+{figs[12]}
 
 {viewer}
 
@@ -2009,7 +1814,7 @@ summed here over all twelve segments — swinging arms and a moving trunk
 included — which is the whole-body quantity Zelik &amp; Kuo actually
 define.</p>
 
-{figs[13]}
+{figs[14]}
 
 <p><b>Distal-to-foot power.</b> Takahashi, Kepple &amp; Stanhope (2012,
 <i>J Biomech</i> 45:2662–2667) unified-deformable segment power: the ground
@@ -2019,7 +1824,7 @@ absorb. Zelik &amp; Honert (2018, <i>J Biomech</i> 75:1–12) argue this is the
 measure to report rather than ankle power alone, because "ankle power" silently
 attributes foot deformation to the ankle joint.</p>
 
-{figs[14]}
+{figs[15]}
 
 <p><b>What cannot be done here.</b> Splitting the foot at the metatarso-
 phalangeal joint into hindfoot and forefoot — the multi-segment foot analysis
@@ -2068,11 +1873,11 @@ from scratch — new thigh frames, new thigh and pelvis lengths, new de Leva
 inertias, new whole-body inverse dynamics — so what follows is the propagated
 consequence, not a re-labelling.</p>
 
-{figs[15]}
+{figs[16]}
 
 {hjc_work_table}
 
-{figs[16]}
+{figs[17]}
 
 <p>The pattern is worth stating plainly. The ankle is <em>identical</em> to the
 digit under all three conventions and so is the knee's reaction force: a
@@ -2092,7 +1897,7 @@ code, identical parameters, no per-trial tuning, all
 {len(cross['index'])} trials of the subject and all six leg joints, scored
 against Visual3D.</p>
 
-{figs[12]}
+{figs[13]}
 
 <h2>How to reproduce</h2>
 <p><code>uv run python examples/regenerate_reports.py p1_report</code> regenerates this page from
@@ -2289,6 +2094,42 @@ def p1_viewer_html(trial, chain, skel_u, kin_u, params,
         vis.set_animation(animation, play=True, repetitions=repetitions)
         viz.set_camera(vis, target=(0.0, 0.0, 0.0),
                        offset=(1.55, -1.55, 0.35))
+        return viz.render_static_html(vis)
+    finally:
+        viz.stop_viewer(vis)
+
+
+def simulated_viewer_html(skeleton, kin, ground=None, markers=None,
+                          segment_meshes=None, decimate: int = 10,
+                          repetitions: int = 10000,
+                          camera_offset=(1.6, -1.6, 0.5),
+                          force_threshold: float = 20.0) -> str:
+    """Standalone meshcat page for one simulated chain: segments (cylinders,
+    or the rigid meshes in `segment_meshes`), the ground-force arrow when a
+    wrench is given, and every synthetic marker as an animated red sphere.
+    Shared by the brick and squat-to-stand tutorials so that "the movement in
+    3-D" is one call there, as it is in the quickstart."""
+    from . import viz
+
+    vis = viz.start_viewer()
+    try:
+        animation = viz.animate(vis, skeleton, kin, ground=ground,
+                                decimate=decimate, repetitions=1, play=False,
+                                segment_meshes=segment_meshes or {},
+                                force_threshold=force_threshold)
+        if markers:
+            viz.draw_markers(vis, markers, 0)
+            step = max(1, int(decimate))
+            for k, f in enumerate(range(0, len(kin.t), step)):
+                with animation.at_frame(vis, k) as frame:
+                    for name, xyz in markers.items():
+                        frame[f"{viz.ROOT}/markers/{name}"].set_transform(
+                            viz.translation(xyz[f]))
+        vis.set_animation(animation, play=True, repetitions=repetitions)
+        mid = np.array([np.mean(kin.prox_pos[..., 0]),
+                        np.mean(kin.prox_pos[..., 1]),
+                        0.5 * kin.prox_pos[..., 2].max()])
+        viz.set_camera(vis, target=mid, offset=camera_offset)
         return viz.render_static_html(vis)
     finally:
         viz.stop_viewer(vis)
@@ -2732,10 +2573,10 @@ def original_dependency_status_html():
         "RoomSegAng.m": "Matrix derivatives; TMdot @ TM, not Cardan derivatives.",
         "multiprod.m": "Per-frame matrix/vector multiplication.",
         "matexp.m": "Replicates the local inertia across frames.",
-        "VirtualPoint_v2.m": "Needed: exact cluster pose and frame convention.",
-        "getViconForces_Motek.m": "Needed: Motek force calibration and coordinate conventions.",
-        "ContactEvents_Motek.m": "Needed: Motek contact-event algorithm.",
-        "G2L.m": "Inverse coordinate transform; confirm input layout with v2.",
+        "VirtualPoint_v2.m": "Recovered 2026-09-11: SODER fit, exports the TRANSPOSED rotation as TM. Ported in boneid.legacy.",
+        "getViconForces_Motek.m": "Recovered 2026-09-11: 18 Hz filter, plate choice by mean vertical force, COP from plate-centre offsets; free moment lands in Md's z slot. Ported.",
+        "ContactEvents_Motek.m": "Recovered 2026-09-11: 5 Hz-smoothed peaks, 5 N walk-out, right/left by alternating COP. Ported.",
+        "G2L.m": "Inverse coordinate transform; on a Tx3x3 TM MATLAB's folded indexing makes it TM*Global, a proper global-to-local transform. Ported.",
         "SIMMpatellaCS.m": "Patella-angle interpolation; scale argument is unused.",
         "TreadOffsets.m": "Constant analog baseline subtraction; call is commented out.",
         "generateMotFile.m": "GRF export; call is commented out.",
@@ -2748,8 +2589,10 @@ def original_dependency_status_html():
     missing = [name for name in requested if name not in available]
     return (f"<p>{len(requested) - len(missing)} of {len(requested)} originally requested "
             "files recovered. Status checked against the reference tree during notebook execution.</p>"
-            "<p><b>Still missing:</b> " + ", ".join(f"<code>{escape(n)}</code>" for n in missing)
-            + ". The generateMotFile call is commented out.</p>"
+            "<p><b>Still missing:</b> " + (", ".join(f"<code>{escape(n)}</code>" for n in missing)
+                                          or "none of the active calls")
+            + ". The generateMotFile call is commented out; the whole inverse-dynamics "
+              "path is ported in <code>boneid.legacy</code> and run in the c3d report.</p>"
             '<table class="missing-files"><thead><tr><th>Original dependency</th>'
             '<th>Current status</th><th>Assessment</th></tr></thead><tbody>'
             + rows + '</tbody></table>')
@@ -2797,8 +2640,8 @@ def p1_asics_report_html(trial, data, params) -> str:
         "ones only). Shading is that side's stance. Rows are the two sides, "
         "columns the joint, and <b>the two panels of a column share y-limits "
         "by rule</b>. At this scale the three curves are one curve — which is "
-        "the honest headline: in walking, the legacy mistakes are a "
-        f"{100 * rms['abc'].max() / peak[np.argmax(rms['abc'])]:.0f}%-of-peak "
+        "the honest headline: in walking, the two real legacy mistakes are "
+        f"a {100 * (rms['ab'] / peak).max():.0f}%-of-peak "
         "effect at worst, not a sign error.")
 
     # ---- 2. one stride, zoomed -------------------------------------------
@@ -2888,9 +2731,9 @@ def p1_asics_report_html(trial, data, params) -> str:
         "eleven joint powers plus the residual power; with correct torques it "
         f"does, to {imb['correct']['rms']:.1f} W RMS "
         f"({100 * imb['correct']['rms'] / imb['correct']['scale']:.2f}% of "
-        "peak dE/dt), which is finite-difference noise. With the legacy "
-        f"torques the same instrument reads {imb['abc']['rms']:.1f} W — "
-        f"{imb['abc']['rms'] / imb['correct']['rms']:.0f}× worse. No reference "
+        "peak dE/dt), which is finite-difference noise. With the two real "
+        f"legacy mistakes the same instrument reads {imb['ab']['rms']:.1f} W — "
+        f"{imb['ab']['rms'] / imb['correct']['rms']:.0f}× worse. No reference "
         "data, no Visual3D, no ground truth was needed to see it: an "
         "independent energy balance detects a broken Euler equation on its "
         "own.")
@@ -3005,8 +2848,8 @@ three equation errors. The plots reproduce (a) and (b); error 3 is not reproduce
 <code>IfootG = multiprod(R_FootTM, Ifoot)</code> — that is
 I<sub>G</sub> = R I<sub>local</sub>, not the similarity transform
 R I<sub>local</sub> R<sup>T</sup>. The result is not symmetric, so it is not
-an inertia tensor at all; it happens to have the right magnitude and the wrong
-mixing between axes.</li>
+an inertia tensor at all (same Frobenius norm, but it maps ω to the wrong
+angular momentum, magnitude and direction both).</li>
 <li><b>(b) Euler's equation is missing its gyroscopic term.</b> VERIFIED, at
 <code>Inverse Dynamics Subroutines/inv3d.m</code>, line <b>38</b>: the moment balance is
 <code>multiprod(I,aANG)</code> and nothing else, so
@@ -3022,9 +2865,10 @@ For a rotation R from segment to world, the correct products are
 it does not make <code>TMdot * TM</code> generally correct.
 Lines <b>26–28</b> extract components from this generally non-skew matrix,
 and line <b>32</b> differentiates them into angular acceleration.
-The missing <code>VirtualPoint_v2.m</code> prevents full reproduction of the
-original inputs and the resulting torque error, not identification of this
-matrix-product error for rotation-matrix inputs.</li>
+With <code>VirtualPoint_v2.m</code> recovered (TM is the transposed SODER
+rotation), the full legacy path is reproduced in <code>boneid.legacy</code> and
+run against the corrected pipeline on the Asics running data in
+<code>asics_running_c3d</code>.</li>
 </ul>
 <p><b>Separate hypothetical experiment (c).</b> RoomSegAng does not differentiate
 Cardan angles. Curves labelled (c) test that hypothetical approximation and
@@ -3048,13 +2892,13 @@ drifted.</p>
 <h2>What it costs, joint by joint</h2>
 {rms_table}
 <p>RMS is over the 3-vector torque difference, so no component is hidden, over
-the whole trial minus {EDGE} frames at each end. The worst joint is
-{JOINT_LABELS[worst]}, at {100 * (rms['abc'] / peak).max():.1f}% of its own
-peak torque. For scale, this same pipeline reproduces Visual3D's independently
-computed ankle and knee torques to about 1.5–2 N m on this subject: the legacy
-mistakes at the ankle ({rms['abc'][0]:.2f} N m) sit <em>below</em> that
-inter-software agreement floor, while at the hip
-({rms['abc'][2]:.1f} N m) they sit well above it.</p>
+the whole trial minus {EDGE} frames at each end. The (a)+(b) columns are the
+real legacy mistakes; the (a)+(b)+(c) columns add the hypothetical Cardan term
+and are here only as a sensitivity check. For scale, this same pipeline
+reproduces Visual3D's ankle and knee torques to about 1.5–2 N m on this
+subject. So the two real mistakes at the right ankle ({rms['ab'][0]:.2f} N m)
+sit <em>below</em> that agreement floor, and at the right hip
+({rms['ab'][2]:.1f} N m) they sit well above it.</p>
 
 {figs[0]}
 {figs[1]}
@@ -3117,11 +2961,11 @@ dimensional segment rotation (a cutting manoeuvre, a throw, a fall) would put
 uses no reference data and no ground truth: it just asks whether the rate of
 change of the model's own mechanical energy equals the power flowing into it
 through the joints, the ground and the residual. Correct torques close it to
-{imb['correct']['rms']:.1f} W RMS; the legacy torques leave
-{imb['abc']['rms']:.1f} W unaccounted for, and the (a)+(b) torques
-{imb['ab']['rms']:.1f} W. A team running the legacy code in 2014 had this
-instrument available and did not build it; the imbalance was sitting there the
-whole time.</p>
+{imb['correct']['rms']:.1f} W RMS; the two real legacy mistakes (a)+(b) leave
+{imb['ab']['rms']:.1f} W unaccounted for (and {imb['abc']['rms']:.1f} W with the
+hypothetical Cardan term on top). Nothing about this check is new or hard. The
+legacy code just never had it, so the imbalance was sitting there the whole
+time.</p>
 
 <h2>Reproducing this</h2>
 <p><code>uv run python examples/regenerate_reports.py p1_asics</code> regenerates this page.
@@ -3182,7 +3026,8 @@ def main(argv=None):
     elif argv and argv[0] == "asics":
         main_asics(argv[1:])
     else:
-        main_s2s()
+        from .notebook_reports import main as build_reports
+        build_reports([])
 
 
 if __name__ == "__main__":
@@ -3283,9 +3128,10 @@ def quickstart_report_html(trial, body_mass, params, chains, upper, contact,
     axes[0, 2].legend(frameon=False, fontsize=8.5)
     add(fig, f"Steps 8 &amp; 9 — the other outputs every run ships with. Left: "
              f"the residual wrench, which with the whole body modelled sits at "
-             f"the TORSO's centre of mass and averages {res_mean[2]:.1f} N "
-             f"vertically — near zero, because no body part is missing any "
-             f"more. Middle: the L5/S1 joint wrench (torso on pelvis), whose "
+             f"the torso's centre of mass and averages {res_mean[2]:.1f} N "
+             f"vertically. The mean is near zero because no body part is "
+             f"missing any more; the swings around it are not, and that's "
+             f"soft tissue and joint-centre error (see the P1 report). Middle: the L5/S1 joint wrench (torso on pelvis), whose "
              f"mean of {l5_mean[2]:.0f} N should be minus the upper body's "
              f"weight ({-upper_n:.0f} N, dashed) and is. Right: the energy "
              f"audit (the two curves must lie on top of each other).")
@@ -3313,40 +3159,24 @@ def quickstart_report_html(trial, body_mass, params, chains, upper, contact,
             f'<iframe class="viewer" srcdoc="{esc}"></iframe>')
 
     body = f"""
-<p class="eyebrow">boneid · quickstart · 10 steps</p>
-<h1>Inverse Dynamics in Ten Steps</h1>
-<p class="subtitle">The output of <code>examples/quickstart.py</code>: one
-high-level call per step, from raw mocap and force data to net joint torques,
-the L5/S1 joint wrench, a near-zero residual and an energy audit — the
-<b>whole body</b>, twelve segments, trial {trial.index},
-{len(t) / kin_r.rate:.1f} s at {kin_r.rate:.0f} Hz.</p>
+<p class="eyebrow">boneid · quickstart · step 10</p>
+<h2>The report</h2>
+<p class="subtitle">Whole body, twelve segments, trial {trial.index},
+{len(t) / kin_r.rate:.1f} s at {kin_r.rate:.0f} Hz. The four numbers I look
+at first, then the body moving, then the figures.</p>
 
 <div class="stat-row">{stats}</div>
-
-<h2>The ten steps</h2>
-<ol>
-<li><b>Mocap data</b> — <code>load_v3d_trial(path, index)</code>: markers, landmarks, rates.</li>
-<li><b>Force data</b> — rides on the trial: per-belt force, COP, free moment at the analog rate.</li>
-<li><b>Skeleton</b> — <code>estimate_body_mass(trial)</code> + de Leva regressions.</li>
-<li><b>Treadmill definition</b> — <code>AnalysisParams(...)</code> and a fixed lab point; torques are about the treadmill origin, no COP division.</li>
-<li><b>Segment kinematics</b> — <code>build_chain(trial, side)</code> plus <code>build_upper_body(trial)</code>: joint centers, segment frames, ground wrench — one call per side plus the upper body.</li>
-<li><b>Contact &amp; crossover</b> — <code>detect_contact</code>, <code>crossover_flags</code>.</li>
-<li><b>Inverse dynamics</b> — <code>inverse_dynamics_whole_body(...)</code>: both legs bottom-up into a shared pelvis, both arms into the torso, then the torso's own balance.</li>
-<li><b>Outputs</b> — <code>joint_torque</code> per joint, the <code>l5s1</code> joint wrench, and the <code>residual</code> wrench at the torso COM (near zero: nothing is unmodelled).</li>
-<li><b>Energy audit</b> — <code>energy_audit_whole_body(...)</code>: d(KE+PE)/dt vs summed wrench power, every run.</li>
-<li><b>Report</b> — this page.</li>
-</ol>
 
 {viewer}
 
 {"".join(figs)}
 
 <h2>Reproduce</h2>
-<p><code>uv run python examples/quickstart.py [mat_path] [trial_index]</code>
-— edit the config block at the top of the script for your study; the ten
-steps do not change.</p>
+<p><code>uv run python examples/quickstart.py</code> re-runs the notebook
+and rewrites this page. For your own study, edit the config cell in
+<code>notebooks/quickstart_report.ipynb</code>; the ten steps don't change.</p>
 """
-    return html_page("Inverse Dynamics in Ten Steps", "qs", body)
+    return html_page("Quickstart report", "qs", body)
 
 
 # ---------------------------------------------------------------------------
@@ -3526,6 +3356,12 @@ def c3d_sagittal_series(cal, skeleton, kin, idres, params) -> dict:
       in the proximal segment frame, y component.
 
     Kinematics are filtered with the same `params` as the dynamics.
+
+    `cal=None` (data with no static trial, e.g. the Visual3D P1 export):
+    the angle is NOT zeroed — it is the raw sagittal tilt of the distal long
+    axis in the proximal frame, so knee/hip read ~0 when the segments line
+    up and the ankle reads the foot's (heel->5th met) tilt off the shank
+    axis, ~ +80..125 deg on P1.  No neutral pose is invented.
     """
     from .core import chain_kinematics
     ck = chain_kinematics(skeleton, kin, params.lowpass_hz,
@@ -3537,8 +3373,10 @@ def c3d_sagittal_series(cal, skeleton, kin, idres, params) -> dict:
         r_rel = np.einsum("tji,tjk->tik", r[:, j + 1], r[:, j])
         v = r_rel[:, :, 2]                       # distal z in prox frame
         theta = np.degrees(np.arctan2(v[:, 0], v[:, 2]))
-        r0 = cal.r_static[j + 1].T @ cal.r_static[j]
-        theta0 = np.degrees(np.arctan2(r0[0, 2], r0[2, 2]))
+        theta0 = 0.0
+        if cal is not None:
+            r0 = cal.r_static[j + 1].T @ cal.r_static[j]
+            theta0 = np.degrees(np.arctan2(r0[0, 2], r0[2, 2]))
         angle[:, j] = (theta - theta0 + 180.0) % 360.0 - 180.0
         w_rel = ck["omega"][:, j] - ck["omega"][:, j + 1]
         vel[:, j] = np.degrees(np.sum(w_rel * r[:, j + 1, :, 1], axis=1))
@@ -3725,6 +3563,501 @@ def strip_charts_grid(t, header, grid_rows, col_titles, period_s: float,
             f'<div class="strip-legend">{legend}</div></div>{script}')
 
 
+# ---------------------------------------------------------------------------
+# Muscle forces (OpenSim static + dynamic optimization), synced to the viewer
+# ---------------------------------------------------------------------------
+
+#: where the OpenSim agent writes P1 trial-13 muscle results (repo-relative)
+MUSCLE_NPZ = "data/opensim/p1_trial13_muscles.npz"
+#: 20 categorical colours, dark enough for thin lines on the light card.
+MUSCLE_PALETTE = ("#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#8e5bd0",
+                  "#d6417a", "#17a2b0", "#7a6a2e", "#5d7f1e", "#c24f1c",
+                  "#3b4cc0", "#c86fb6", "#0f6f78", "#8c564b", "#a3a314",
+                  "#6f6f6f", "#1f3d7a", "#a4161a", "#0b6e4f", "#6a4c93")
+
+
+def load_muscles(path) -> dict:
+    """The muscle npz as a plain dict of numpy arrays (+ its JSON sidecar).
+
+    Contract (written by the OpenSim side): `t` [T] s on the trial clock,
+    `muscle_names` [M], `so_force`/`dyn_force` [T,M] N (dyn is NaN outside
+    its `window` [2]), `so_activation`/`dyn_activation` [T,M], `joint_names`
+    ["ankle","knee","hip"], `moment_arm` [T,M,3] m, `group` [M] in {0,1,2},
+    `crosses` [M,3] bool, `so_moment`/`dyn_moment` [T,3],
+    `id_moment_opensim`/`id_moment_boneid` [T,3] N m.  Optional (newer
+    files, `scripts/opensim/fiber_kinematics.py`): `fiber_length_norm`,
+    `fiber_velocity_norm` [T,M] (l_M/l_opt and v_M/(v_max l_opt), + =
+    lengthening), `mtu_length`, `tendon_length` [T,M] m, `pennation` [T,M]
+    rad, and per muscle `f_iso`, `l_opt`, `l_slack`, `v_max`, `alpha_opt`.
+    The sidecar (same stem, `.json`) lands in `["meta"]` when it exists.
+    """
+    import json
+    import os
+    with np.load(path, allow_pickle=False) as z:
+        mus = {k: z[k] for k in z.files}
+    side = os.path.splitext(str(path))[0] + ".json"
+    mus["meta"] = json.load(open(side)) if os.path.exists(side) else {}
+    return mus
+
+
+def muscles_on_clock(mus: dict, t: np.ndarray) -> dict:
+    """Copy of `mus` with every time series linearly resampled onto `t`.
+
+    Samples outside the muscle file's own time range become NaN (drawn as
+    gaps), and NaNs inside (dynamic optimization outside its window) stay
+    gaps.  On the shared i/120 clock this is an exact index pick.
+    """
+    t = np.asarray(t, float)
+    tm = np.asarray(mus["t"], float)
+    out = dict(mus)
+    for k, v in mus.items():
+        if not (isinstance(v, np.ndarray) and v.dtype.kind == "f"
+                and v.ndim >= 2 and v.shape[0] == len(tm)):
+            continue
+        flat = v.reshape(len(tm), -1)
+        res = np.stack([np.interp(t, tm, flat[:, c], left=np.nan,
+                                  right=np.nan)
+                        for c in range(flat.shape[1])], axis=1)
+        out[k] = res.reshape((len(t),) + v.shape[1:])
+    out["t"] = t
+    return out
+
+
+def muscle_columns(group: np.ndarray, crosses: np.ndarray) -> list[list[int]]:
+    """Muscle indices per joint column: grouped there OR crossing it, so a
+    biarticular muscle appears in every column it spans."""
+    group = np.asarray(group).astype(int)
+    crosses = np.asarray(crosses, bool)
+    return [[m for m in range(len(group)) if group[m] == j or crosses[m, j]]
+            for j in range(crosses.shape[1])]
+
+
+def muscle_colors(columns: list[list[int]], n: int) -> list[str]:
+    """One colour per muscle, the same in every column it appears in, chosen
+    greedily so no two muscles in the same column share one (until the
+    palette runs out)."""
+    pal = MUSCLE_PALETTE
+    colors: list[str | None] = [None] * n
+    for m in range(n):
+        taken = {colors[o] for col in columns if m in col for o in col}
+        free = [c for c in pal if c not in taken]
+        colors[m] = free[0] if free else pal[m % len(pal)]
+    return colors
+
+
+def muscle_grid_html(t, mus: dict, period_s: float, uid: str = "mgrid",
+                     window_s: float = 1.6,
+                     viewer_iframe: str | None = None,
+                     col_titles=("ankle", "knee", "hip")) -> str:
+    """Muscle forces as a scrolling-scope GRID on the animation clock.
+
+    `mus` must already be on the clock `t` (`muscles_on_clock`) — the same
+    samples the meshcat clip keys, so ``index = tau * rate`` exactly.
+    Columns are joints; muscles grouped at or crossing a joint appear in its
+    column.  Rows: (a) static-optimization force, (b) dynamic-optimization
+    force (both N, one shared scale over the checked muscles), (c) the
+    summed moment of the CHECKED muscles, sum_m F_m * r_mj, for SO and
+    dynamic opt, over the inverse-dynamics torque (OpenSim's and ours, as
+    the npz gives them).  The checkboxes under each column toggle that
+    muscle in that column only; row (c) and the force scale recompute on
+    every change.  When `mus` has `fiber_length_norm` / `fiber_velocity_norm`
+    two more rows, (d) normalized fibre length and (e) normalized fibre
+    velocity, sit below (c), hidden until their toggle is ticked; one trace
+    per checked muscle (rigid tendon + prescribed kinematics make them the
+    same for SO and dynamic optimization).
+
+    Drawing is canvas in JS (the moments must be re-summed live, so the
+    static-SVG trick of `strip_charts_grid` doesn't fit); the clock is the
+    same — `viewer.animator.actions[0].time` of the meshcat iframe, with a
+    wall-clock fallback at `period_s`.  Data ride along as base64 float32.
+    """
+    import json
+    t = np.asarray(t, float)
+    n_t = len(t)
+    names = [str(s) for s in mus["muscle_names"]]
+    n_m = len(names)
+    cols = muscle_columns(mus["group"], mus["crosses"])
+    colors = muscle_colors(cols, n_m)
+    rate = (n_t - 1) / max(float(t[-1] - t[0]), 1e-12)
+    win = [float(v) for v in np.asarray(mus.get("window", [np.nan, np.nan]))]
+    data = {
+        "N": n_t, "M": n_m, "RATE": rate, "T0": float(t[0]),
+        "PERIOD": float(period_s), "W": float(window_s),
+        "names": names, "colors": colors, "cols": cols,
+        "so": _b64_f32(mus["so_force"]), "dyn": _b64_f32(mus["dyn_force"]),
+        "ma": _b64_f32(mus["moment_arm"][:, :, :3]),
+        "idO": _b64_f32(mus["id_moment_opensim"][:, :3]),
+        "idB": _b64_f32(mus["id_moment_boneid"][:, :3]),
+    }
+    fib = "fiber_length_norm" in mus and "fiber_velocity_norm" in mus
+    if fib:
+        data["lf"] = _b64_f32(mus["fiber_length_norm"])
+        data["vf"] = _b64_f32(mus["fiber_velocity_norm"])
+    ink = {"so": JOINT_COLORS[0], "dyn": JOINT_COLORS[1],
+           "idO": "#1c1b18", "idB": NEUTRAL}
+    gut = 100.0 * GRID_GUTTER / STRIP_WIDTH
+    gap = 100.0 * GRID_GAP / STRIP_WIDTH
+    padr = 100.0 * STRIP_PAD_R / STRIP_WIDTH
+    rows = [("a", "SO force (N)"), ("b", "dyn-opt\nforce (N)"),
+            ("c", "summed\nmoment (N m)")]
+    if fib:
+        rows += [("d", "fibre length\nl<sub>M</sub>/l<sub>opt</sub>"),
+                 ("e", "fibre velocity\nv<sub>M</sub>/(v<sub>max</sub>"
+                       "l<sub>opt</sub>)")]
+    cells = ['<div></div>'] + [f'<div class="mg-title">{c}</div>'
+                               for c in col_titles]
+    for key, lab in rows:
+        opt = (f' data-opt="{key}" style="display:none"'
+               if key in "de" else "")
+        cells.append(f'<div class="mg-row"{opt}>'
+                     f'{lab.replace(chr(10), "<br>")}</div>')
+        for j in range(len(col_titles)):
+            cells.append(f'<canvas class="mg-cv" data-row="{key}" '
+                         f'data-col="{j}"{opt}></canvas>')
+    cells.append('<div></div>')
+    for j in range(len(col_titles)):
+        boxes = "".join(
+            f'<label class="mg-mu" data-m="{m}"><input type="checkbox" '
+            f'data-col="{j}" data-m="{m}" checked> '
+            f'<span style="color:{colors[m]}">&#9644;</span> {names[m]}'
+            f'{"" if int(mus["group"][m]) == j else " *"}</label>'
+            for m in cols[j])
+        cells.append(f'<div class="mg-checks"><div class="mg-ctl">'
+                     f'<button data-col="{j}" data-all="1">all</button> '
+                     f'<button data-col="{j}" data-all="0">none</button>'
+                     f'</div>{boxes}</div>')
+    win_note = ("" if not all(np.isfinite(win)) else
+                f"; dynamic optimization covers {win[0]:.2f}&ndash;"
+                f"{win[1]:.2f} s only (gaps elsewhere)")
+    toggles = ("" if not fib else
+               f'<div class="mg-opts">show below the moment row: '
+               f'<label><input type="checkbox" class="mg-opt" data-row="d">'
+               f' (d) fibre length l<sub>M</sub>/l<sub>opt</sub></label> '
+               f'<label><input type="checkbox" class="mg-opt" data-row="e">'
+               f' (e) fibre velocity v<sub>M</sub>/(v<sub>max</sub> '
+               f'l<sub>opt</sub>), + = lengthening</label></div>')
+    fib_note = ("" if not fib else
+                " &nbsp;&middot;&nbsp; (d)/(e): one trace per checked muscle,"
+                " the same for SO and dyn-opt (rigid tendon, prescribed"
+                " kinematics); dotted line = l<sub>opt</sub> / zero velocity")
+    legend = (f'<span style="color:{ink["so"]}">&#9644;</span> SO muscles '
+              f'(checked) &nbsp; <span style="color:{ink["dyn"]}">&#9644;'
+              f'</span> dyn-opt muscles (checked) &nbsp; '
+              f'<span style="color:{ink["idO"]}">&#9644;</span> ID torque '
+              f'(OpenSim) &nbsp; <span style="color:{ink["idB"]}">&#9476;'
+              f'</span> ID torque (boneid) &nbsp;&middot;&nbsp; '
+              f'* = muscle grouped at another joint (biarticular)'
+              f'{win_note}{fib_note} &nbsp;&middot;&nbsp; '
+              f'<span id="{uid}-time"></span>')
+    style = f"""<style>
+#{uid} .mg-grid {{ display: grid; grid-template-columns: {gut:.3f}% repeat({len(col_titles)}, 1fr);
+  column-gap: {gap:.3f}%; row-gap: 8px; padding-right: {padr:.3f}%; min-width: 520px; }}
+#{uid} .mg-title {{ text-align: center; font-weight: 600; font-size: 0.78rem; color: {NEUTRAL}; }}
+#{uid} .mg-row {{ font-size: 0.68rem; font-weight: 600; color: {NEUTRAL}; align-self: center; line-height: 1.25; }}
+#{uid} canvas.mg-cv {{ width: 100%; height: 92px; display: block; }}
+#{uid} .mg-checks {{ font-size: 0.72rem; line-height: 1.35; color: {NEUTRAL}; }}
+#{uid} .mg-mu {{ display: block; cursor: pointer; white-space: nowrap; }}
+#{uid} .mg-mu:hover {{ color: #1c1b18; }}
+#{uid} .mg-opts {{ font-size: 0.74rem; color: {NEUTRAL}; margin: 2px 0 8px; }}
+#{uid} .mg-opts label {{ margin-right: 14px; cursor: pointer; white-space: nowrap; }}
+#{uid} .mg-ctl button {{ font: inherit; font-size: 0.7rem; padding: 0 6px; margin-bottom: 3px;
+  border: 1px solid {FAINT}; background: {SURFACE}; border-radius: 3px; cursor: pointer; }}
+</style>"""
+    viewer_iframe_js = json.dumps(viewer_iframe)
+    script = f"""<script>
+(function() {{
+  var D = {json.dumps(data)};
+  var IFRAME = {viewer_iframe_js};
+  var INK = {json.dumps(ink)};
+  var root = document.getElementById("{uid}");
+  var label = document.getElementById("{uid}-time");
+  function f32(s) {{
+    var b = atob(s), u = new Uint8Array(b.length);
+    for (var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i);
+    return new Float32Array(u.buffer);
+  }}
+  var N = D.N, M = D.M, J = D.cols.length;
+  var SO = f32(D.so), DY = f32(D.dyn), MA = f32(D.ma);
+  var IDO = f32(D.idO), IDB = f32(D.idB);
+  var LF = D.lf ? f32(D.lf) : null, VF = D.vf ? f32(D.vf) : null;
+  var llo = 0, lhi = 2, vlo = -1, vhi = 1;
+  var on = [];                         // on[j][m]: checked in column j
+  for (var j = 0; j < J; j++) {{
+    on.push({{}});
+    D.cols[j].forEach(function(m) {{ on[j][m] = true; }});
+  }}
+  var hot = -1;                        // muscle under the mouse
+  var sumSO = [], sumDY = [], fmax = 1, mlo = -1, mhi = 1;
+  function recompute() {{
+    fmax = 1e-9; mlo = 0; mhi = 0;
+    sumSO = []; sumDY = [];
+    for (var j = 0; j < J; j++) {{
+      var a = new Float32Array(N), b = new Float32Array(N);
+      var ms = D.cols[j].filter(function(m) {{ return on[j][m]; }});
+      for (var i = 0; i < N; i++) {{
+        var sa = 0, sb = 0;
+        for (var k = 0; k < ms.length; k++) {{
+          var m = ms[k], r = MA[(i * M + m) * 3 + j];
+          sa += SO[i * M + m] * r; sb += DY[i * M + m] * r;
+          var fa = SO[i * M + m], fb = DY[i * M + m];
+          if (fa > fmax) fmax = fa;
+          if (fb > fmax) fmax = fb;
+        }}
+        a[i] = ms.length ? sa : 0; b[i] = ms.length ? sb : 0;
+        var vs = [a[i], b[i], IDO[i * 3 + j], IDB[i * 3 + j]];
+        for (var q = 0; q < 4; q++) if (isFinite(vs[q])) {{
+          if (vs[q] < mlo) mlo = vs[q];
+          if (vs[q] > mhi) mhi = vs[q];
+        }}
+      }}
+      sumSO.push(a); sumDY.push(b);
+    }}
+    var p = 0.06 * (mhi - mlo || 1); mlo -= p; mhi += p;
+    fmax *= 1.06;
+    if (LF) {{                         // fibre rows: range over checked muscles
+      llo = 1; lhi = 1; vlo = 0; vhi = 0;
+      for (var j2 = 0; j2 < J; j2++) D.cols[j2].forEach(function(m) {{
+        if (!on[j2][m]) return;
+        for (var i = 0; i < N; i++) {{
+          var l = LF[i * M + m], v = VF[i * M + m];
+          if (isFinite(l)) {{ if (l < llo) llo = l; if (l > lhi) lhi = l; }}
+          if (isFinite(v)) {{ if (v < vlo) vlo = v; if (v > vhi) vhi = v; }}
+        }}
+      }});
+      var pl = 0.06 * (lhi - llo || 1), pv = 0.06 * (vhi - vlo || 1);
+      llo -= pl; lhi += pl; vlo -= pv; vhi += pv;
+    }}
+  }}
+  var canv = Array.prototype.slice.call(root.querySelectorAll("canvas.mg-cv"));
+  function trace(ctx, w, h, tau, lo, hi, get, color, lw, dash, alpha) {{
+    var i0 = Math.floor((tau - D.W / 2) * D.RATE) - 1;
+    var i1 = Math.ceil((tau + D.W / 2) * D.RATE) + 1;
+    var P = N - 1;                     // sample N-1 is sample 0, one loop on
+    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = lw;
+    ctx.globalAlpha = alpha; ctx.setLineDash(dash || []);
+    var pen = false;
+    for (var i = i0; i <= i1; i++) {{
+      var v = get(((i % P) + P) % P);
+      if (!isFinite(v)) {{ pen = false; continue; }}
+      var x = w / 2 + (i / D.RATE - tau) * w / D.W;
+      var y = h - (h * (v - lo) / (hi - lo));
+      if (pen) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+      pen = true;
+    }}
+    ctx.stroke(); ctx.globalAlpha = 1; ctx.setLineDash([]);
+  }}
+  function frame(cv, tau) {{
+    var dpr = window.devicePixelRatio || 1;
+    var w = cv.clientWidth, h = cv.clientHeight;
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {{
+      cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    }}
+    var ctx = cv.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = "{SURFACE}"; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = "{FAINT}"; ctx.lineWidth = 0.8;
+    ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+    var row = cv.dataset.row, j = +cv.dataset.col;
+    var lo = row === "c" ? mlo : -0.03 * fmax, hi = row === "c" ? mhi : fmax;
+    if (row === "d") {{ lo = llo; hi = lhi; }}
+    if (row === "e") {{ lo = vlo; hi = vhi; }}
+    var ref = row === "d" ? 1 : 0;     // l_opt / zero velocity / zero
+    if (lo < ref && hi > ref) {{
+      var zy = h - h * (ref - lo) / (hi - lo);
+      ctx.setLineDash(row === "d" || row === "e" ? [2, 3] : []);
+      ctx.strokeStyle = row === "d" || row === "e" ? "{NEUTRAL}" : "{FAINT}";
+      ctx.beginPath(); ctx.moveTo(0, zy); ctx.lineTo(w, zy); ctx.stroke();
+      ctx.setLineDash([]);
+    }}
+    if (row === "c") {{
+      trace(ctx, w, h, tau, lo, hi, function(i) {{ return IDB[i * 3 + j]; }},
+            INK.idB, 1.3, [4, 3], 1);
+      trace(ctx, w, h, tau, lo, hi, function(i) {{ return IDO[i * 3 + j]; }},
+            INK.idO, 1.6, null, 1);
+      trace(ctx, w, h, tau, lo, hi, function(i) {{ return sumSO[j][i]; }},
+            INK.so, 1.4, null, 1);
+      trace(ctx, w, h, tau, lo, hi, function(i) {{ return sumDY[j][i]; }},
+            INK.dyn, 1.4, null, 1);
+    }} else {{
+      var src = row === "a" ? SO : row === "b" ? DY : row === "d" ? LF : VF;
+      D.cols[j].forEach(function(m) {{
+        if (!on[j][m]) return;
+        var a = (hot < 0 || hot === m || !(hot in on[j])) ? 1 : 0.18;
+        trace(ctx, w, h, tau, lo, hi, function(i) {{ return src[i * M + m]; }},
+              D.colors[m], hot === m ? 2.4 : 1.2, null, a);
+      }});
+    }}
+    if (j === 0) {{                    // shared row scale, on the first cell
+      ctx.fillStyle = "{NEUTRAL}"; ctx.font = "9px sans-serif";
+      var fmt = function(v) {{ return Math.abs(v) < 10 ? v.toFixed(row === "d" || row === "e" ? 2 : 1) : v.toFixed(0); }};
+      ctx.fillText(fmt(hi), 3, 10); ctx.fillText(fmt(lo), 3, h - 3);
+    }}
+    ctx.strokeStyle = "{JOINT_COLORS[1]}"; ctx.lineWidth = 1.3;
+    ctx.beginPath(); ctx.moveTo(w / 2, 0); ctx.lineTo(w / 2, h); ctx.stroke();
+  }}
+  root.addEventListener("change", function(e) {{
+    var c = e.target;
+    if (c.classList && c.classList.contains("mg-opt")) {{
+      root.querySelectorAll('[data-opt="' + c.dataset.row + '"]')
+        .forEach(function(el) {{ el.style.display = c.checked ? "" : "none"; }});
+      return;
+    }}
+    if (!c.dataset || c.dataset.m === undefined) return;
+    on[+c.dataset.col][+c.dataset.m] = c.checked; recompute();
+  }});
+  root.addEventListener("click", function(e) {{
+    var b = e.target;
+    if (b.tagName !== "BUTTON") return;
+    var j = +b.dataset.col, v = b.dataset.all === "1";
+    root.querySelectorAll('input[data-col="' + j + '"]').forEach(function(c) {{
+      c.checked = v; on[j][+c.dataset.m] = v;
+    }});
+    recompute();
+  }});
+  root.querySelectorAll(".mg-mu").forEach(function(l) {{
+    l.addEventListener("mouseenter", function() {{ hot = +l.dataset.m; }});
+    l.addEventListener("mouseleave", function() {{ hot = -1; }});
+  }});
+  function viewer_time() {{
+    if (!IFRAME) return null;
+    try {{
+      var f = document.getElementById(IFRAME);
+      var a = f && f.contentWindow && f.contentWindow.viewer
+              && f.contentWindow.viewer.animator;
+      if (a && a.duration > 0) {{
+        var tt = (a.actions && a.actions.length) ? a.actions[0].time : a.time;
+        if (isFinite(tt))
+          return ((tt % a.duration) + a.duration) % a.duration;
+      }}
+    }} catch (e) {{}}
+    return null;
+  }}
+  recompute();
+  var start = null;
+  function tick(now) {{
+    if (start === null) start = now;
+    var tau = viewer_time();
+    if (tau === null) tau = ((now - start) / 1000.0) % D.PERIOD;
+    for (var k = 0; k < canv.length; k++)
+      if (canv[k].style.display !== "none") frame(canv[k], tau);
+    label.textContent = "now " + (D.T0 + tau).toFixed(2) + " s";
+    window.requestAnimationFrame(tick);
+  }}
+  window.requestAnimationFrame(tick);
+}})();
+</script>"""
+    return (f'{style}<div class="strips" id="{uid}">{toggles}'
+            f'<div class="mg-grid">{"".join(cells)}</div>'
+            f'<div class="strip-legend">{legend}</div></div>{script}')
+
+
+def p1_strip_grid(trial, chain, whole, params, viewer_iframe: str,
+                  uid: str = "p1grid") -> tuple[str, slice, float]:
+    """(html, clip_slice, period_s): the 3x3 sagittal scope for P1's right
+    leg on the exact window and period `p1_viewer_html`'s clip keys.
+
+    Same grid as the Asics report (`strip_charts_grid`), with the GRF of
+    the right belt on top (left belt's vertical dashed).  There's no static
+    trial, so angles are not zeroed (`c3d_sagittal_series(cal=None, ...)`).
+    """
+    skel_r, kin_r, ground_r, _, _, ground_l = chain
+    n_key, fps, period = viewer_period(kin_r, VIEWER_DECIMATE)
+    ssl = slice(0, (n_key - 1) * VIEWER_DECIMATE + 1)
+    sag = c3d_sagittal_series(None, skel_r, kin_r, whole.right, params)
+    grid_rows = [
+        (label, [(JOINT_COLORS[j], sag[key][ssl, j]) for j in range(3)])
+        for label, key in (("angle (deg)", "angle"),
+                           ("velocity\n(deg/s)", "vel"),
+                           ("torque\n(N m)", "torque"))]
+    html = strip_charts_grid(
+        kin_r.t[ssl],
+        ("GRF (N)",
+         [("R vertical", JOINT_COLORS[0], None, ground_r.force[ssl, 2]),
+          ("R anterior-posterior", JOINT_COLORS[2], None,
+           ground_r.force[ssl, 1]),
+          ("R medio-lateral", JOINT_COLORS[3], "4 3", ground_r.force[ssl, 0]),
+          ("L vertical", FAINT, "4 3", ground_l.force[ssl, 2])]),
+        grid_rows, ("ankle", "knee", "hip"),
+        period_s=period, fps=fps, n_frames=n_key, uid=uid,
+        viewer_iframe=viewer_iframe)
+    return html, ssl, period
+
+
+def muscle_viewer_html(trial, muscles_npz_path, params=None,
+                       viewer_html: str | None = None, run=None) -> str:
+    """Full page: P1 animation, the 3x3 sagittal scope, and the muscle grid,
+    all on the meshcat clip's clock.
+
+    `run` is `whole_body_run(trial, params)`'s tuple (recomputed if None);
+    `viewer_html` is `p1_viewer_html`'s output (built if None — that needs
+    meshcat).  The muscle npz is resampled onto the clip's samples;
+    `muscles_npz_path` may also be an already-loaded `load_muscles` dict.
+    """
+    params = params or p1_params()
+    chain, skel_u, kin_u, whole, _ = run or whole_body_run(trial, params)
+    if viewer_html is None:
+        viewer_html = p1_viewer_html(trial, chain, skel_u, kin_u, params)
+    mus = (muscles_npz_path if isinstance(muscles_npz_path, dict)
+           else load_muscles(muscles_npz_path))
+    sign_note = ("That row uses our sign convention, the same as the torque "
+                 "row above." if mus.get("meta", {}).get("moment_convention") == "boneid"
+                 else "That row is in OpenSim's sign convention, so its ankle "
+                 "and hip can be flipped relative to the torque row above.")
+    strips, ssl, period = p1_strip_grid(trial, chain, whole, params,
+                                        "p1m-viewer")
+    t = chain[1].t[ssl]
+    grid = muscle_grid_html(t, muscles_on_clock(mus, t), period,
+                            uid="p1mus", viewer_iframe="p1m-viewer")
+    model = mus["meta"].get("model", "the OpenSim model")
+    fib_text = ("" if "fiber_length_norm" not in mus else """
+<p>The two tick boxes above the grid add rows (d) and (e): each muscle's
+fibre length over its optimal length (1 = the top of the force-length
+curve, the dotted line) and its fibre velocity over its maximum (v<sub>max</sub>
+= 10 optimal lengths per second; positive = lengthening, &minus;1 would be
+flat-out shortening with no force left).  They follow the same muscle
+checkboxes and the same clock.  There's only one trace per muscle because,
+with a rigid tendon and the kinematics prescribed from IK, fibre length and
+velocity are pure geometry, so static and dynamic optimization see the same
+ones.</p>
+""")
+    esc = viewer_html.replace("&", "&amp;").replace('"', "&quot;")
+    title = ("Subject P1 walking, muscle forces: "
+             "which muscles carry each joint torque")
+    body = f"""
+<p class="eyebrow">boneid &middot; P1 trial 13 &middot; OpenSim muscles</p>
+<h1>{title}</h1>
+<p class="subtitle">{len(trial.t) / trial.rate:.1f} s of treadmill walking
+at {trial.rate:.0f} Hz, right leg, muscle forces from {model}.</p>
+
+<p>Everything on this page runs off one clock: the animation's.  Hit
+<b>Open Controls &rarr; Animations</b> in the viewer to pause or scrub, and
+both grids underneath come along (the orange centre line is "now").</p>
+<iframe id="p1m-viewer" class="viewer" srcdoc="{esc}"></iframe>
+
+<h2>Joint angles, velocities and torques: the inverse-dynamics side</h2>
+<p>Ground reaction on top, then sagittal angle, angular velocity and torque
+for the right ankle, knee and hip (each row on one shared scale).  There's
+no static trial for P1, so angles aren't zeroed at standing: knee and hip
+read about 0 when the segments line up, and the ankle is the tilt of the
+heel-to-5th-met line off the shank axis (so it sits near 90&deg;).  Torque
+here is our convention, about the proximal segment's left-pointing axis.</p>
+{strips}
+
+<h2>Muscle forces: how well the muscles add up to the joint torque</h2>
+{grid}
+<p>Columns are joints, and a muscle shows up in every column it crosses
+(biarticular ones are starred where they aren't "home").  Row (a) is static
+optimization, row (b) dynamic optimization, both in newtons on one scale.
+Row (c) is the part I care about: the moment the <em>checked</em> muscles
+make about that joint (force &times; moment arm, summed), for both solutions,
+over the inverse-dynamics torque.  {sign_note}  Untick
+muscles to see who actually carries the torque (hover a name to pick its
+trace out).  If the coloured lines leave the black one, the rest is going
+into reserve actuators or residuals, I think.</p>
+{fib_text}"""
+    return html_page(title, "muscles", body)
+
+
 #: Repo-local cache of the published running reference curves (see
 #: `build_rbds_reference` for exactly what it holds and where it came from).
 RBDS_NPZ = "rbds_running_reference.npz"
@@ -3873,12 +4206,12 @@ def c3d_report_html(trial, static, cal, skeleton, kin, ground, quality,
     ax.axhline(params.contact_threshold_n, color=FAINT, lw=1.0, ls="--")
     style_axes(ax, "time (s)", "vertical force (N)")
     ax.legend(frameon=False, fontsize=9)
-    add(fig, f"Contact attribution: both feet strike the same belt, so each "
-             f"contact bout is assigned by COP proximity to the right-foot "
-             f"markers — {n_mine} bouts kept (right), {n_other} dropped "
-             f"(left foot).  Blue: the ground wrench the right-leg chain "
-             f"sees; the left foot's steps are correctly zero for this "
-             f"chain.  Window shown = the animation window.")
+    add(fig, f"Which foot was it? Both feet land on the same belt, so I "
+             f"assign each contact by how close the COP is to the right-foot "
+             f"markers: {n_mine} contacts kept (right), {n_other} dropped "
+             f"(left foot).  Blue is the ground wrench the right-leg chain "
+             f"actually sees, so the left foot's steps are zero here, which "
+             f"is what we want.  Same time window as the animation.")
 
     # --- Fig: joint torque time series over the window (sagittal, lab x)
     joints = ["ankle", "knee", "hip"]
@@ -3891,10 +4224,10 @@ def c3d_report_html(trial, static, cal, skeleton, kin, ground, quality,
             ax.axvspan(t[s], t[e], color=JOINT_COLORS[0], alpha=0.06, lw=0)
     style_axes(ax, "time (s)", "joint torque, lab x (N m)")
     ax.legend(frameon=False, fontsize=9, ncol=3)
-    add(fig, "Net joint torques (sagittal component, lab x) over the same "
-             "window; shaded bands are the right-foot stances.  Swing-phase "
-             "torques are the leg's own inertia — the ground wrench is zero "
-             "there by construction.")
+    add(fig, "Net joint torques (sagittal, lab x) over the same window. "
+             "The shaded bands are right-foot stances.  The torques you see "
+             "in swing are just the leg's own inertia, since the ground "
+             "wrench is zero there by construction.")
 
     # --- Figs 3/4: stance-normalized torques and powers, with an optional
     # published-reference overlay (RBDS running dataset; button-toggled)
@@ -3947,11 +4280,12 @@ def c3d_report_html(trial, static, cal, skeleton, kin, ground, quality,
         return fig
 
     torque_caption = (
-        f"The standard output: sagittal joint torque over STANCE TIME "
-        f"(0 = foot contact; each of the {len(events)} right steps is "
-        f"drawn over the mean stance of {stance_s:.3f} s, thin, with the "
-        f"mean thick — reference curves run to their own mean stance "
-        f"durations, so timing differences stay visible).  Peaks ~"
+        f"The standard output: sagittal joint torque over stance, in "
+        f"seconds, not % (0 = foot contact).  Each of the {len(events)} "
+        f"right steps is a thin line drawn over the mean stance of "
+        f"{stance_s:.3f} s, and the thick line is the mean.  Reference "
+        f"curves run over their own mean stance durations, so you can "
+        f"still see timing differences.  Peaks are about "
         + ", ".join(f"{np.abs(prof[nm].mean(axis=0)).max() / m_kg:.1f}"
                     for nm in joints)
         + " N m/kg (ankle, knee, hip).")
@@ -3962,13 +4296,13 @@ def c3d_report_html(trial, static, cal, skeleton, kin, ground, quality,
         figs.append(figure_toggle_block(
             fig_svg(torque_fig(False)), fig_svg(torque_fig(True)), n[0],
             torque_caption + (
-                f"  The reference toggle overlays the mean stance-normalized "
-                f"sagittal moments of the RBDS public running dataset "
-                f"(Fukuchi et al. 2017; n={int(ref['n_25'])} runners at "
-                f"2.5 m/s dashed, n={int(ref['n_35'])} at 3.5 m/s dotted — "
-                f"bracketing this trial's measured 2.8 m/s), scaled by the "
-                f"subject's {m_kg:.1f} kg; their clinical sign convention is "
-                f"aligned to our lab-x axis per joint."),
+                f"  The toggle puts the RBDS public running dataset on top "
+                f"(Fukuchi et al. 2017): mean sagittal moments for "
+                f"n={int(ref['n_25'])} runners at 2.5 m/s (dashed) and "
+                f"n={int(ref['n_35'])} at 3.5 m/s (dotted), which bracket "
+                f"this trial's measured 2.8 m/s.  They're scaled by this "
+                f"subject's {m_kg:.1f} kg, and I flipped their clinical sign "
+                f"convention per joint to match our lab-x axis."),
             "show reference (RBDS)"))
 
     pw_prof = {name: stance_profiles(audit.joint_power[:, j], events)
@@ -3996,9 +4330,9 @@ def c3d_report_html(trial, static, cal, skeleton, kin, ground, quality,
         return fig
 
     power_caption = (
-        "Joint powers (full wrench power, τ·ω_rel plus the joint-force "
-        "term) over stance — absorption then generation at the ankle is "
-        "the running signature.")
+        "Joint powers over stance (the full wrench power: τ·ω_rel plus "
+        "the joint-force term).  The ankle absorbing and then generating "
+        "is the classic running signature.")
     if ref is None:
         add(power_fig(False), power_caption)
     else:
@@ -4006,9 +4340,9 @@ def c3d_report_html(trial, static, cal, skeleton, kin, ground, quality,
         figs.append(figure_toggle_block(
             fig_svg(power_fig(False)), fig_svg(power_fig(True)), n[0],
             power_caption + (
-                "  The reference toggle overlays the RBDS mean sagittal "
-                "joint powers (2.5 m/s dashed, 3.5 m/s dotted), scaled to "
-                "this subject's mass; powers need no sign alignment."),
+                "  The toggle puts the RBDS mean sagittal joint powers on "
+                "top (2.5 m/s dashed, 3.5 m/s dotted), scaled to this "
+                "subject's mass.  Powers don't need any sign flipping."),
             "show reference (RBDS)"))
 
     # --- Fig: distal-to-foot (UD) power and what it does to "ankle power"
@@ -4051,34 +4385,35 @@ def c3d_report_html(trial, static, cal, skeleton, kin, ground, quality,
         return fig
 
     ud_ref_note = (
-        "  The reference toggle overlays the RBDS mean ankle power on the "
-        "left panel; no public numeric reference exists for the UD term, "
-        "but running studies consistently report the distal foot as a net "
-        "absorber (Kelly et al. 2015; Riddick &amp; Kuo 2016; Stearne et "
-        "al. 2016), consistent with the middle panel."
+        "  The toggle puts the RBDS mean ankle power on the left panel.  "
+        "I couldn't find public numbers for the UD term, but running "
+        "studies keep reporting the distal foot as a net absorber (Kelly "
+        "et al. 2015; Riddick &amp; Kuo 2016; Stearne et al. 2016), which "
+        "matches the middle panel."
         if ref is not None else "")
-    ud_caption = (f"Foot work à la Zelik &amp; Honert (2018).  Middle: the "
-             f"unified-deformable distal-to-foot power (Takahashi et al. "
-             f"2012) — the GRF acting through the foot's COP-coincident "
-             f"rigid-body point, i.e. everything the shoe, heel pad, arch "
-             f"and foot joints do that a rigid foot cannot; evaluated in the "
-             f"belt frame (measured belt speed "
-             f"{np.linalg.norm(belt):.2f} m/s), the overground-equivalent "
-             f"quantity.  Left: conventional ankle joint power.  Right: "
-             f"their sum, the total power of everything distal to the shank "
-             f"— the honest \"ankle\" number.  Per stance the ankle joint "
-             f"alone does +{w_ank[:, 0].mean():.1f} / "
-             f"{w_ank[:, 1].mean():.1f} J; the distal foot adds "
-             f"+{w_ud[:, 0].mean():.1f} / {w_ud[:, 1].mean():.1f} J, mostly "
-             f"absorption, so the distal-to-shank total is "
-             f"+{w_sh[:, 0].mean():.1f} / {w_sh[:, 1].mean():.1f} J — "
-             f"treating the foot as rigid overstates net ankle work by "
+    ud_caption = (f"Foot work, the way Zelik &amp; Honert (2018) do it.  "
+             f"Middle: the unified-deformable distal-to-foot power "
+             f"(Takahashi et al. 2012), which is the GRF acting through the "
+             f"foot's COP-coincident rigid-body point.  In other words, "
+             f"everything the shoe, heel pad, arch and foot joints do that a "
+             f"rigid foot can't.  I evaluate it in the belt frame (measured "
+             f"belt speed {np.linalg.norm(belt):.2f} m/s), so it's the "
+             f"overground-equivalent number.  Left: the usual ankle joint "
+             f"power.  Right: their sum, the total power of everything below "
+             f"the shank, which I think is the honest \"ankle\" number.  "
+             f"Per stance, the ankle joint alone does "
+             f"+{w_ank[:, 0].mean():.1f} / {w_ank[:, 1].mean():.1f} J; the "
+             f"distal foot adds +{w_ud[:, 0].mean():.1f} / "
+             f"{w_ud[:, 1].mean():.1f} J, mostly absorption, so the total "
+             f"below the shank is +{w_sh[:, 0].mean():.1f} / "
+             f"{w_sh[:, 1].mean():.1f} J.  Treating the foot as rigid "
+             f"overstates net ankle work by "
              f"{(w_ank.sum(axis=1).mean() - w_sh.sum(axis=1).mean()):+.1f} J "
              f"per step ("
              f"{100 * (1 - w_sh.sum(axis=1).mean() / max(w_ank.sum(axis=1).mean(), 1e-9)):.0f}%"
-             f" of the net).  This markerset would even support a real MTP "
-             f"joint (forefoot cluster MTP1/MTP5/ToeboxAnt), which the UD "
-             f"measure lumps into the one distal term.")
+             f" of the net).  This markerset could even support a real MTP "
+             f"joint (forefoot cluster MTP1/MTP5/ToeboxAnt); the UD measure "
+             f"just lumps it into the one distal term.")
     if ref is None:
         add(ud_fig(False), ud_caption)
     else:
@@ -4098,18 +4433,18 @@ def c3d_report_html(trial, static, cal, skeleton, kin, ground, quality,
                    + _b64.b64encode(fh.read()).decode())
         n[0] += 1
         fs_caption = (
-            "Published reference for visual comparison: group-mean (d) "
-            "ankle, (e) knee and (f) hip joint powers for treadmill RUNNING "
-            "— the running column of Fig. 2 of Farris &amp; Sawicki (2012), "
+            "A published reference to eyeball against: group-mean (d) "
+            "ankle, (e) knee and (f) hip joint powers for treadmill running, "
+            "from the running column of Fig. 2 of Farris &amp; Sawicki (2012), "
             "\"The mechanics and energetics of human walking and running: a "
             "joint level perspective\", J R Soc Interface 9:110-118 "
             "(reproduced for scholarly comparison; &copy; the authors / "
             "Royal Society).  Dashed 2.0, dotted 2.25, grey 2.75, black "
-            "3.25 m/s — the grey curve is closest to this trial's 2.8 m/s.  "
-            "NOTE the x-axis is % of STRIDE, not % of stance: stance ends "
-            "near 35-40% of stride, so compress our Figures 4-5 into the "
-            "left ~third of each panel when comparing.  In W/kg this "
-            "subject's mean ankle power peaks at "
+            "3.25 m/s; the grey curve is closest to this trial's 2.8 m/s.  "
+            "Careful: their x-axis is % of stride, not % of stance.  Stance "
+            "ends around 35-40% of stride, so squish our Figures 4-5 into "
+            "the left third or so of each panel when you compare.  In W/kg, "
+            "this subject's mean ankle power peaks at "
             f"{np.max(stance_profiles(p_ankle, events).mean(axis=0)) / m_kg:.1f}"
             " W/kg vs their ~7 W/kg at 2.75 m/s.")
         figs.append(
@@ -4127,11 +4462,11 @@ def c3d_report_html(trial, static, cal, skeleton, kin, ground, quality,
                 label=seg)
     style_axes(ax, "time (s)", "cluster fit residual (mm)")
     ax.legend(frameon=False, fontsize=9, ncol=4)
-    add(fig, "Data quality: RMS residual of the SVD rigid-body fit of each "
-             "tracking cluster against its static shape, per frame — soft "
-             "tissue, marker wobble and any leftover labelling trouble show "
-             "up here.  The pelvis cluster includes the skin-mounted GT "
-             "markers, hence its higher floor.")
+    add(fig, "Data quality: for every frame, the RMS residual of the SVD "
+             "rigid-body fit of each marker cluster against its static "
+             "shape.  Soft tissue, marker wobble and any leftover labelling "
+             "trouble show up here.  The pelvis cluster includes the "
+             "skin-mounted GT markers, which is why its floor is higher.")
 
     # --- Fig: energy audit + residual
     edge = slice(30, -30)
@@ -4153,17 +4488,18 @@ def c3d_report_html(trial, static, cal, skeleton, kin, ground, quality,
                        label="− unmodelled weight")
     style_axes(axes[0, 1], "time (s)", "residual force at L5S1 (N)")
     axes[0, 1].legend(frameon=False, fontsize=8.5, ncol=2)
-    add(fig, f"Left: the energy audit — d(KE+PE)/dt of the modelled chain vs "
-             f"the summed wrench powers; max imbalance {imb:.0f} W = "
+    add(fig, f"Left: the energy audit, d(KE+PE)/dt of the modelled chain vs "
+             f"the summed wrench powers.  Max imbalance is {imb:.0f} W, "
              f"{100 * imb / pk:.1f}% of peak.  Right: the residual wrench at "
-             f"the top of the chain.  Unlike the whole-body pipeline this "
-             f"model carries ONE leg and a pelvis, so the residual is not "
-             f"near zero — it stands in for the torso, arms and left leg "
+             f"the top of the chain.  Unlike the whole-body pipeline, this "
+             f"model only has one leg and a pelvis, so the residual is NOT "
+             f"near zero, and it shouldn't be: it's standing in for the "
+             f"torso, arms and left leg "
              f"({cal.body_mass - float(skeleton.mass.sum()):.1f} kg, weight "
              f"{unmod_n:.0f} N, dashed).  Its mean vertical of "
-             f"{res_mean[2]:.0f} N should sit near that line only when "
-             f"averaged over whole strides of BOTH feet; here it reflects "
-             f"right-side loading alone.")
+             f"{res_mean[2]:.0f} N would only sit near that line if we "
+             f"averaged over whole strides of both feet; here it only sees "
+             f"the right side's loading.")
 
     max_res = 1000.0 * float(np.median(resid.max(axis=0)))
     stats = "".join([
@@ -4203,25 +4539,26 @@ def c3d_report_html(trial, static, cal, skeleton, kin, ground, quality,
 
         esc = viewer_html.replace("&", "&amp;").replace('"', "&quot;")
         viewer = (
-            '<h2>The trial, moving — scrub it</h2>'
-            '<p>The instrumented right leg and the pelvis over the first '
-            'clean steps: segment volumes from the de Leva masses, the foot '
-            'as a rounded blob bounded by static heel, forefoot, toebox and ankle '
-            'markers, the pelvis band spanning both hip '
-            'centres, every named marker (red), and the attributed '
-            'ground-reaction force arrow.  Drag to orbit, scroll to zoom; '
-            'the clip loops.  <b>Open Controls &rarr; Animations</b> gives '
-            'play/pause and a time scrubber.</p>'
-            '<p>Below it, the attributed ground reaction (top) and the '
-            'classic 3&times;3 — sagittal angle, angular velocity and torque '
-            'for ankle, knee and hip, each row on one shared scale — as a '
-            '<b>scrolling scope</b>: the data streams right-to-left with the '
-            'orange centre line pinned at the animation\'s current instant. '
-            'The scope <b>listens to the viewer\'s own clock</b>, so pausing '
-            'freezes it and dragging the scrubber drags every panel with it '
-            f'(period {period:.2f} s, {n_key} keyframes at {fps:.0f} fps; a '
-            'wall-clock loop stands in until the viewer loads).  Angles are '
-            'zeroed at the static pose — 0&deg; = standing.</p>'
+            '<h2>The trial, moving (go ahead and scrub it)</h2>'
+            '<p>This is the instrumented right leg and the pelvis over the '
+            'first clean steps.  Segment volumes come from the de Leva '
+            'masses, the foot is a rounded blob bounded by the static heel, '
+            'forefoot, toebox and ankle markers, the pelvis band spans both '
+            'hip centres, every named marker is red, and the arrow is the '
+            'ground-reaction force we attributed to this foot.  Drag to '
+            'orbit, scroll to zoom; the clip loops.  <b>Open Controls '
+            '&rarr; Animations</b> for play/pause and a time scrubber.</p>'
+            '<p>Underneath is the ground reaction (top) and the classic '
+            '3&times;3: sagittal angle, angular velocity and torque for '
+            'ankle, knee and hip, each row on one shared scale.  It works '
+            'like a <b>scrolling scope</b>: the data streams right to left, '
+            'and the orange centre line is "now" in the animation.  The '
+            'scope <b>follows the viewer\'s own clock</b>, so if you pause, '
+            'it freezes, and if you drag the scrubber, every panel comes '
+            f'with it (period {period:.2f} s, {n_key} keyframes at '
+            f'{fps:.0f} fps; until the viewer loads, a wall-clock loop fills '
+            'in).  Angles are zeroed at the static pose, so 0&deg; means '
+            'standing.</p>'
             f'<iframe id="c3d-viewer" class="viewer" srcdoc="{esc}"></iframe>'
             f'{strips}')
 
@@ -4235,27 +4572,8 @@ a standing static trial.</p>
 
 <div class="stat-row">{stats}</div>
 
-<h2>What the static trial is for</h2>
-<p>The static recording carries anatomical markers that are removed before
-the dynamic trials (the medial ankle and knee markers).  Calibration measures
-the joint centres and segment frames in the static pose, records each
-tracking cluster's shape, and takes body mass from the static vertical
-force; the dynamic trials then carry those joint centres as <b>virtual
-points</b> on the cluster poses (Söderkvist &amp; Wedin SVD fit, residual
-reported below).  Conserved legacy conventions: hip centre =
-0.70·RGT + 0.30·LGT; knee and ankle centres from the medial/lateral marker
-midpoints.</p>
-
-<h2>The pipeline</h2>
-<ol>
-<li><b>Static trial</b> — <code>load_c3d</code> + <code>calibrate_static</code>: joint centres, segment frames, cluster shapes, body mass ({cal.body_mass:.1f} kg), segment lengths.</li>
-<li><b>Dynamic trial</b> — <code>load_c3d</code>: markers (de-spiked), plate forces/COP/free moment in the lab frame.</li>
-<li><b>Chain</b> — <code>io_c3d.build_chain(trial, cal)</code>: virtual joint centres and frames carried by the cluster fits; de Leva skeleton from the STATIC lengths.</li>
-<li><b>Ground wrench</b> — per-bout foot attribution (both feet share one belt), wrench about the lab origin, no COP division downstream.</li>
-<li><b>Inverse dynamics</b> — <code>core.inverse_dynamics</code>, bottom-up foot→shank→thigh→pelvis.</li>
-<li><b>Energy audit</b> — every run; see the figure.</li>
-<li><b>Report</b> — this page.</li>
-</ol>
+<p>The pipeline steps and the static-calibration story are in the notebook
+above this report, so I don't repeat them here.  This part is the figures.</p>
 
 {viewer}
 
@@ -4263,10 +4581,6 @@ midpoints.</p>
 
 <h2>Segment parameters (de Leva 1996, static lengths)</h2>
 {steps_html}
-
-<h2>Reproduce</h2>
-<p><code>uv run python examples/quickstart_c3d.py [data_dir] [condition] [trial]</code>
-— edit the config block at the top of the script for your study.</p>
 """
     body += joint_dof_comparison_html(audit, skeleton.joint_names)
     return html_page(title, "c3d", body)
@@ -4479,7 +4793,8 @@ font-weight:600">blue</span> = live):</p>
     SHARPENS the minimum rather than blurring it (&plusmn;5 ms raises the
     sum-squared 9% vs 4% for mean-absolute; both agree on the location to
     1 ms) &mdash; but the bottom is still shallow, so single-digit-ms lags
-    remain uninferable. The minimum near &minus;7 ms rather than 0 matches
+    remain uninferable. If the minimum sits a few ms below 0 (the curve is
+    sampled every 2&nbsp;ms), that is at least consistent with
     the ~8 ms internal processing delay Lemaire &amp; Kuo measured on the
     same lab&rsquo;s Bertec treadmill that recorded this very
     dataset.</figcaption>

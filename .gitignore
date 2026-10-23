@@ -16,3 +16,9 @@ reports/
 
 # macOS Finder droppings
 .DS_Store
+data/simulated/
+
+# publisher figures used in muscle_force_validation (repo is public; kept local)
+data/literature_figures/
+# per-step intermediates of the varus sweep (regenerate with scripts/opensim/knee_contact.py)
+data/opensim/varus/

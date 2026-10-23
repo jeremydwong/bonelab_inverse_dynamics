@@ -293,3 +293,152 @@ def test_body_mass_estimate_and_override_on_real_trial():
     np.testing.assert_allclose(skel_b.mass.sum() / skel_a.mass.sum(),
                                70.0 / est, rtol=1e-12)
     np.testing.assert_allclose(skel_b.length, skel_a.length)  # lengths kept
+
+
+# ---------------------------------------------------------------------------
+# Tutorial simulators (bricks, synthetic markers)
+# ---------------------------------------------------------------------------
+
+def test_brick_hand_wrench_is_the_residual():
+    """One brick, zero ground wrench: the pipeline's residual is the hand
+    wrench.  Corner markers reproduce the pose exactly; the residual matches
+    the analytic wrench to finite-difference accuracy."""
+    from boneid.core import (AnalysisParams, GroundWrench, energy_audit,
+                             fit_rigid_transform, inverse_dynamics)
+    from boneid.simulate import (BRICK_SIZE, segment_markers, simulate_brick_2d,
+                                 tetrahedral_corners)
+
+    skeleton, kin, markers, truth = simulate_brick_2d()
+    corners = tetrahedral_corners(BRICK_SIZE)
+    moving = np.stack([markers[f"c{k + 1}"] for k in range(4)], axis=1)
+    r, d, res = fit_rigid_transform(corners, moving)
+    np.testing.assert_allclose(r, kin.r_world[:, 0], atol=1e-12)
+    np.testing.assert_allclose(d, kin.prox_pos[:, 0], atol=1e-12)
+    assert res.max() < 1e-12
+
+    raw = AnalysisParams(lowpass_hz=0.0, force_lowpass_hz=0.0)
+    zero = GroundWrench(t=kin.t, rate=kin.rate, force=np.zeros((len(kin.t), 3)),
+                        moment=np.zeros((len(kin.t), 3)))
+    idres = inverse_dynamics(skeleton, kin, zero, raw)
+    inner = slice(5, -5)
+    f_scale = np.abs(truth["force"]).max()
+    m_scale = np.abs(truth["torque"]).max()
+    np.testing.assert_allclose(idres.residual_force[inner], truth["force"][inner],
+                               atol=1e-4 * f_scale)
+    np.testing.assert_allclose(idres.residual_torque[inner], truth["torque"][inner],
+                               atol=1e-4 * m_scale)
+    audit = energy_audit(skeleton, kin, zero, idres, raw)
+    assert np.abs(audit.imbalance[inner]).max() < 1e-5 * np.abs(audit.de_dt).max()
+    # the markers really ride the segment
+    again = segment_markers(kin, {"c1": (0, corners[0])})["c1"]
+    np.testing.assert_allclose(again, markers["c1"])
+
+
+def test_two_bricks_top_down_equals_bottom_up():
+    """Bottom-up through the exact ground wrench and top-down from the free
+    upper brick give the same hinge wrench; the residual vanishes; a wrong
+    lower-brick mass leaks into the residual (the alarm) and nowhere else."""
+    from dataclasses import replace
+    from boneid.core import AnalysisParams, GroundWrench, inverse_dynamics
+    from boneid.simulate import simulate_two_bricks_2d
+
+    skeleton, kin, ground, markers, hinge = simulate_two_bricks_2d()
+    raw = AnalysisParams(lowpass_hz=0.0, force_lowpass_hz=0.0)
+    up = inverse_dynamics(skeleton, kin, ground, raw)
+    inner = slice(5, -5)
+    bw = skeleton.mass.sum() * 9.81
+    assert np.abs(up.residual_force[inner]).max() < 1e-6 * bw
+    assert np.abs(up.residual_torque[inner]).max() < 1e-5 * np.abs(up.joint_torque).max()
+
+    # top-down: the upper brick alone, turned upside down so that the hinge
+    # is its PROXIMAL end (where the pipeline reports the residual)
+    from boneid.core import SegmentKinematics, Skeleton
+    L_b = skeleton.length[1]
+    top_skel = Skeleton(segment_names=["upper"], joint_names=[],
+                        mass=skeleton.mass[1:], com_local=np.array([[0, 0, 0.5 * L_b]]),
+                        inertia_local=skeleton.inertia_local[1:], length=skeleton.length[1:])
+    top_kin = SegmentKinematics(t=kin.t, rate=kin.rate, r_world=kin.r_world[:, 1:],
+                                prox_pos=kin.dist_pos[:, 1:], dist_pos=kin.prox_pos[:, 1:])
+    zero = GroundWrench(t=kin.t, rate=kin.rate, force=np.zeros((len(kin.t), 3)),
+                        moment=np.zeros((len(kin.t), 3)))
+    down = inverse_dynamics(top_skel, top_kin, zero, raw)
+    # top-down: the wrench the hinge applies ON the upper brick is minus the
+    # wrench on the lower brick reported by the bottom-up pass
+    np.testing.assert_allclose(-down.residual_force[inner], up.joint_force[inner, 0],
+                               atol=1e-5 * bw)
+    np.testing.assert_allclose(-down.residual_torque[inner], up.joint_torque[inner, 0],
+                               atol=1e-4 * np.abs(up.joint_torque).max())
+
+    # the hinge as a virtual point agrees from both clusters
+    np.testing.assert_allclose(
+        kin.prox_pos[:, 0],
+        kin.prox_pos[:, 1] + np.einsum("tij,j->ti", kin.r_world[:, 1], hinge["upper"]),
+        atol=1e-12)
+
+    heavy = replace(skeleton, mass=skeleton.mass * np.array([1.2, 1.0]))
+    wrong = inverse_dynamics(heavy, kin, ground, raw)
+    assert np.abs(wrong.residual_force[inner, 2]).max() > 0.5 * 0.2 * skeleton.mass[0] * 9.81
+
+
+def test_s2s_markers_recover_frames_and_sway_exposes_legacy_physics():
+    """Anatomical marker pairs rebuild the simulator's frames exactly; with
+    torso sway the motion is 3-D and the legacy physics leaks a residual
+    torque where the correct physics stays at round-off."""
+    from boneid.core import AnalysisParams, LegacyPhysics, inverse_dynamics
+    from boneid.io_v3d import orthonormal_frame
+    from boneid.simulate import (s2s_marker_layout, s2s_skeleton, segment_markers,
+                                 simulate_squat_to_stand)
+
+    skeleton, kin, ground, truth = simulate_squat_to_stand(torso_sway=0.25)
+    m = segment_markers(kin, s2s_marker_layout())
+    hip = 0.5 * (m["hip_lat"] + m["hip_med"])
+    top = 0.5 * (m["shoulder_l"] + m["shoulder_r"])
+    r_torso = orthonormal_frame(top - hip, m["shoulder_l"] - m["shoulder_r"])
+    np.testing.assert_allclose(r_torso, kin.r_world[:, 3], atol=1e-12)
+    np.testing.assert_allclose(hip, kin.prox_pos[:, 2], atol=1e-12)
+    lengths = np.linalg.norm(kin.dist_pos[-1] - kin.prox_pos[-1], axis=1)
+    rebuilt = s2s_skeleton(80.0, lengths)
+    np.testing.assert_allclose(rebuilt.inertia_local, skeleton.inertia_local)
+    np.testing.assert_allclose(rebuilt.com_local, skeleton.com_local)
+
+    raw = AnalysisParams(lowpass_hz=0.0, force_lowpass_hz=0.0)
+    inner = slice(5, -5)
+    good = inverse_dynamics(skeleton, kin, ground, raw)
+    tq = np.abs(good.joint_torque).max()
+    assert np.abs(good.residual_torque[inner]).max() < 1e-5 * tq
+    for phys in (LegacyPhysics(one_sided_inertia=True),
+                 LegacyPhysics(gyroscopic=False)):
+        bad = inverse_dynamics(skeleton, kin, ground, raw, physics=phys)
+        assert np.abs(bad.residual_torque[inner]).max() > 1e-3 * tq
+    # planar motion forgives both errors exactly
+    skeleton, kin, ground, _ = simulate_squat_to_stand()
+    flat = inverse_dynamics(skeleton, kin, ground, raw,
+                            physics=LegacyPhysics(one_sided_inertia=True, gyroscopic=False))
+    assert np.abs(flat.residual_torque[inner]).max() < 1e-5 * tq
+
+
+def test_s2s_c3d_knee_slip_6dof_power(tmp_path):
+    """A knee that slides does translational work: the real c3d pipeline
+    must recover it, and the energy audit must need it to close."""
+    from boneid.core import AnalysisParams, energy_audit, inverse_dynamics
+    from boneid.io_c3d import build_chain, calibrate_static, load_c3d
+    from boneid.simulate import simulate_squat_to_stand_c3d
+
+    truth = simulate_squat_to_stand_c3d(tmp_path, knee_slip_m=0.01)
+    cal = calibrate_static(load_c3d(truth["static_path"]),
+                           body_mass=truth["body_mass"])
+    params = AnalysisParams(contact_threshold_n=50.0, lowpass_hz=12.0,
+                            force_lowpass_hz=12.0)
+    sk, kin, ground, _ = build_chain(load_c3d(truth["dynamic_path"]), cal,
+                                     point=np.zeros(3), threshold_n=50.0)
+    res = inverse_dynamics(sk, kin, ground, params)
+    audit = energy_audit(sk, kin, ground, res, params)
+    inner = slice(15, -15)
+    trans_true = truth["joint_power_translational"][inner]
+    assert np.abs(trans_true[:, 1]).max() > 5.0             # the knee slides
+    np.testing.assert_allclose(audit.joint_power_translational[inner],
+                               trans_true, atol=0.05)
+    peak = np.abs(audit.de_dt).max()
+    assert np.abs(audit.imbalance[inner]).max() < 1e-3 * peak
+    three_dof = audit.imbalance + audit.joint_power_translational.sum(axis=1)
+    assert np.abs(three_dof[inner]).max() > 5.0             # 3-DoF misses it

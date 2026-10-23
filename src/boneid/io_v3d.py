@@ -854,6 +854,30 @@ def deleva_upper_body(body_mass: float, torso_length: float,
                     length=lengths)
 
 
+def append_deleva_torso(skeleton: Skeleton, body_mass: float,
+                        torso_length: float, sex: str = "male") -> Skeleton:
+    """`skeleton` with the de Leva torso (trunk + head, as in
+    `deleva_upper_body`) added as the TOP of a serial chain, joined at L5S1.
+
+    In a serial chain the top segment's origin is its proximal end, here
+    mid-acromion, with local z pointing L5S1 -> mid-acromion (distal ->
+    proximal, like shank and thigh), so the COM sits at
+    ``z_torso - torso_length`` along z.  Mass and inertia are exactly the
+    `deleva_upper_body` torso's.
+    """
+    ub = deleva_upper_body(body_mass, torso_length, (0.3, 0.3), (0.25, 0.25),
+                           sex=sex)
+    com = ub.com_local[4] - np.array([0.0, 0.0, torso_length])
+    return Skeleton(
+        segment_names=list(skeleton.segment_names) + ["torso"],
+        joint_names=list(skeleton.joint_names) + ["l5s1"],
+        mass=np.append(skeleton.mass, ub.mass[4]),
+        com_local=np.vstack([skeleton.com_local, com]),
+        inertia_local=np.concatenate([skeleton.inertia_local,
+                                      ub.inertia_local[4:5]]),
+        length=np.append(skeleton.length, torso_length))
+
+
 def upper_body_points(trial: V3dTrial) -> dict[str, np.ndarray]:
     """Per-frame upper-body endpoints [T,3].
 

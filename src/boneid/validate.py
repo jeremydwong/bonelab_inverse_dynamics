@@ -361,13 +361,11 @@ def validation_report_html(results: dict) -> str:
     if n_fail:
         items = "".join(f"<li><code>{f['subject']} trial {f['trial']}</code> — "
                         f"{f['error']}</li>" for f in results["failures"])
-        fail_html = (f"<h2>Failures and excluded trials</h2>"
-                     f"<p>{n_fail} trial(s) raised an exception and were "
+        fail_html = (f"<p>{n_fail} trial(s) raised an exception and were "
                      f"skipped; they are listed here rather than dropped "
                      f"silently.</p><ul>{items}</ul>")
     else:
-        fail_html = ("<h2>Failures and excluded trials</h2>"
-                     "<p>No trial raised. Every populated trial of every "
+        fail_html = ("<p>No trial raised. Every populated trial of every "
                      "subject ran to completion with identical parameters and "
                      "no per-trial special casing.</p>")
     if flagged:
@@ -394,83 +392,76 @@ def validation_report_html(results: dict) -> str:
                       "both belts recorded real steps in every trial.</p>")
 
     body = f"""
-<p class="eyebrow">Report 3 · boneid · CROSS-SUBJECT VALIDATION</p>
-<h1>Every Subject, Every Trial, Both Legs</h1>
-<p class="subtitle">The same pipeline, unattended, over {n_subj} subjects of
-the van der Zee, Mundinger &amp; Kuo treadmill dataset — {n_rows} trial × leg
-comparisons, {3 * n_rows} joints — each scored against Visual3D's own
+<p class="eyebrow">boneid · {n_subj} walkers vs Visual3D</p>
+<p class="subtitle">The same pipeline, left alone, over {n_subj} subjects of
+the van der Zee, Mundinger &amp; Kuo treadmill dataset: {n_rows} trial × leg
+comparisons, {3 * n_rows} joints, each scored against Visual3D's own
 <code>ProxEndTorque</code> export.</p>
 
 <div class="stat-row">{stats}</div>
 <div class="stat-row">{stats2}</div>
 
-<h2>What is being claimed</h2>
-<p>Report 2 walks one subject's trial in detail. This page makes the weaker but
-broader claim: the agreement there was not a fluke of one subject, one speed or
-one leg. Every populated trial of <code>p1</code>–<code>p9</code> is run with
-<b>identical parameters</b> — 12 Hz kinematic low-pass, 50 Hz force low-pass
-inside the loader, 20 N contact threshold — through
-<code>io_v3d.build_chain</code> and
-<code>core.inverse_dynamics_two_legs</code>, and each joint's lab-frame torque
-is compared to Visual3D's over the whole trial. The error statistic is the RMS
-of the <em>3-vector</em> difference,
+<h2>1. One set of parameters, every trial, both legs</h2>
+<p>The <a href="p1_report.html">P1 report</a> goes through one subject in
+detail. This page makes a weaker but broader claim: the agreement there wasn't
+a fluke of one subject, one speed or one leg. I run every populated trial of
+<code>p1</code>–<code>p9</code> with <b>identical parameters</b> (12 Hz
+kinematic low-pass, 50 Hz force low-pass inside the loader, 20 N contact
+threshold) through <code>io_v3d.build_chain</code> and
+<code>core.inverse_dynamics_two_legs</code>, and compare each joint's
+lab-frame torque to Visual3D's over the whole trial. The error is the RMS of
+the <em>3-vector</em> difference,
 √(mean<sub>t</sub> |τ<sub>ours</sub> − τ<sub>V3D</sub>|²), with 10 frames
-trimmed at each end (central differences are one-sided there), so no component
-hides inside a scalar projection.</p>
+trimmed at each end (central differences are one-sided there). That way no
+component gets to hide inside a scalar projection.</p>
 
-<h2>What an RMS against Visual3D does and does not establish</h2>
-<p><b>It does establish</b> that two independent implementations of rigid-body
-inverse dynamics, reading the same markers and the same force plates, land on
-the same torques — that our recursion, frames, filtering and belt assignment
-contain no gross error. Visual3D is the tool these data were published with;
-disagreeing with it by a few percent of peak torque would be a red flag.</p>
-<p><b>It does not establish that either of us is right.</b> The two pipelines
-share the same physics but not the same anthropometry or the same joint-centre
-conventions: we build segments from de Leva (1996) regressions on measured
-segment lengths and a force-plate-derived body mass, Visual3D from its own
-model. The residual difference is dominated by those conventions, not by the
-dynamics — which is exactly why the hip is the worst joint everywhere in the
-table below. The hip centre is the least directly measured landmark in the
-markerset, and an offset there moves the thigh COM, the thigh inertia and the
-hip moment arm together. Ankle and knee, whose centres are mid-malleoli and
-mid-epicondyle and therefore essentially measured, agree far more tightly.</p>
-<p>The residual difference is also not white noise, and it is worth naming what
-it is. Where a subject sits noticeably above the pack on one joint and one side
-— <code>p2</code>'s left ankle is the clearest case in the table below, about
-three times its own right ankle — the excess is almost entirely in the
-<em>non-sagittal</em> components: the sagittal (lab-x) torque still tracks
-Visual3D to about 1 N m, while the frontal-plane component carries a steady
-few-N m offset. That is a foot medio-lateral axis definition disagreeing, i.e.
-marker placement and segment-frame convention, and it moves the inversion
-/eversion moment without touching the plantarflexion moment. Reporting the
-error as a full 3-vector RMS makes such cases visible instead of projecting
-them away.</p>
-<p>The genuinely implementation-independent checks live elsewhere and are not
-duplicated here: the analytic squat-to-stand (Report 1), the energy audit, and
-the L5/S1 residual matching the weight of the unmodelled upper body (Report 2,
-Step 7). Agreement with Visual3D is corroboration, not proof.</p>
-<p><b>Scope.</b> This dataset is treadmill <em>walking</em> only, roughly
-{speed.min():.2f}–{speed.max():.2f} m/s, with no aerial phase in any trial.
-Nothing here speaks to running, cutting, jumping, or overground data.</p>
-
+<h2>2. How big the error is, subject by subject</h2>
 {figs[0]}
+
+<h2>3. Error as a fraction of the torque, against speed</h2>
 {figs[1]}
 
-<h2>Per-subject medians</h2>
-<p>Median torque RMS versus Visual3D in N m, per subject and per joint, with
-the median across subjects in the last row. Every cell is the median over that
-subject's trials.</p>
+<h2>4. Why the hip is worst, and the one outlier</h2>
+<p>Here's the table behind Figure 1: median torque RMS vs Visual3D in N m,
+per subject and per joint (each cell is the median over that subject's
+trials), with the median across subjects in the last row.</p>
 
 {_median_table_html(results)}
 
+<p>The two pipelines share the same physics but not the same anthropometry or
+the same joint-centre conventions. We build segments from de Leva (1996)
+regressions on measured segment lengths and a force-plate-derived body mass;
+Visual3D uses its own model. I think the leftover difference is mostly those
+conventions, not the dynamics, and that's why the hip is the worst joint for
+every subject. The hip centre is the least directly measured landmark in the
+markerset, and moving it shifts the thigh COM, the thigh inertia and the hip
+moment arm all at once. Ankle and knee centres are mid-malleoli and
+mid-epicondyle (so basically measured), and they agree much more tightly.</p>
+<p>The leftover isn't white noise either. The clearest outlier in the table is
+<code>p2</code>'s left ankle, about three times its own right ankle. Nearly
+all of that excess is in the frontal-plane (lab-y) component; the sagittal
+(lab-x) part is only a bit worse than the right leg's. That looks like the two
+tools disagreeing on the foot's medio-lateral axis (marker placement and
+segment-frame convention), which moves the inversion/eversion moment without
+touching plantarflexion. Scoring the full 3-vector is what makes a case like
+this show up instead of getting projected away.</p>
+
+<h2>5. Failed and excluded trials</h2>
 {fail_html}
 
-<h2>How to reproduce</h2>
-<p><code>uv run python -m boneid.validate</code> runs the full sweep — all
-nine subjects, about ten seconds — and writes this page to
-<code>reports/validation_report.html</code>; pass explicit <code>.mat</code>
-paths to sweep a different set. <code>uv run pytest tests/test_validate.py</code>
-exercises the sweep on a three-trial slice.</p>
+<h2>What this does and doesn't prove</h2>
+<p>It does show that two independent implementations of rigid-body inverse
+dynamics, reading the same markers and force plates, land on the same torques,
+so our recursion, frames, filtering and belt assignment have no gross error.
+(Visual3D is what these data were published with; missing it by a lot would be
+a red flag.) It doesn't show that either of us is right. The checks that
+don't depend on anyone's implementation are elsewhere: the
+<a href="tutorial_s2s_markers.html">squat-to-stand tutorial</a>, the energy
+audit, and the L5/S1 residual matching the weight of the unmodelled upper body
+(<a href="p1_report.html">P1 report</a>). Agreement with Visual3D is
+corroboration, not proof. Also, this is treadmill <em>walking</em> only,
+{speed.min():.2f}–{speed.max():.2f} m/s, no aerial phase in any trial; for
+running see the <a href="rbds_report.html">RBDS report</a>.</p>
 """
     return html_page("Cross-Subject Validation", "validate", body)
 
@@ -1083,63 +1074,61 @@ def rbds_report_html(results: dict, *, ablations=None, cumulative=None) -> str:
             + "</tr>"
             for k in VARIANT_LABELS if k in abl)
         ablation_html = f"""
-<h2>Ablation: bringing our conventions to theirs, one at a time</h2>
+<h2>Swapping in their conventions, one at a time</h2>
 <p>Their exact definitions are in the dataset's own Visual3D model and
 pipeline files (<code>RBDSmodelV3D.mdh</code>,
 <code>RBDSpipelineV3D.v3s</code>): hip = the Bell (1990) landmark; markers
 AND analog low-passed at 10 Hz; default (Dempster-mass) hybrid segments;
 power = <code>JOINT_POWER_SCALAR</code>, the full 3-D τ·ω<sub>rel</sub> dot
-product — all three components, so not sagittal-only, but rotational-only,
-without the translational joint-force power our wrench power includes.
-Each row of the table swaps ONE of our conventions for theirs and re-runs
-every subject and speed (medians over all subject-speeds):</p>
+product (all three components, so not sagittal-only, but rotational-only:
+no translational joint-force power, which my wrench power includes).
+Each row swaps ONE of my conventions for theirs and re-runs every subject
+and speed (medians over all subject-speeds).  Findings 2-4 all come out of
+this one table:</p>
 <div class="overflow"><table><thead>
 <tr><th>variant</th><th>ankle τ</th><th>knee τ</th><th>hip τ</th>
 <th>ankle P</th><th>knee P</th><th>hip P</th></tr>
 <tr><th></th><th colspan="3">torque RMSE (N m/kg)</th>
 <th colspan="3">power RMSE (W/kg)</th></tr>
 </thead><tbody>{rows_html}</tbody></table></div>
-<p><b>Reading it:</b> the POWER DEFINITION is the dominant lever — dropping
-the translational term (as they do) collapses the hip power gap, meaning
-most of our hip-power difference was never a disagreement about the motion,
-just about what "joint power" includes.  The 10 Hz filters and Dempster
-masses move things only marginally: torque agreement is insensitive to both.
-And the hip-torque row shows a genuine surprise: using THEIR OWN Bell hip
-landmark makes our hip torque agree LESS with their export than Harrington
-does — the residual hip difference is not simply hip-centre placement, but
-compensating conventions (pelvis-frame construction, Cardan-resolved
-components) that happen to cancel better under Harrington.</p>
+<h2>2. Power: the gap is mostly about what "joint power" means</h2>
+<p>The power definition is the big lever.  Drop the translational term (as
+they do) and the hip power gap mostly goes away.  So most of our hip-power
+difference was never a disagreement about the motion, just about what
+"joint power" includes.</p>
+
+<h2>3. Their 10 Hz filters and Dempster masses: barely matter</h2>
+<p>Both move things only a little.  Torque agreement is insensitive to
+either one.</p>
+
+<h2>4. Their own hip landmark makes hip torque agree less, and nothing
+closes the torque gap</h2>
+<p>This one surprised me.  Using THEIR OWN Bell hip landmark makes my hip
+torque agree LESS with their export than Harrington does.  So the leftover
+hip difference isn't simply hip-centre placement; I think it's compensating
+conventions (pelvis-frame construction, Cardan-resolved components) that
+happen to cancel better under Harrington.  The convergence figures below
+make the general point: adopt their conventions cumulatively and the torque
+error barely moves.  That's the between-implementation floor.</p>
 {_rbds_cumulative_html(cumulative)}"""
 
     body = f"""
 <p class="eyebrow">boneid · validate · RBDS public running dataset</p>
-<h1>Their Data, Our Pipeline</h1>
-<p class="subtitle">Every subject of the RBDS public running dataset
-(Fukuchi, Fukuchi &amp; Duarte 2017, PeerJ 5:e3298, CC-BY) processed from
-RAW c3d — static-trial CAST calibration, virtual joint centres, per-bout
-foot attribution on the shared belt, Newton-Euler about the lab origin —
-and scored against the dataset's own Visual3D output, right leg,
-2.5/3.5/4.5 m/s.</p>
 
+<h2>1. Torques: about as close as two independent implementations get</h2>
 <div class="stat-row">{stats_row}</div>
 
-<h2>What is and is not the same</h2>
-<p>Same raw markers and forces; independent everything else.  Differences
-that bound the agreement: our hip centre is Harrington (2007) where their
-model has its own; our segment parameters are de Leva (1996) against their
-Visual3D defaults; our kinematics/forces are low-passed at a matched 12 Hz;
-our joint power is the full joint wrench power.  The residual and energy
-audit run on every trial exactly as in the main pipeline.</p>
+<p>Same raw markers and forces, independent everything else.  What
+differs (and so bounds the agreement): my hip centre is Harrington (2007),
+theirs is their own landmark; my segment parameters are de Leva (1996),
+theirs are Visual3D defaults; I low-pass kinematics and forces at a matched
+12 Hz; and my joint power is the full joint wrench power.  The residual and
+energy audit run on every trial, same as everywhere else.  Figures 1 and 2
+are ensemble means per speed; Figure 3 is the per-subject spread.</p>
 
 {"".join(figs)}
 
 {ablation_html}
-
-<h2>Reproduce</h2>
-<p><code>uv run python examples/regenerate_reports.py rbds_report</code>
-executes the notebook, recomputes the baseline and every displayed comparison
-from the raw recordings in <code>~/.cache/boneid/rbds</code>, then exports the
-saved notebook outputs. No saved ablation JSON is used to build this page.</p>
 """
     return html_page("Their Data, Our Pipeline", "rbds", body)
 

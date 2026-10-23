@@ -14,10 +14,10 @@ cannot be read off the dynamic marker set directly.  Instead:
 2.  ``build_chain`` fits each cluster's static shape to its dynamic
     trajectory frame-by-frame (Soderkvist & Wedin SVD fit,
     ``core.fit_rigid_transform``) and carries the static joint centres and
-    frames through that pose — the classic virtual-point / CAST approach the
-    legacy call sites suggest. The exact ``VirtualPoint_v2`` source remains
-    unavailable, so parity is unverified. The per-frame fit residual is
-    kept as the data-quality signal.
+    frames through that pose — the classic virtual-point / CAST approach, the
+    same SVD fit the recovered ``VirtualPoint_v2.m`` performs (its ``RM`` is
+    the transpose of our ``r_world``; ``boneid.legacy`` ports it exactly).
+    The per-frame fit residual is kept as the data-quality signal.
 
 Conventions conserved from the legacy pipeline (the genuine approach):
 
@@ -72,7 +72,8 @@ from .core import (
     Skeleton,
     detect_contact,
 )
-from .io_v3d import analog_to_mocap, deleva_skeleton, orthonormal_frame
+from .io_v3d import (analog_to_mocap, append_deleva_torso, deleva_skeleton,
+                     orthonormal_frame)
 
 #: Tracking clusters (all present in BOTH static and dynamic trials), keyed by
 #: the chain's segment order [foot, shank, thigh, pelvis].
@@ -84,6 +85,15 @@ CLUSTERS = {
 }
 
 SEGMENTS = ("foot", "shank", "thigh", "pelvis")
+
+#: OPTIONAL torso tracking.  The Asics study put no markers above the pelvis,
+#: so its chain stops there and the L5S1 residual carries the whole upper
+#: body.  When a static trial DOES carry these (the idealized subject in
+#: `simulate.simulate_squat_to_stand_c3d` does), the chain gains a fifth
+#: segment: the de Leva torso (trunk + head) from L5S1 to mid-acromion,
+#: tracked by `TORSO_CLUSTER`, its frame from the acromions (RAC, LAC).
+TORSO_CLUSTER = ("C7", "CLAV", "STRN", "T10")
+TORSO_LANDMARKS = ("RAC", "LAC")
 
 #: Which calibrated points ride on which cluster during dynamic trials.  The
 #: joint shared by two segments is reconstructed from ONE cluster (the legacy
@@ -267,7 +277,7 @@ Y_UP_AXES = np.array([[1.0, 0.0, 0.0],
 
 
 def load_c3d(path: str | os.PathLike,
-             axes: np.ndarray | None = None) -> C3dTrial:
+             axes: np.ndarray | None = None, repair: bool = True) -> C3dTrial:
     """Read one c3d file: markers in m, plate loads in the lab frame in SI.
 
     Unnamed markers (``*n`` — reconstruction leftovers) are dropped.  Force,
@@ -279,6 +289,9 @@ def load_c3d(path: str | os.PathLike,
     applied to every point and force-plate vector, for recordings whose lab
     frame is not z-up.  core.py's gravity points down our z; rotate here
     rather than teaching the rest of the pipeline about other conventions.
+
+    `repair=False` skips the label-swap repair, despiking and gap bridging —
+    the raw markers exactly as the legacy MATLAB read them (`boneid.legacy`).
     """
     import ezc3d
 
@@ -296,9 +309,10 @@ def load_c3d(path: str | os.PathLike,
     pts = c["data"]["points"]                            # [4,M,T]
     markers = {name: (pts[:3, i].T / 1000.0) @ r.T
                for i, name in enumerate(labels) if not name.startswith("*")}
-    _unswap_labels(markers, rate)
-    markers = {name: _fill_gaps(_despike(x, rate))
-               for name, x in markers.items()}
+    if repair:
+        _unswap_labels(markers, rate)
+        markers = {name: _fill_gaps(_despike(x, rate))
+                   for name, x in markers.items()}
 
     plats = c["data"]["platform"]
     force = np.stack([np.asarray(p["force"], float).T @ r.T for p in plats],
@@ -316,6 +330,73 @@ def load_c3d(path: str | os.PathLike,
         markers=markers, force=force, cop=cop, free_moment=free,
         plates=_plates_from_corners([r @ np.asarray(p["corners"], float)
                                      for p in plats]))
+
+
+#: Corners [4,3] (m, about the plate centre) of the one plate `write_c3d`
+#: writes: 1.0 m along lab x by 0.5 m along lab y, surface in the plane of
+#: the centre.  With this corner order ezc3d's type-2 plate frame is
+#: diag(1, -1, -1) of the lab, which is what `write_c3d` inverts.
+WRITE_PLATE_CORNERS = np.array([[0.5, -0.25, 0.0], [-0.5, -0.25, 0.0],
+                                [-0.5, 0.25, 0.0], [0.5, 0.25, 0.0]])
+
+
+def write_c3d(path: str | os.PathLike, markers: dict[str, np.ndarray],
+              rate: float, analog_rate: float, force: np.ndarray,
+              moment: np.ndarray, plate_center: np.ndarray | None = None):
+    """Write markers and ONE force plate as a c3d that `load_c3d` reads back.
+
+    `markers` name -> [T,3] m (lab frame); `force` [Ta,3] N and `moment`
+    [Ta,3] N m are the load ON THE SUBJECT, the moment taken about
+    `plate_center` (default the lab origin), which is also the centre of the
+    plate surface.  ``analog_rate`` must be a whole multiple of ``rate``.
+    The plate is a type-2 (six-channel) platform with corners
+    `WRITE_PLATE_CORNERS`; ezc3d then derives COP and the free moment from
+    the channels exactly as it does for a lab recording.  This exists so a
+    simulated body goes through the SAME loader as real data.
+    """
+    import ezc3d
+    from ezc3d import ezc3d as _swig
+
+    center = np.zeros(3) if plate_center is None else np.asarray(plate_center, float)
+    names = list(markers)
+    n_t = len(markers[names[0]])
+    ratio = int(round(analog_rate / rate))
+    if len(force) != ratio * n_t:
+        raise ValueError("need analog_rate/rate analog samples per frame")
+
+    c = ezc3d.c3d()
+    c["parameters"]["POINT"]["RATE"]["value"] = [float(rate)]
+    c["parameters"]["POINT"]["LABELS"]["value"] = tuple(names)
+    c["parameters"]["POINT"]["UNITS"]["value"] = ["mm"]
+    pts = np.ones((4, len(names), n_t))
+    pts[:3] = np.stack([markers[n] * 1000.0 for n in names], axis=1).T
+    c["data"]["points"] = pts
+
+    c["parameters"]["ANALOG"]["RATE"]["value"] = [float(analog_rate)]
+    c["parameters"]["ANALOG"]["LABELS"]["value"] = ("Fx1", "Fy1", "Fz1",
+                                                    "Mx1", "My1", "Mz1")
+    c["parameters"]["ANALOG"]["UNITS"]["value"] = ("N", "N", "N",
+                                                   "Nmm", "Nmm", "Nmm")
+    flip = np.array([1.0, -1.0, -1.0])        # lab -> plate channel axes
+    c["data"]["analogs"] = np.concatenate(
+        [force * flip, 1000.0 * moment * flip], axis=1).T[None]
+
+    def add_int(name, value):
+        # ezc3d's add_parameter stores int lists as FLOAT, which its own
+        # force-plate reader then rejects: set the INT type explicitly.
+        value = np.asarray(value, dtype=int)
+        c.add_parameter("FORCE_PLATFORM", name, value.astype(float))
+        c["parameters"]["FORCE_PLATFORM"][name]["value"] = value
+        c["parameters"]["FORCE_PLATFORM"][name]["type"] = _swig.INT
+
+    add_int("USED", [1])
+    add_int("TYPE", [2])
+    add_int("ZERO", [1, 0])
+    add_int("CHANNEL", [[1], [2], [3], [4], [5], [6]])
+    corners = (WRITE_PLATE_CORNERS + center) * 1000.0
+    c.add_parameter("FORCE_PLATFORM", "CORNERS", corners.T[:, :, None])
+    c.add_parameter("FORCE_PLATFORM", "ORIGIN", np.zeros((3, 1)))
+    c.write(os.fspath(path))
 
 
 # ---------------------------------------------------------------------------
@@ -345,11 +426,25 @@ def static_points(marker_mean: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
         "heel": 0.5 * (m["HeelMed"] + m["HeelLat"]),
         "toe": 0.5 * (m["MTP1Head"] + m["MTP5Head"]),
         "toebox": m["ToeboxAnt"],   # shoe tip; drawing only, never dynamics
+        **({"mid_acromion": 0.5 * (m["RAC"] + m["LAC"])}
+           if all(n in m for n in TORSO_LANDMARKS) else {}),
     }
 
 
+def has_torso(markers) -> bool:
+    """True when the torso cluster and acromions are all marked."""
+    return all(n in markers for n in TORSO_CLUSTER + TORSO_LANDMARKS)
+
+
+def chain_segments(cal: StaticCalibration) -> tuple[str, ...]:
+    """The chain this calibration supports: SEGMENTS, plus the torso when
+    the static trial marked it."""
+    return SEGMENTS + (("torso",) if "torso" in cal.cluster_neutral else ())
+
+
 def calibrate_static(static: C3dTrial, sex: str = "male",
-                     gravity: float = 9.81) -> StaticCalibration:
+                     gravity: float = 9.81,
+                     body_mass: float | None = None) -> StaticCalibration:
     """Measure the subject in the static pose.
 
     Markers are averaged over the whole static recording; joint centres and
@@ -363,9 +458,18 @@ def calibrate_static(static: C3dTrial, sex: str = "male",
     the closest thing this shoe-mounted markerset has to de Leva's heel->toe
     tip length; the chain's working distal endpoint stays the metatarsal
     centre.
+
+    `body_mass` (kg), when given, replaces the plate estimate: the mass the
+    de Leva fractions are taken of, e.g. from a scale.  The plate only knows
+    what is standing on it.
+
+    If the static trial marks the torso (`has_torso`), it is calibrated too:
+    its frame from L5S1 -> mid-acromion and the acromions, its cluster
+    shape, and ``lengths['torso']``.
     """
     mean = {k: v.mean(axis=0) for k, v in static.markers.items()}
     pts = static_points(mean)
+    torso = has_torso(mean)
 
     ml_ankle = mean["AnkleMed"] - mean["AnkleLat"]
     ml_knee = mean["KneeMed"] - mean["KneeLat"]
@@ -375,7 +479,8 @@ def calibrate_static(static: C3dTrial, sex: str = "male",
         orthonormal_frame(pts["knee"] - pts["ankle"], ml_ankle),
         orthonormal_frame(pts["hip"] - pts["knee"], ml_knee),
         orthonormal_frame(pts["l5s1"] - pts["mid_hip"], ml_pelvis),
-    ])
+    ] + ([orthonormal_frame(pts["mid_acromion"] - pts["l5s1"],
+                            mean["LAC"] - mean["RAC"])] if torso else []))
 
     lengths = {
         "foot": float(np.linalg.norm(mean["ToeboxAnt"] - pts["heel"])),
@@ -386,15 +491,23 @@ def calibrate_static(static: C3dTrial, sex: str = "male",
         "forefoot_width": float(np.linalg.norm(mean["MTP1Head"]
                                                - mean["MTP5Head"])),
     }
+    if torso:
+        lengths["torso"] = float(np.linalg.norm(pts["mid_acromion"]
+                                                - pts["l5s1"]))
     heel_local = r_static[0].T @ (pts["heel"] - pts["ankle"])
 
-    body_mass = float(static.force[:, :, 2].sum(axis=1).mean() / gravity)
-    neutral = {seg: np.stack([mean[n] for n in CLUSTERS[seg]])
-               for seg in SEGMENTS}
+    if body_mass is None:
+        body_mass = float(static.force[:, :, 2].sum(axis=1).mean() / gravity)
+    clusters = {**CLUSTERS, **({"torso": TORSO_CLUSTER} if torso else {})}
+    neutral = {seg: np.stack([mean[n] for n in clusters[seg]])
+               for seg in clusters}
     return StaticCalibration(
-        path=static.path, side="r", sex=sex, body_mass=body_mass,
+        path=static.path, side="r", sex=sex, body_mass=float(body_mass),
         cluster_neutral=neutral, points=pts, r_static=r_static,
         lengths=lengths, foot_heel_local=heel_local,
+        cluster_markers=clusters if torso else None,
+        point_carriers=({**CLUSTER_POINTS, "torso": ("mid_acromion",)}
+                        if torso else None),
         foot_outline_local=np.stack([
             r_static[0].T @ (mean[n] - pts["ankle"])
             for n in ("HeelLat", "HeelMed", "MTP1Head", "MTP5Head",
@@ -416,7 +529,7 @@ def cluster_poses(trial: C3dTrial, cal: StaticCalibration):
 
     clusters = cal.cluster_markers or CLUSTERS
     out = {}
-    for seg in SEGMENTS:
+    for seg in chain_segments(cal):
         moving = np.stack([trial.markers[n] for n in clusters[seg]], axis=1)
         out[seg] = fit_rigid_transform(cal.cluster_neutral[seg], moving)
     return out
@@ -532,7 +645,8 @@ def build_chain(trial: C3dTrial, cal: StaticCalibration,
                 point: np.ndarray | None = None,
                 threshold_n: float = 50.0):
     """(Skeleton, SegmentKinematics, GroundWrench, quality) for
-    [foot, shank, thigh, pelvis], everything on the trial's mocap clock.
+    [foot, shank, thigh, pelvis] (+ torso, when the static trial marked it),
+    everything on the trial's mocap clock.
 
     Joint centres and segment frames are the STATIC calibration carried by
     the per-frame cluster fits: ``r_world(t) = r_cluster(t) @ r_static`` and
@@ -540,34 +654,41 @@ def build_chain(trial: C3dTrial, cal: StaticCalibration,
     proximal joints as core.py requires (foot: ankle->toe, shank:
     knee->ankle, thigh: hip->knee, pelvis: l5s1->mid-hip); the Skeleton comes
     from `deleva_skeleton` with the STATIC lengths and the static body mass —
-    the calibration trial, not the dynamic one, defines the subject.
+    the calibration trial, not the dynamic one, defines the subject.  A
+    marked torso (mid-acromion -> l5s1) is appended with
+    `append_deleva_torso`, and L5S1 becomes a real joint.
 
-    ``quality`` is a dict: ``cluster_residual`` [T,4] m (the SVD fit
+    ``quality`` is a dict: ``cluster_residual`` [T,S] m (the SVD fit
     residual per segment) and ``bouts`` (the contact-attribution table from
     `instrumented_foot_wrench`).
     """
+    segs = chain_segments(cal)
+    torso = "torso" in segs
     poses = cluster_poses(trial, cal)
     pts = virtual_points(poses, cal)
 
     r_world = np.stack([np.einsum("tij,jk->tik", poses[seg][0],
                                   cal.r_static[i])
-                        for i, seg in enumerate(SEGMENTS)], axis=1)
-    prox = np.stack([pts["ankle"], pts["knee"], pts["hip"], pts["l5s1"]],
-                    axis=1)
-    dist = np.stack([pts["toe"], pts["ankle"], pts["knee"], pts["mid_hip"]],
-                    axis=1)
+                        for i, seg in enumerate(segs)], axis=1)
+    prox = np.stack([pts["ankle"], pts["knee"], pts["hip"], pts["l5s1"]]
+                    + ([pts["mid_acromion"]] if torso else []), axis=1)
+    dist = np.stack([pts["toe"], pts["ankle"], pts["knee"], pts["mid_hip"]]
+                    + ([pts["l5s1"]] if torso else []), axis=1)
 
     skeleton = deleva_skeleton(
         body_mass=cal.body_mass, foot_length=cal.lengths["foot"],
         shank_length=cal.lengths["shank"], thigh_length=cal.lengths["thigh"],
         pelvis_length=cal.lengths["pelvis"],
         foot_heel_local=cal.foot_heel_local, sex=cal.sex)
+    if torso:
+        skeleton = append_deleva_torso(skeleton, cal.body_mass,
+                                       cal.lengths["torso"], sex=cal.sex)
     kin = SegmentKinematics(t=trial.t.copy(), rate=trial.rate,
                             r_world=r_world, prox_pos=prox, dist_pos=dist)
     ground, bouts = instrumented_foot_wrench(trial, point=point,
                                              threshold_n=threshold_n)
     quality = {
-        "cluster_residual": np.stack([poses[seg][2] for seg in SEGMENTS],
+        "cluster_residual": np.stack([poses[seg][2] for seg in segs],
                                      axis=1),
         "bouts": bouts,
         "points": pts,

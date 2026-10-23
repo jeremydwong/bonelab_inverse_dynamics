@@ -7,6 +7,11 @@ KEY-GYRO          the two legacy bugs: R I R^T transform + omega x (I omega)
 KEY-WRENCH-EQUIV  COP formulation and origin-wrench formulation agree
 TEST-SIMULATED-S2S  3-joint squat-to-stand: zero residual, static limits,
                     and an energy balance that closes across time
+KEY-S2S-C3D       the same kind of body written as static + dynamic c3d files
+                  and run through the REAL Asics calls (load_c3d,
+                  calibrate_static, io_c3d.build_chain, inverse_dynamics,
+                  energy_audit) with the Asics settings, torso marked: the
+                  torques must match top-down truth and the residual be zero
 """
 
 import numpy as np
@@ -122,3 +127,42 @@ def test_simulated_s2s():
     # sanity: the movement actually does work (rises ~0.4 m at 80 kg)
     rise = audit.potential[-1] - audit.potential[0]
     assert rise > 100.0
+
+
+def test_key_s2s_c3d(tmp_path):
+    """KEY-S2S-C3D: the whole real pipeline, markers and force plate
+    included, on a body whose answer we know.  If this passes, what goes
+    wrong on a real subject is the subject (skin, noise), not the code."""
+    from boneid.io_c3d import build_chain, calibrate_static, load_c3d
+    from boneid.simulate import simulate_squat_to_stand_c3d
+
+    truth = simulate_squat_to_stand_c3d(tmp_path, torso_sway=0.25)
+    static = load_c3d(truth["static_path"])
+    trial = load_c3d(truth["dynamic_path"])
+    # the plate weighs what stands on it (leg + pelvis + torso) ...
+    assert (static.force[:, :, 2].sum(axis=1).mean() / 9.81
+            == pytest.approx(truth["plate_mass"], abs=1e-3))
+    # ... and de Leva needs the whole person's mass, as from a scale
+    cal = calibrate_static(static, sex="male", body_mass=truth["body_mass"])
+    params = AnalysisParams(contact_threshold_n=50.0, lowpass_hz=12.0,
+                            force_lowpass_hz=12.0)          # Asics settings
+    skel, kin, ground, quality = build_chain(trial, cal, point=np.zeros(3),
+                                             threshold_n=50.0)
+    assert skel.segment_names[-1] == "torso"                # marked torso
+    np.testing.assert_allclose(skel.mass, truth["skeleton"].mass, atol=1e-5)
+    np.testing.assert_allclose(skel.inertia_local,
+                               truth["skeleton"].inertia_local, atol=1e-6)
+    assert [b["mine"] for b in quality["bouts"]] == [True]
+
+    res = inverse_dynamics(skel, kin, ground, params)
+    audit = energy_audit(skel, kin, ground, res, params)
+    inner = slice(15, -15)
+    assert np.abs(truth["joint_torque"]).max() > 100.0      # a real load
+    np.testing.assert_allclose(res.joint_torque[inner],
+                               truth["joint_torque"][inner], atol=0.2)
+    np.testing.assert_allclose(res.joint_force[inner],
+                               truth["joint_force"][inner], atol=0.2)
+    # nothing acts above the torso: the residual is zero
+    assert np.abs(res.residual_force[inner]).max() < 0.2
+    assert np.abs(res.residual_torque[inner]).max() < 0.2
+    assert np.abs(audit.imbalance[inner]).max() < 1e-3 * np.abs(audit.de_dt).max()

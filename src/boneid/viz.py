@@ -576,6 +576,19 @@ def foot_wedge_mesh(heel_local: np.ndarray, tip_local: np.ndarray,
     return vertices, faces
 
 
+def box_mesh(size: np.ndarray):
+    """(vertices, faces) of a brick in its segment frame, hanging from the
+    proximal end at the centre of its +z face — the tutorials' rigid body.
+    Pose it rigidly via `segment_meshes`, like `foot_wedge_mesh`."""
+    x, y, z = 0.5 * np.asarray(size, float)
+    v = np.array([[sx, sy, sz - z] for sx in (-x, x) for sy in (-y, y)
+                  for sz in (-z, z)])
+    faces = np.array([[0, 1, 3], [0, 3, 2], [4, 6, 7], [4, 7, 5],
+                      [0, 4, 5], [0, 5, 1], [2, 3, 7], [2, 7, 6],
+                      [0, 2, 6], [0, 6, 4], [1, 5, 7], [1, 7, 3]])
+    return v, faces
+
+
 def build_scene(vis: meshcat.Visualizer, skeleton: Skeleton,
                 girth_fraction: float = GIRTH_FRACTION,
                 top_girth_fraction: float = TOP_GIRTH_FRACTION,
@@ -1237,7 +1250,7 @@ __all__ = [
     "ROOT", "FORCE_SCALE_M_PER_N", "LOOP_REPETITIONS", "BODY_DENSITY",
     "start_viewer", "stop_viewer", "set_camera",
     "build_scene", "clear_scene", "draw_ground",
-    "draw_skeleton", "draw_markers", "draw_ground_force",
+    "draw_skeleton", "draw_markers", "draw_ground_force", "box_mesh",
     "force_application_point", "arrow_transforms",
     "segment_transform", "segment_girth", "translation",
     "build_pelvis_band", "draw_pelvis_band", "pelvis_band_radius",

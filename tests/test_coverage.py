@@ -442,3 +442,44 @@ def test_s2s_c3d_knee_slip_6dof_power(tmp_path):
     assert np.abs(audit.imbalance[inner]).max() < 1e-3 * peak
     three_dof = audit.imbalance + audit.joint_power_translational.sum(axis=1)
     assert np.abs(three_dof[inner]).max() > 5.0             # 3-DoF misses it
+
+
+def test_varus_shift_moves_only_the_knee():
+    """The varus counterfactual: knee moved d laterally, square to the
+    hip-ankle line; hip, ankle, foot untouched; shank/thigh frames stay
+    orthonormal (their lengths stretch a little, see `varus_rotations`)."""
+    from boneid import io_v3d as io
+    from boneid.simulate import varus_markers, varus_shift
+    from pathlib import Path
+    trial = io.load_v3d_trial(str(Path(__file__).resolve().parents[1]
+                                  / "data/p1_trial13_sample.mat"), 0)
+    _, kin, _ = io.build_chain(trial, side="r")
+    d = 0.03
+    k2 = varus_shift(kin, d)
+    move = k2.prox_pos[:, 1] - kin.prox_pos[:, 1]
+    np.testing.assert_allclose(np.linalg.norm(move, axis=1), d, atol=1e-12)
+    axis = kin.prox_pos[:, 2] - kin.prox_pos[:, 0]
+    assert np.max(np.abs(np.sum(move * axis, axis=1))) < 1e-12
+    lateral = -kin.r_world[:, 2, :, 1]                  # right leg: -left
+    assert np.all(np.sum(move * lateral, axis=1) > 0.9 * d)
+    for s in (0, 2):                                    # ankle, hip fixed
+        np.testing.assert_allclose(k2.prox_pos[:, s], kin.prox_pos[:, s])
+    np.testing.assert_allclose(k2.r_world[:, 0], kin.r_world[:, 0])
+    for s, (a, b) in ((1, (0, 1)), (2, (1, 2))):
+        # the knee moves square to hip-ankle, not on a sphere: a small stretch
+        stretch = (np.linalg.norm(k2.prox_pos[:, b] - k2.prox_pos[:, a], axis=1)
+                   - np.linalg.norm(kin.prox_pos[:, b] - kin.prox_pos[:, a],
+                                    axis=1))
+        assert np.max(np.abs(stretch)) < 0.01
+        r = np.einsum("tji,tjk->tik", k2.r_world[:, s], k2.r_world[:, s])
+        np.testing.assert_allclose(r, np.broadcast_to(np.eye(3), r.shape),
+                                   atol=1e-12)
+    mk = varus_markers(trial.markers, kin, d)
+    assert "RSH1" in mk and "RTH1" in mk and "RCAL" not in mk
+    # a thigh marker keeps its distance to the hip
+    np.testing.assert_allclose(
+        np.linalg.norm(mk["RTH1"] - kin.prox_pos[:, 2], axis=1),
+        np.linalg.norm(trial.markers["RTH1"] - kin.prox_pos[:, 2], axis=1),
+        atol=1e-12)
+    np.testing.assert_allclose(varus_shift(kin, 0.0).r_world, kin.r_world,
+                               atol=1e-12)

@@ -141,6 +141,8 @@ Files:
   includes rotational/translational joint power: `notebooks/tutorial_6dof`
   shows 6-DoF power recovered, the audit closing only with it, and 6-DoF
   power invariant to where the joint centre is put.
+  `varus_shift` / `varus_markers` push a knee laterally (hip, ankle, foot
+  and the measured GRF fixed) for the bowed-leg / varus counterfactuals.
 - `legacy.py` — faithful port of the legacy MATLAB inverse-dynamics path
   (`run_legacy_pipeline`), with `physics="corrected"`, `free_moment_axis`
   and `marker_lowpass_hz` switches for the comparison ladder in the c3d report.
@@ -168,6 +170,11 @@ KEY-S2S-C3D — the whole c3d pipeline on a known body);
 - **Bilateral comparisons share axes.** When the same joint is plotted for the
   left and right side (torques, powers, forces, angles), the two panels MUST
   have identical y-limits — unequal axes make the comparison meaningless.
+- **Animate whenever possible.** Any report with motion in it gets a meshcat
+  animation with its plots synced to the animation clock. A sweep of
+  counterfactuals (e.g. the varus sweep) gets a SLIDER that swaps both the
+  body drawn and every synced trace (`p1_viewer_html(knee_shifts_m=...)` +
+  `strip_charts_grid(variants=...)`; see `report.varus_viewer_html`).
 - **Animations loop.** Every meshcat animation is sent with a large
   `repetitions` (e.g. 10000) so it plays continuously; an animation that plays
   once and parks on its final frame reads as broken.

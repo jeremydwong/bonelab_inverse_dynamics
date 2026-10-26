@@ -751,3 +751,81 @@ def simulate_gyro(rate: float = 1000.0, duration: float = 1.0,
     i_w = inertia_world(r, inertia)
     truth = np.cross(omega[None], np.einsum("tij,j->ti", i_w, omega))
     return skeleton, kin, ground, truth
+
+
+# ---------------------------------------------------------------------------
+# Counterfactual kinematics: a knee pushed laterally (varus), hip/ankle fixed
+# ---------------------------------------------------------------------------
+
+def _unit(v: np.ndarray) -> np.ndarray:
+    return v / np.linalg.norm(v, axis=-1, keepdims=True)
+
+
+def min_rotation(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """[T,3,3] smallest rotation taking unit vectors a [T,3] onto b [T,3]."""
+    v = np.cross(a, b)
+    c = np.sum(a * b, axis=-1)
+    vx = np.zeros(a.shape[:-1] + (3, 3))
+    vx[..., 0, 1], vx[..., 0, 2] = -v[..., 2], v[..., 1]
+    vx[..., 1, 0], vx[..., 1, 2] = v[..., 2], -v[..., 0]
+    vx[..., 2, 0], vx[..., 2, 1] = -v[..., 1], v[..., 0]
+    return np.eye(3) + vx + vx @ vx * (1.0 / (1.0 + c))[..., None, None]
+
+
+def varus_rotations(kin: SegmentKinematics, d: float):
+    """(knee_new [T,3], r_shank [T,3,3], r_thigh [T,3,3]) for a right-leg
+    chain [foot, shank, thigh, ...] whose knee centre is moved `d` metres
+    laterally, perpendicular to the hip-ankle line (lateral = minus the
+    thigh's subject-left axis, with the hip-ankle component removed).  The
+    shank turns about the ankle and the thigh about the hip by the smallest
+    rotations that reach the new knee; hip, ankle and foot stay put.
+
+    The knee moves square to the hip-ankle line, not on the spheres about
+    hip and ankle, so the joint-centre distances are NOT kept: on P1 the
+    shank and thigh lengthen by ~0.6 / 2 / 5.5 mm on average (max ~8 mm, ~2%)
+    at d = 10 / 25 / 50 mm.  (The OpenSim sweep, with rigid model segments,
+    has no stretch; the knee position — what sets the KAM — is the same.)
+    A few frames shorten slightly instead."""
+    knee, hip, ankle = kin.prox_pos[:, 1], kin.prox_pos[:, 2], kin.prox_pos[:, 0]
+    a = _unit(hip - ankle)
+    lat = -kin.r_world[:, 2, :, 1]
+    lat = _unit(lat - a * np.sum(lat * a, axis=-1, keepdims=True))
+    knee_new = knee + d * lat
+    r_shank = min_rotation(_unit(knee - ankle), _unit(knee_new - ankle))
+    r_thigh = min_rotation(_unit(hip - knee), _unit(hip - knee_new))
+    return knee_new, r_shank, r_thigh
+
+
+def varus_shift(kin: SegmentKinematics, d: float) -> SegmentKinematics:
+    """`kin` with the knee pushed `d` metres laterally (`varus_rotations`):
+    shank and thigh re-posed, every other segment untouched.  Used with the
+    MEASURED ground force, it is "the same walk on a bowed leg"."""
+    knee_new, r_shank, r_thigh = varus_rotations(kin, d)
+    r = kin.r_world.copy()
+    r[:, 1] = r_shank @ kin.r_world[:, 1]
+    r[:, 2] = r_thigh @ kin.r_world[:, 2]
+    prox, dist = kin.prox_pos.copy(), kin.dist_pos.copy()
+    prox[:, 1] = knee_new
+    dist[:, 2] = knee_new
+    return SegmentKinematics(t=kin.t, rate=kin.rate, r_world=r, prox_pos=prox,
+                             dist_pos=dist)
+
+
+#: markers that ride the shank / thigh in the varus sweep (P1 markerset)
+VARUS_SHANK_MARKERS = ("RSH1", "RSH2", "RSH3", "RLML", "RMML")
+VARUS_THIGH_MARKERS = ("RTH1", "RTH2", "RTH3", "RLEP", "RMEP", "RGTR")
+
+
+def varus_markers(markers: dict, kin: SegmentKinematics, d: float) -> dict:
+    """The shank and thigh markers of `markers` carried by `varus_shift`:
+    shank ones rotated about the ankle centre, thigh ones about the hip
+    centre (the same rotations as the segments).  Only those keys return."""
+    _, r_shank, r_thigh = varus_rotations(kin, d)
+    out = {}
+    for names, r, pivot in ((VARUS_SHANK_MARKERS, r_shank, kin.prox_pos[:, 0]),
+                            (VARUS_THIGH_MARKERS, r_thigh, kin.prox_pos[:, 2])):
+        for name in names:
+            if name in markers:
+                rel = markers[name] - pivot
+                out[name] = pivot + np.einsum("tij,tj->ti", r, rel)
+    return out

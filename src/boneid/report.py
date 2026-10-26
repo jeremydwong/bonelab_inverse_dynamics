@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 import sys
 
 import matplotlib
@@ -1999,7 +2000,9 @@ def p1_foot_blob(trial, kin, side):
 def p1_viewer_html(trial, chain, skel_u, kin_u, params,
                    decimate: int = VIEWER_DECIMATE,
                    repetitions: int = 10000,
-                   markers: tuple[str, ...] = VIEWER_MARKERS) -> str:
+                   markers: tuple[str, ...] = VIEWER_MARKERS,
+                   knee_shifts_m=(),
+                   camera_offset=(1.55, -1.55, 0.35)) -> str:
     """Meshcat snapshot of the WHOLE body: both legs, a pelvis spanning the
     hips, the mass-sized torso, both arms, both GRF arrows and the markers.
 
@@ -2027,9 +2030,17 @@ def p1_viewer_html(trial, chain, skel_u, kin_u, params,
     frame of `viewer_frame_shift`; meshcat's own grid and axes are hidden
     because they would then sit at an arbitrary height, and our ground box is
     placed at the subject's foot level instead.
+
+    `knee_shifts_m` (e.g. 0, 0.005, ... 0.05) draws the right shank + thigh
+    once per lateral knee shift (`simulate.varus_shift`, markers carried by
+    `varus_markers`) in groups `boneid/v0`, `boneid/v1`, ...; only v0 starts
+    visible and the measured right shank/thigh are hidden.  A
+    `strip_charts_grid(variants=...)` slider then picks the leg.
     """
     from . import viz
     from .core import UPPER_BODY_ARM, UPPER_BODY_TORSO, slice_chain
+    from .simulate import (VARUS_SHANK_MARKERS, VARUS_THIGH_MARKERS,
+                           varus_markers, varus_shift)
 
     skel_r, kin_r, ground_r, skel_l, kin_l, ground_l = chain
     shift = viewer_frame_shift(kin_r, kin_l, kin_u)
@@ -2042,6 +2053,12 @@ def p1_viewer_html(trial, chain, skel_u, kin_u, params,
     skel_left3, kin_left3 = slice_chain(skel_l, vkin["l"], [0, 1, 2])
     traj = {name: trial.markers[name] + shift for name in markers
             if name in trial.markers}
+    moved = VARUS_SHANK_MARKERS + VARUS_THIGH_MARKERS
+    variant_traj = []
+    if len(knee_shifts_m):
+        variant_traj = [varus_markers(traj, vkin["r"], float(d))
+                        for d in knee_shifts_m]
+        traj = {k: v for k, v in traj.items() if k not in moved}
     floor = float(min(vkin["r"].dist_pos[:, 0, 2].min(),
                       vkin["l"].dist_pos[:, 0, 2].min()))
     root = {"r": f"{viz.ROOT}/r", "l": f"{viz.ROOT}/l",
@@ -2076,6 +2093,14 @@ def p1_viewer_html(trial, chain, skel_u, kin_u, params,
                         root=root["a" + side], animation=animation,
                         camera=False, joint_balls=False,
                         top_girth_fraction=viz.GIRTH_FRACTION)
+        for v, d in enumerate(knee_shifts_m):
+            leg_skel, leg_kin = slice_chain(
+                skel_r, varus_shift(vkin["r"], float(d)), [1, 2])
+            viz.animate(vis, leg_skel, leg_kin, decimate=decimate,
+                        repetitions=1, play=False, plane_height=floor,
+                        root=f"{viz.ROOT}/v{v}", animation=animation,
+                        camera=False, top_girth_fraction=viz.GIRTH_FRACTION)
+            viz.draw_markers(vis, variant_traj[v], 0, root=f"{viz.ROOT}/v{v}")
         viz.draw_markers(vis, traj, 0)
         step = max(1, int(decimate))
         for k, f in enumerate(range(0, len(kin_r.t), step)):
@@ -2083,17 +2108,28 @@ def p1_viewer_html(trial, chain, skel_u, kin_u, params,
                 for name, xyz in traj.items():
                     frame[f"{viz.ROOT}/markers/{name}"].set_transform(
                         viz.translation(xyz[f]))
+                for v, vt in enumerate(variant_traj):
+                    for name, xyz in vt.items():
+                        frame[f"{viz.ROOT}/v{v}/markers/{name}"].set_transform(
+                            viz.translation(xyz[f]))
         for tag in ("r", "l"):
             viz.draw_ground(vis, size=1.2, root=root[tag])
             vis[f"{root[tag]}/ground"].set_transform(
                 viz.translation([0.0, 0.0, floor - 0.005]))
         for tag in ("ar", "al"):
             vis[f"{root[tag]}/ground"].delete()
+        if len(knee_shifts_m):
+            for v in range(len(knee_shifts_m)):
+                vis[f"{viz.ROOT}/v{v}/ground"].delete()
+                vis[f"{viz.ROOT}/v{v}"].set_property("visible", v == 0)
+            for s in (1, 2):
+                for part in ("", "_joint"):
+                    vis[f"{root['r']}/skeleton/{skel_r.segment_names[s]}"
+                        f"{part}"].set_property("visible", False)
         vis["/Grid"].set_property("visible", False)
         vis["/Axes"].set_property("visible", False)
         vis.set_animation(animation, play=True, repetitions=repetitions)
-        viz.set_camera(vis, target=(0.0, 0.0, 0.0),
-                       offset=(1.55, -1.55, 0.35))
+        viz.set_camera(vis, target=(0.0, 0.0, 0.0), offset=camera_offset)
         return viz.render_static_html(vis)
     finally:
         viz.stop_viewer(vis)
@@ -2150,10 +2186,14 @@ def _strip_path(t, y, x0, x1, ytop, ybot, lo, hi, max_pts: int = 900) -> str:
     """One polyline's `points` attribute, decimated to `max_pts` samples."""
     t = np.asarray(t, float)
     y = np.asarray(y, float)
+    t_end = t[-1]
     step = max(1, int(np.ceil(len(t) / max_pts)))
+    t0 = t[0]
     t, y = t[::step], y[::step]
+    ok = np.isfinite(y)                   # gaps (NaN) are skipped, not drawn
+    t, y = t[ok], y[ok]
     span = max(hi - lo, 1e-12)
-    xs = x0 + (x1 - x0) * (t - t[0]) / max(t[-1] - t[0], 1e-12)
+    xs = x0 + (x1 - x0) * (t - t0) / max(t_end - t0, 1e-12)
     ys = ybot - (ybot - ytop) * (y - lo) / span
     return " ".join(f"{a:.1f},{b:.1f}" for a, b in zip(xs, ys))
 
@@ -3393,7 +3433,9 @@ GRID_GAP = 10
 def strip_charts_grid(t, header, grid_rows, col_titles, period_s: float,
                       fps: float, n_frames: int, uid: str = "grid",
                       window_s: float = 1.6,
-                      viewer_iframe: str | None = None) -> str:
+                      viewer_iframe: str | None = None,
+                      variants: list[str] | None = None,
+                      variant_root: str = "/meshcat/boneid/v") -> str:
     """A scrolling-scope GRID synchronised to the animation clock.
 
     Layout: one full-width header panel (`header = (ylabel, [(label, color,
@@ -3410,6 +3452,14 @@ def strip_charts_grid(t, header, grid_rows, col_titles, period_s: float,
     given (pause freezes the grid, the time scrubber drags it), else from the
     wall clock at the clip period.  One px_per_s everywhere: the header is
     simply a wider window (~3x `window_s`) onto the same stream.
+
+    `variants` (labels) turns on a SLIDER above the grid: any series whose y
+    is 2-D ``[len(variants), T]`` is drawn once per variant and the slider
+    shows one at a time, with variant 0 kept as a faint dashed reference so
+    the shift is visible.  Every panel keeps one y-scale across all variants.
+    With `viewer_iframe`, the slider also flips meshcat's
+    ``{variant_root}{k}`` group visible (the matching body, see
+    `p1_viewer_html(knee_shifts_m=...)`).
     """
     t = np.asarray(t, float)
     span = float(t[-1] - t[0])
@@ -3428,13 +3478,13 @@ def strip_charts_grid(t, header, grid_rows, col_titles, period_s: float,
 
     panels = []          # (x0, ytop, w, h, series[(color, dash, y)], lo, hi)
     hdr_label, hdr_series = header
-    lo = min(float(np.min(y)) for *_, y in hdr_series)
-    hi = max(float(np.max(y)) for *_, y in hdr_series)
+    lo = min(float(np.nanmin(y)) for *_, y in hdr_series)
+    hi = max(float(np.nanmax(y)) for *_, y in hdr_series)
     panels.append((STRIP_PAD_L, y_head, x1 - STRIP_PAD_L, STRIP_HEIGHT,
                    [(c, d, y) for _, c, d, y in hdr_series], lo, hi))
     for r_i, (_, cols) in enumerate(grid_rows):
-        lo = min(float(np.min(y)) for _, y in cols)
-        hi = max(float(np.max(y)) for _, y in cols)
+        lo = min(float(np.nanmin(y)) for _, y in cols)
+        hi = max(float(np.nanmax(y)) for _, y in cols)
         ytop = y_grid + r_i * (GRID_CELL_H + GRID_GAP)
         for c_i, (color, y) in enumerate(cols):
             x0 = GRID_GUTTER + c_i * (cell_w + GRID_GAP)
@@ -3459,10 +3509,24 @@ def strip_charts_grid(t, header, grid_rows, col_titles, period_s: float,
         xa = x0 + 0.5 * w                       # "now" sits here
         for color, dash, y in series:
             d = f' stroke-dasharray="{dash}"' if dash else ""
+            y = np.asarray(y, float)
+            if y.ndim == 1:
+                content.append(
+                    f'<polyline fill="none" stroke="{color}" '
+                    f'stroke-width="1.2"{d} points="'
+                    f'{_strip_path(t, y, xa, xa + data_w, ytop, ybot, lo, hi, max_pts=1600)}"/>')
+                continue
+            # one polyline per variant; variant 0 also as a faint reference
             content.append(
-                f'<polyline fill="none" stroke="{color}" '
-                f'stroke-width="1.2"{d} points="'
-                f'{_strip_path(t, y, xa, xa + data_w, ytop, ybot, lo, hi, max_pts=1600)}"/>')
+                f'<polyline fill="none" stroke="{FAINT}" stroke-width="1" '
+                f'stroke-dasharray="3 2" points="'
+                f'{_strip_path(t, y[0], xa, xa + data_w, ytop, ybot, lo, hi, max_pts=1600)}"/>')
+            for v in range(y.shape[0]):
+                show = "" if v == 0 else ' style="display:none"'
+                content.append(
+                    f'<polyline class="{uid}-v{v}"{show} fill="none" '
+                    f'stroke="{color}" stroke-width="1.3"{d} points="'
+                    f'{_strip_path(t, y[v], xa, xa + data_w, ytop, ybot, lo, hi, max_pts=1600)}"/>')
         if p_i == 0:                            # header: scrolling seconds
             sec = int(np.ceil(t[0]))
             while sec <= t[-1]:
@@ -3476,8 +3540,12 @@ def strip_charts_grid(t, header, grid_rows, col_titles, period_s: float,
                     f'fill="{NEUTRAL}">{sec:d}</text>')
                 sec += 1
         clip_h = (y_ticks + 18 - ytop) if p_i == 0 else h
-        pan = "".join(f'<g transform="translate({k * data_w:.2f},0)">'
-                      + "".join(content) + "</g>" for k in (-1, 0, 1))
+        # the loop-wrap copies are <use> clones: same live content (so the
+        # variant slider's display toggles reach them too), a third the bytes
+        pan = (f'<g id="{uid}-c{p_i}">' + "".join(content) + "</g>"
+               + "".join(f'<use href="#{uid}-c{p_i}" '
+                         f'transform="translate({k * data_w:.2f},0)"/>'
+                         for k in (-1, 1)))
         out.append(f'<clipPath id="{uid}-clip{p_i}"><rect x="{x0:.1f}" '
                    f'y="{ytop}" width="{w:.1f}" height="{clip_h}"/>'
                    f'</clipPath>')
@@ -3522,6 +3590,41 @@ def strip_charts_grid(t, header, grid_rows, col_titles, period_s: float,
     out.append("</svg>")
 
     viewer_iframe_js = f'"{viewer_iframe}"' if viewer_iframe else "null"
+    slider, slider_js = "", ""
+    if variants:
+        slider = (f'<div class="variant-pick"><input type="range" '
+                  f'id="{uid}-slider" min="0" max="{len(variants) - 1}" '
+                  f'step="1" value="0" style="width:100%"><br>'
+                  f'<span id="{uid}-vlabel">{variants[0]}</span></div>')
+        slider_js = f"""
+  var LABELS = {json.dumps(list(variants))}, ROOT = "{variant_root}";
+  var slider = document.getElementById("{uid}-slider");
+  var vlabel = document.getElementById("{uid}-vlabel");
+  var shown = 0, synced = -1;
+  function viewer() {{
+    try {{
+      var f = document.getElementById(IFRAME);
+      return f && f.contentWindow && f.contentWindow.viewer;
+    }} catch (e) {{ return null; }}
+  }}
+  function sync_viewer() {{
+    var v = IFRAME ? viewer() : null;
+    if (!v || !v.handle_command) return;
+    for (var k = 0; k < LABELS.length; k++)
+      v.handle_command({{type: "set_property", path: ROOT + k,
+                         property: "visible", value: k === shown}});
+    synced = shown;
+  }}
+  function pick(k) {{
+    var all = document.querySelectorAll("[class^='{uid}-v']");
+    for (var i = 0; i < all.length; i++)
+      all[i].style.display =
+        (all[i].getAttribute("class") === "{uid}-v" + k) ? "" : "none";
+    shown = k;
+    vlabel.innerHTML = LABELS[k];
+    sync_viewer();
+  }}
+  slider.addEventListener("input", function() {{ pick(+slider.value); }});"""
     script = f"""<script>
 (function() {{
   var pans  = document.querySelectorAll(".{uid}-pan");
@@ -3552,14 +3655,15 @@ def strip_charts_grid(t, header, grid_rows, col_titles, period_s: float,
     for (var i = 0; i < pans.length; i++)
       pans[i].setAttribute("transform", tr);
     label.textContent = (T0 + tau).toFixed(2) + " s";
+    {"if (synced !== shown) sync_viewer();" if variants else ""}
     window.requestAnimationFrame(tick);
-  }}
+  }}{slider_js}
   window.requestAnimationFrame(tick);
 }})();
 </script>"""
     legend = " &nbsp; ".join(f'<span style="color:{c}">&#9644;</span> {lab}'
                              for lab, c, _, _ in hdr_series)
-    return (f'<div class="strips">{"".join(out)}'
+    return (f'<div class="strips">{slider}{"".join(out)}'
             f'<div class="strip-legend">{legend}</div></div>{script}')
 
 
@@ -4167,6 +4271,144 @@ trace out).  If the coloured lines leave the black one, the rest is going
 into reserve actuators or residuals, I think.</p>
 {fib_text}"""
     return html_page(title, "muscles", body)
+
+
+def knee_variant_series(chain, params, knee_shifts_m) -> dict:
+    """Right-leg ankle/knee/hip series for each lateral knee shift d
+    (`simulate.varus_shift` on the whole-body right chain, measured ground
+    force, `core.inverse_dynamics`), each ``[D, T, 3]``:
+
+    * ``sagittal`` [N m]: joint torque about the proximal segment's
+      left-pointing axis (the same as `c3d_sagittal_series`' torque).
+    * ``frontal`` [N m]: minus the torque about the proximal anterior axis,
+      so + = EXTERNAL adduction (varus) moment on the right leg — the KAM
+      at the knee (matches ``scripts/opensim/knee_kam_boneid.py``).
+    * ``frontal_angle`` [deg]: the distal segment's rotation about the
+      proximal anterior axis (from its medio-lateral axis), + = the distal
+      segment adducted / varus for the right leg.  Not zeroed (no static
+      trial), so read the CHANGE with d, not the level.
+    """
+    from .core import chain_kinematics, inverse_dynamics
+    from .simulate import varus_shift
+    skel_r, kin_r, ground_r = chain[:3]
+    out = {k: [] for k in ("sagittal", "frontal", "frontal_angle")}
+    for d in knee_shifts_m:
+        kin_d = varus_shift(kin_r, float(d)) if d else kin_r
+        res = inverse_dynamics(skel_r, kin_d, ground_r, params)
+        r = chain_kinematics(skel_r, kin_d, params.lowpass_hz,
+                             params.filter_order)["r"]
+        out["sagittal"].append(res.joint_torque_local[:, :3, 1])
+        out["frontal"].append(-res.joint_torque_local[:, :3, 0])
+        ang = np.zeros((r.shape[0], 3))
+        for j in range(3):
+            r_rel = np.einsum("tji,tjk->tik", r[:, j + 1], r[:, j])
+            ang[:, j] = np.degrees(np.arctan2(r_rel[:, 2, 1], r_rel[:, 1, 1]))
+        out["frontal_angle"].append(ang)
+    return {k: np.array(v) for k, v in out.items()}
+
+
+#: front-on (lab -y is anterior), a little to the right: the bow reads best
+VARUS_CAMERA = (-0.35, -1.75, 0.05)
+
+
+def varus_viewer_html(trial, knee_contact_npz, params=None,
+                      viewer_html: str | None = None, run=None,
+                      stride: int = 1) -> str:
+    """Full page: the walker with its right knee pushed out d = 0..50 mm,
+    a slider over d that swaps BOTH the leg in the meshcat viewer and every
+    trace in the synced grid underneath.
+
+    The knee-contact header comes from OpenSim's varus sweep (static
+    optimization + the two-point plateau split, ``sweep_*`` keys of the
+    knee-contact npz); the 3x3 grid (sagittal torque, frontal torque,
+    frontal angle x ankle/knee/hip) is boneid on `knee_variant_series`.
+    `viewer_html` must come from ``p1_viewer_html(..., knee_shifts_m=d)``
+    with the same d list (built here if None, which needs meshcat);
+    `stride` keeps every stride-th d of the sweep.
+    """
+    params = params or p1_params()
+    chain, skel_u, kin_u, whole, _ = run or whole_body_run(trial, params)
+    kc = (knee_contact_npz if isinstance(knee_contact_npz, dict)
+          else dict(np.load(knee_contact_npz)))
+    pick = np.arange(0, len(kc["sweep_d_m"]), stride)
+    d_m = kc["sweep_d_m"][pick]
+    theta = kc["sweep_theta_deg"][pick]
+    if viewer_html is None:
+        viewer_html = p1_viewer_html(trial, chain, skel_u, kin_u, params,
+                                     knee_shifts_m=d_m,
+                                     camera_offset=VARUS_CAMERA)
+    n_key, fps, period = viewer_period(chain[1], VIEWER_DECIMATE)
+    ssl = slice(0, (n_key - 1) * VIEWER_DECIMATE + 1)
+    t = chain[1].t[ssl]
+    bw = float(kc["body_mass"]) * 9.81
+
+    def on_clock(key):                    # [D, T] on the clip's samples
+        return np.array([np.interp(t, kc["t"], kc[key][i], left=np.nan,
+                                   right=np.nan) for i in pick])
+
+    def peak(y):                          # mean over stances of the max
+        return float(np.mean([np.nanmax(y[a:b + 1])
+                              for a, b in kc["stance_frames"]]))
+
+    ser = knee_variant_series(chain, params, d_m)
+    dang = np.mean(ser["frontal_angle"][-1] - ser["frontal_angle"][0], axis=0)
+    labels = []
+    for k, i in enumerate(pick):
+        med, lat = (peak(kc["sweep_so_medial"][i]),
+                    peak(kc["sweep_so_lateral"][i]))
+        kam = peak(ser["frontal"][k][:, 1])
+        labels.append(f"<b>d = {1000 * d_m[k]:.0f} mm</b> "
+                      f"({theta[k]:.1f}&deg; varus): peak medial {med:.2f} BW, "
+                      f"lateral {lat:.2f} BW, knee adduction moment "
+                      f"{kam:.0f} N m")
+    header = ("knee contact\n(BW)", [
+        ("medial (static opt)", JOINT_COLORS[0], None,
+         on_clock("sweep_so_medial")),
+        ("lateral (static opt)", JOINT_COLORS[1], None,
+         on_clock("sweep_so_lateral")),
+        ("lateral ligament tension needed", JOINT_COLORS[3], "2 2",
+         on_clock("sweep_so_lig_lateral")),
+        ("total", NEUTRAL, "5 3", on_clock("sweep_so_total"))])
+    grid_rows = [
+        (row, [(JOINT_COLORS[j], ser[key][:, ssl, j]) for j in range(3)])
+        for row, key in (("sagittal\ntorque (N m)", "sagittal"),
+                         ("frontal torque\n(N m, + ext.\nadduction)", "frontal"),
+                         ("frontal angle\n(deg, + varus)", "frontal_angle"))]
+    strips = strip_charts_grid(t, header, grid_rows, ("ankle", "knee", "hip"),
+                               period_s=period, fps=fps, n_frames=n_key,
+                               uid="varus", viewer_iframe="varus-viewer",
+                               variants=labels)
+    esc = viewer_html.replace("&", "&amp;").replace('"', "&quot;")
+    title = ("Subject P1 walking with the right knee pushed out: "
+             "how the knee load moves as the leg bows")
+    body = f"""
+<p class="eyebrow">boneid &middot; P1 trial 13 &middot; varus sweep</p>
+<h1>{title}</h1>
+<p class="subtitle">Same walk, same measured ground force, right knee moved
+laterally by 0&ndash;{1000 * d_m[-1]:.0f} mm (0&ndash;{theta[-1]:.1f}&deg;
+of varus).</p>
+
+<p>Drag the slider (it sits just under the viewer).  The right shank and thigh in the viewer swing out to
+the knee you picked (hip, ankle and foot don't move, and the shank and thigh
+markers ride along), and every trace below switches to that leg.  The faint
+dashed line in each panel is the real, unshifted knee, so you can see how far
+things moved.  The clock is still the animation's: pause or scrub it under
+<b>Open Controls &rarr; Animations</b>.</p>
+<iframe id="varus-viewer" class="viewer" srcdoc="{esc}"></iframe>
+{strips}
+<p>The top panel is OpenSim (static optimization, then the two-point medial/
+lateral plateau split, {bw / 9.81:.1f} kg), for each d.  The grid is our own
+inverse dynamics on the shifted leg.  Frontal torque is the external
+adduction moment, so at the knee it's the KAM.  The frontal angle isn't
+zeroed (P1 has no static trial), so read how much it <em>changes</em> with d
+(at d = {1000 * d_m[-1]:.0f} mm the knee gains {dang[1]:.1f}&deg; while
+the hip and ankle give back about {-dang[2]:.1f}&deg; and
+{-dang[0]:.1f}&deg;; the knee's share is a bit under the {theta[-1]:.1f}&deg;
+set in OpenSim because the knee is bent for much of the cycle, so part of
+the swing shows up about the other axes).  The total contact barely moves while medial and lateral trade
+places, and the sagittal torques don't care at all.  That's the whole story
+of the sweep, I think.</p>"""
+    return html_page(title, "varus", body)
 
 
 #: Repo-local cache of the published running reference curves (see

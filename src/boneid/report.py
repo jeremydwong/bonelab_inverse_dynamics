@@ -3574,6 +3574,13 @@ MUSCLE_PALETTE = ("#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#8e5bd0",
                   "#d6417a", "#17a2b0", "#7a6a2e", "#5d7f1e", "#c24f1c",
                   "#3b4cc0", "#c86fb6", "#0f6f78", "#8c564b", "#a3a314",
                   "#6f6f6f", "#1f3d7a", "#a4161a", "#0b6e4f", "#6a4c93")
+#: tendon-compliance MocoInverse stages (npz key prefix, selector label)
+COMPLIANCE_STAGES = (("c1", "C1 triceps surae tendons"),
+                     ("c2", "C2 long tendons"),
+                     ("c3", "C3 all tendons + passive"))
+#: canvas/SVG dash pattern per solution in the muscle grid
+SOLUTION_DASH = {"so": [], "dyn": [], "c1": [7, 3], "c2": [2, 2.5],
+                 "c3": [9, 3, 2, 3]}
 
 
 def load_muscles(path) -> dict:
@@ -3589,6 +3596,10 @@ def load_muscles(path) -> dict:
     `fiber_velocity_norm` [T,M] (l_M/l_opt and v_M/(v_max l_opt), + =
     lengthening), `mtu_length`, `tendon_length` [T,M] m, `pennation` [T,M]
     rad, and per muscle `f_iso`, `l_opt`, `l_slack`, `v_max`, `alpha_opt`.
+    Optional compliant-tendon MocoInverse stages (`scripts/opensim/
+    compliance.py`), prefix `c1_`/`c2_`/`c3_`: `force`, `activation`,
+    `fiber_length_norm`, `fiber_velocity_norm`, `tendon_length`,
+    `tendon_strain` [T,M], `moment` [T,3], plus `compliant_mask_c*` [M].
     The sidecar (same stem, `.json`) lands in `["meta"]` when it exists.
     """
     import json
@@ -3664,7 +3675,10 @@ def muscle_grid_html(t, mus: dict, period_s: float, uid: str = "mgrid",
     two more rows, (d) normalized fibre length and (e) normalized fibre
     velocity, sit below (c), hidden until their toggle is ticked; one trace
     per checked muscle (rigid tendon + prescribed kinematics make them the
-    same for SO and dynamic optimization).
+    same for SO and dynamic optimization).  If the npz carries compliant
+    stages (`c1_force` ...), a "solutions drawn" row of checkboxes picks
+    SO / rigid dynamic / C1 / C2 / C3 for rows (b)-(e) (one line style per
+    solution, `SOLUTION_DASH`), and an optional row (f) shows tendon strain.
 
     Drawing is canvas in JS (the moments must be re-summed live, so the
     static-SVG trick of `strip_charts_grid` doesn't fit); the clock is the
@@ -3690,9 +3704,27 @@ def muscle_grid_html(t, mus: dict, period_s: float, uid: str = "mgrid",
         "idB": _b64_f32(mus["id_moment_boneid"][:, :3]),
     }
     fib = "fiber_length_norm" in mus and "fiber_velocity_norm" in mus
+    # dynamic solutions: the rigid MocoInverse plus whichever compliance
+    # stages (scripts/opensim/compliance.py) the npz carries
+    sols = [("dyn", "rigid dynamic")] + [
+        (k, lab) for k, lab in COMPLIANCE_STAGES if f"{k}_force" in mus]
+    data["sols"] = [{"key": k, "label": lab, "dash": SOLUTION_DASH[k]}
+                    for k, lab in sols]
+    data["F"] = {k: data["dyn"] if k == "dyn" else _b64_f32(mus[f"{k}_force"])
+                 for k, _ in sols}
+    data["solon"] = {"so": True, "dyn": True,
+                     **{k: k == sols[-1][0] for k, _ in sols[1:]}}
     if fib:
-        data["lf"] = _b64_f32(mus["fiber_length_norm"])
-        data["vf"] = _b64_f32(mus["fiber_velocity_norm"])
+        data["lf"] = {k: _b64_f32(mus["fiber_length_norm" if k == "dyn" else
+                                      f"{k}_fiber_length_norm"])
+                      for k, _ in sols}
+        data["vf"] = {k: _b64_f32(mus["fiber_velocity_norm" if k == "dyn" else
+                                      f"{k}_fiber_velocity_norm"])
+                      for k, _ in sols}
+    ten = [k for k, _ in sols[1:] if f"{k}_tendon_strain" in mus]
+    if ten:
+        data["ts"] = {k: _b64_f32(100.0 * mus[f"{k}_tendon_strain"])
+                      for k in ten}
     ink = {"so": JOINT_COLORS[0], "dyn": JOINT_COLORS[1],
            "idO": "#1c1b18", "idB": NEUTRAL}
     gut = 100.0 * GRID_GUTTER / STRIP_WIDTH
@@ -3704,11 +3736,13 @@ def muscle_grid_html(t, mus: dict, period_s: float, uid: str = "mgrid",
         rows += [("d", "fibre length\nl<sub>M</sub>/l<sub>opt</sub>"),
                  ("e", "fibre velocity\nv<sub>M</sub>/(v<sub>max</sub>"
                        "l<sub>opt</sub>)")]
+    if ten:
+        rows += [("f", "tendon strain\n(%)")]
     cells = ['<div></div>'] + [f'<div class="mg-title">{c}</div>'
                                for c in col_titles]
     for key, lab in rows:
         opt = (f' data-opt="{key}" style="display:none"'
-               if key in "de" else "")
+               if key in "def" else "")
         cells.append(f'<div class="mg-row"{opt}>'
                      f'{lab.replace(chr(10), "<br>")}</div>')
         for j in range(len(col_titles)):
@@ -3735,11 +3769,32 @@ def muscle_grid_html(t, mus: dict, period_s: float, uid: str = "mgrid",
                f' (d) fibre length l<sub>M</sub>/l<sub>opt</sub></label> '
                f'<label><input type="checkbox" class="mg-opt" data-row="e">'
                f' (e) fibre velocity v<sub>M</sub>/(v<sub>max</sub> '
-               f'l<sub>opt</sub>), + = lengthening</label></div>')
+               f'l<sub>opt</sub>), + = lengthening</label>'
+               + ('' if not ten else
+                  '<label><input type="checkbox" class="mg-opt" data-row="f">'
+                  ' (f) tendon strain (%)</label>')
+               + '</div>')
+    if len(sols) > 1:
+        sol_boxes = "".join(
+            f'<label><input type="checkbox" class="mg-sol" data-sol="{k}"'
+            f'{" checked" if data["solon"][k] else ""}> '
+            f'<svg width="26" height="8" style="display:inline-block;'
+            f'vertical-align:middle;width:26px;min-width:0;height:8px">'
+            f'<line x1="1" y1="4" x2="25" y2="4" '
+            f'stroke="{ink["so"] if k == "so" else ink["dyn"]}" '
+            f'stroke-width="2" stroke-dasharray="'
+            f'{" ".join(str(v) for v in SOLUTION_DASH.get(k, []))}"/></svg> '
+            f'{lab}</label>'
+            for k, lab in [("so", "SO")] + sols)
+        toggles = (f'<div class="mg-opts mg-sols">solutions drawn: '
+                   f'{sol_boxes}</div>' + toggles)
     fib_note = ("" if not fib else
-                " &nbsp;&middot;&nbsp; (d)/(e): one trace per checked muscle,"
-                " the same for SO and dyn-opt (rigid tendon, prescribed"
-                " kinematics); dotted line = l<sub>opt</sub> / zero velocity")
+                " &nbsp;&middot;&nbsp; (d)/(e): one trace per checked muscle"
+                + (" and checked dynamic solution (SO shares the rigid"
+                   " fibres; line style = solution)" if len(sols) > 1 else
+                   ", the same for SO and dyn-opt (rigid tendon, prescribed"
+                   " kinematics)")
+                + "; dotted line = l<sub>opt</sub> / zero velocity")
     legend = (f'<span style="color:{ink["so"]}">&#9644;</span> SO muscles '
               f'(checked) &nbsp; <span style="color:{ink["dyn"]}">&#9644;'
               f'</span> dyn-opt muscles (checked) &nbsp; '
@@ -3777,55 +3832,91 @@ def muscle_grid_html(t, mus: dict, period_s: float, uid: str = "mgrid",
     return new Float32Array(u.buffer);
   }}
   var N = D.N, M = D.M, J = D.cols.length;
-  var SO = f32(D.so), DY = f32(D.dyn), MA = f32(D.ma);
+  var SO = f32(D.so), MA = f32(D.ma);
   var IDO = f32(D.idO), IDB = f32(D.idB);
-  var LF = D.lf ? f32(D.lf) : null, VF = D.vf ? f32(D.vf) : null;
-  var llo = 0, lhi = 2, vlo = -1, vhi = 1;
+  var SK = D.sols.map(function(s) {{ return s.key; }});   // dynamic solutions
+  var DASH = {{}};
+  D.sols.forEach(function(s) {{ DASH[s.key] = s.dash; }});
+  function dec(o) {{
+    if (!o) return null;
+    var r = {{}};
+    for (var k in o) r[k] = f32(o[k]);
+    return r;
+  }}
+  var FS = dec(D.F), LF = dec(D.lf), VF = dec(D.vf), TS = dec(D.ts);
+  var SOL = D.solon;                   // which solutions are drawn
+  var llo = 0, lhi = 2, vlo = -1, vhi = 1, tlo = 0, thi = 1;
   var on = [];                         // on[j][m]: checked in column j
   for (var j = 0; j < J; j++) {{
     on.push({{}});
     D.cols[j].forEach(function(m) {{ on[j][m] = true; }});
   }}
   var hot = -1;                        // muscle under the mouse
-  var sumSO = [], sumDY = [], fmax = 1, mlo = -1, mhi = 1;
+  var sumSO = [], sumDY = {{}}, fmax = 1, mlo = -1, mhi = 1;
+  function fibKeys() {{                // solutions whose fibre traces show
+    var ks = SK.filter(function(k) {{ return SOL[k]; }});
+    if (SOL.so && ks.indexOf("dyn") < 0) ks.unshift("dyn");   // SO = rigid fibres
+    return ks;
+  }}
   function recompute() {{
     fmax = 1e-9; mlo = 0; mhi = 0;
-    sumSO = []; sumDY = [];
+    sumSO = []; sumDY = {{}};
+    SK.forEach(function(k) {{ sumDY[k] = []; }});
     for (var j = 0; j < J; j++) {{
-      var a = new Float32Array(N), b = new Float32Array(N);
+      var a = new Float32Array(N), b = {{}};
+      SK.forEach(function(k) {{ b[k] = new Float32Array(N); }});
       var ms = D.cols[j].filter(function(m) {{ return on[j][m]; }});
       for (var i = 0; i < N; i++) {{
-        var sa = 0, sb = 0;
+        var sa = 0;
         for (var k = 0; k < ms.length; k++) {{
           var m = ms[k], r = MA[(i * M + m) * 3 + j];
-          sa += SO[i * M + m] * r; sb += DY[i * M + m] * r;
-          var fa = SO[i * M + m], fb = DY[i * M + m];
-          if (fa > fmax) fmax = fa;
-          if (fb > fmax) fmax = fb;
+          sa += SO[i * M + m] * r;
+          if (SOL.so && SO[i * M + m] > fmax) fmax = SO[i * M + m];
         }}
-        a[i] = ms.length ? sa : 0; b[i] = ms.length ? sb : 0;
-        var vs = [a[i], b[i], IDO[i * 3 + j], IDB[i * 3 + j]];
-        for (var q = 0; q < 4; q++) if (isFinite(vs[q])) {{
+        a[i] = sa;
+        var vs = [IDO[i * 3 + j], IDB[i * 3 + j]];
+        if (SOL.so) vs.push(a[i]);
+        SK.forEach(function(s) {{
+          var F = FS[s], sb = 0;
+          for (var k = 0; k < ms.length; k++) {{
+            var m = ms[k], f = F[i * M + m];
+            sb += f * MA[(i * M + m) * 3 + j];
+            if (SOL[s] && f > fmax) fmax = f;
+          }}
+          b[s][i] = sb;
+          if (SOL[s]) vs.push(sb);
+        }});
+        for (var q = 0; q < vs.length; q++) if (isFinite(vs[q])) {{
           if (vs[q] < mlo) mlo = vs[q];
           if (vs[q] > mhi) mhi = vs[q];
         }}
       }}
-      sumSO.push(a); sumDY.push(b);
+      sumSO.push(a);
+      SK.forEach(function(s) {{ sumDY[s].push(b[s]); }});
     }}
     var p = 0.06 * (mhi - mlo || 1); mlo -= p; mhi += p;
     fmax *= 1.06;
     if (LF) {{                         // fibre rows: range over checked muscles
-      llo = 1; lhi = 1; vlo = 0; vhi = 0;
+      llo = 1; lhi = 1; vlo = 0; vhi = 0; tlo = 0; thi = 0.5;
+      var ks = fibKeys();
       for (var j2 = 0; j2 < J; j2++) D.cols[j2].forEach(function(m) {{
         if (!on[j2][m]) return;
-        for (var i = 0; i < N; i++) {{
-          var l = LF[i * M + m], v = VF[i * M + m];
-          if (isFinite(l)) {{ if (l < llo) llo = l; if (l > lhi) lhi = l; }}
-          if (isFinite(v)) {{ if (v < vlo) vlo = v; if (v > vhi) vhi = v; }}
-        }}
+        ks.forEach(function(s) {{
+          var L = LF[s], V = VF[s], T = TS && TS[s];
+          for (var i = 0; i < N; i++) {{
+            var l = L[i * M + m], v = V[i * M + m];
+            if (isFinite(l)) {{ if (l < llo) llo = l; if (l > lhi) lhi = l; }}
+            if (isFinite(v)) {{ if (v < vlo) vlo = v; if (v > vhi) vhi = v; }}
+            if (T) {{
+              var e = T[i * M + m];
+              if (isFinite(e)) {{ if (e < tlo) tlo = e; if (e > thi) thi = e; }}
+            }}
+          }}
+        }});
       }});
       var pl = 0.06 * (lhi - llo || 1), pv = 0.06 * (vhi - vlo || 1);
-      llo -= pl; lhi += pl; vlo -= pv; vhi += pv;
+      var pt = 0.06 * (thi - tlo || 1);
+      llo -= pl; lhi += pl; vlo -= pv; vhi += pv; tlo -= pt; thi += pt;
     }}
   }}
   var canv = Array.prototype.slice.call(root.querySelectorAll("canvas.mg-cv"));
@@ -3861,6 +3952,7 @@ def muscle_grid_html(t, mus: dict, period_s: float, uid: str = "mgrid",
     var lo = row === "c" ? mlo : -0.03 * fmax, hi = row === "c" ? mhi : fmax;
     if (row === "d") {{ lo = llo; hi = lhi; }}
     if (row === "e") {{ lo = vlo; hi = vhi; }}
+    if (row === "f") {{ lo = tlo; hi = thi; }}
     var ref = row === "d" ? 1 : 0;     // l_opt / zero velocity / zero
     if (lo < ref && hi > ref) {{
       var zy = h - h * (ref - lo) / (hi - lo);
@@ -3874,17 +3966,32 @@ def muscle_grid_html(t, mus: dict, period_s: float, uid: str = "mgrid",
             INK.idB, 1.3, [4, 3], 1);
       trace(ctx, w, h, tau, lo, hi, function(i) {{ return IDO[i * 3 + j]; }},
             INK.idO, 1.6, null, 1);
-      trace(ctx, w, h, tau, lo, hi, function(i) {{ return sumSO[j][i]; }},
-            INK.so, 1.4, null, 1);
-      trace(ctx, w, h, tau, lo, hi, function(i) {{ return sumDY[j][i]; }},
-            INK.dyn, 1.4, null, 1);
+      if (SOL.so)
+        trace(ctx, w, h, tau, lo, hi, function(i) {{ return sumSO[j][i]; }},
+              INK.so, 1.4, null, 1);
+      SK.forEach(function(s) {{
+        if (!SOL[s]) return;
+        trace(ctx, w, h, tau, lo, hi, function(i) {{ return sumDY[s][j][i]; }},
+              INK.dyn, 1.4, DASH[s], 1);
+      }});
     }} else {{
-      var src = row === "a" ? SO : row === "b" ? DY : row === "d" ? LF : VF;
+      var srcs;                        // [[array, dash], ...] for this row
+      if (row === "a") srcs = SOL.so ? [[SO, []]] : [];
+      else {{
+        var tab = row === "b" ? FS : row === "d" ? LF : row === "e" ? VF : TS;
+        var ks = row === "b" ? SK.filter(function(k) {{ return SOL[k]; }})
+                             : fibKeys();
+        srcs = ks.filter(function(k) {{ return tab[k]; }})
+                 .map(function(k) {{ return [tab[k], DASH[k]]; }});
+      }}
       D.cols[j].forEach(function(m) {{
         if (!on[j][m]) return;
         var a = (hot < 0 || hot === m || !(hot in on[j])) ? 1 : 0.18;
-        trace(ctx, w, h, tau, lo, hi, function(i) {{ return src[i * M + m]; }},
-              D.colors[m], hot === m ? 2.4 : 1.2, null, a);
+        srcs.forEach(function(sd) {{
+          var src = sd[0];
+          trace(ctx, w, h, tau, lo, hi, function(i) {{ return src[i * M + m]; }},
+                D.colors[m], hot === m ? 2.4 : 1.2, sd[1], a);
+        }});
       }});
     }}
     if (j === 0) {{                    // shared row scale, on the first cell
@@ -3900,6 +4007,10 @@ def muscle_grid_html(t, mus: dict, period_s: float, uid: str = "mgrid",
     if (c.classList && c.classList.contains("mg-opt")) {{
       root.querySelectorAll('[data-opt="' + c.dataset.row + '"]')
         .forEach(function(el) {{ el.style.display = c.checked ? "" : "none"; }});
+      return;
+    }}
+    if (c.classList && c.classList.contains("mg-sol")) {{
+      SOL[c.dataset.sol] = c.checked; recompute();
       return;
     }}
     if (!c.dataset || c.dataset.m === undefined) return;

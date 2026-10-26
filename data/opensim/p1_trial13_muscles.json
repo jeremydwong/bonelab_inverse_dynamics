@@ -1239,5 +1239,3047 @@
       "muscle_analysis": 1.5270040035247803,
       "moco_analyze": 2.0016260147094727
     }
+  },
+  "tendon_compliance": {
+    "script": "scripts/opensim/compliance.py",
+    "keys": {
+      "c{1,2,3}_force": "[T,M] N, tendon force (MocoInverse output)",
+      "c{1,2,3}_activation": "[T,M]",
+      "c{1,2,3}_fiber_length_norm": "[T,M] l_M / l_opt",
+      "c{1,2,3}_fiber_velocity_norm": "[T,M] v_M / (v_max l_opt), + = lengthening",
+      "c{1,2,3}_tendon_length": "[T,M] m",
+      "c{1,2,3}_tendon_strain": "[T,M] (l_T - l_slack) / l_slack",
+      "c{1,2,3}_moment": "[T,3] N m, sum force x the rigid moment_arm (same geometry)",
+      "compliant_mask_c{1,2,3}": "[M] bool, right-leg muscles with a compliant tendon"
+    },
+    "ladder": {
+      "c1": "compliant soleus/gasmed/gaslat, both legs",
+      "c2": "compliant where l_slack / l_opt > 1.0",
+      "c3": "all muscles compliant + passive fibre force on"
+    },
+    "ratio_threshold_justification": "Zajac (1989) shows the tendon-to-fibre length ratio l_slack/l_opt sets how much tendon stretch changes fibre length and velocity: tendon stretch at F_iso is eps0 l_slack = 0.049 l_slack, so at a ratio of 1 a fully loaded tendon shifts the fibre by ~5% of l_opt (small vs the active f-L width), while the triceps surae (ratio 5.4-6.6) shift by 27-32% of l_opt. Below ~1 a rigid tendon is a good approximation (also the rule of thumb in Millard 2013 / De Groote 2016: compliance matters for long-tendon muscles).",
+    "model_parameters_all_80": [
+      {
+        "muscle": "addbrev_r",
+        "l_slack_m": 0.03696856416465767,
+        "l_opt_m": 0.10751558937748844,
+        "ratio": 0.3438437567863822,
+        "f_iso_N": 625.819672131148,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 742816.4313184876,
+        "tendon_stretch_at_f_iso_mm": 1.811459644068226,
+        "passive_fiber_strain_at_one_norm_force": 0.5059595363767915
+      },
+      {
+        "muscle": "addlong_r",
+        "l_slack_m": 0.13485700251053784,
+        "l_opt_m": 0.11071015292975615,
+        "ratio": 1.2181087185030128,
+        "f_iso_N": 916.8,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 298308.7392751602,
+        "tendon_stretch_at_f_iso_mm": 6.607993123016354,
+        "passive_fiber_strain_at_one_norm_force": 0.5013183630169146
+      },
+      {
+        "muscle": "addmagDist_r",
+        "l_slack_m": 0.08752544628833979,
+        "l_opt_m": 0.17749354134036288,
+        "ratio": 0.49311904888133573,
+        "f_iso_N": 597.295081967214,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 299446.66410356207,
+        "tendon_stretch_at_f_iso_mm": 4.28874686812865,
+        "passive_fiber_strain_at_one_norm_force": 0.7000000990651802
+      },
+      {
+        "muscle": "addmagIsch_r",
+        "l_slack_m": 0.21709476500050123,
+        "l_opt_m": 0.15674275856755182,
+        "ratio": 1.3850385624477788,
+        "f_iso_N": 597.295081967214,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 120727.01483685401,
+        "tendon_stretch_at_f_iso_mm": 10.63764348502456,
+        "passive_fiber_strain_at_one_norm_force": 0.7000407741416836
+      },
+      {
+        "muscle": "addmagMid_r",
+        "l_slack_m": 0.04716307619721681,
+        "l_opt_m": 0.13928106265810733,
+        "ratio": 0.33861800949198545,
+        "f_iso_N": 597.295081967214,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 555714.4492785546,
+        "tendon_stretch_at_f_iso_mm": 2.3109907336636235,
+        "passive_fiber_strain_at_one_norm_force": 0.7000000952466664
+      },
+      {
+        "muscle": "addmagProx_r",
+        "l_slack_m": 0.042633132523182335,
+        "l_opt_m": 0.11164685699888431,
+        "ratio": 0.3818569879097301,
+        "f_iso_N": 597.295081967214,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 614761.3690119355,
+        "tendon_stretch_at_f_iso_mm": 2.0890234936359344,
+        "passive_fiber_strain_at_one_norm_force": 0.7000000991369466
+      },
+      {
+        "muscle": "bflh_r",
+        "l_slack_m": 0.3350361127044688,
+        "l_opt_m": 0.0983449389963184,
+        "ratio": 3.406744832258334,
+        "f_iso_N": 1313.18360655738,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 171988.22157965263,
+        "tendon_stretch_at_f_iso_mm": 16.416769522518972,
+        "passive_fiber_strain_at_one_norm_force": 0.7054015980110313
+      },
+      {
+        "muscle": "bfsh_r",
+        "l_slack_m": 0.10745026542179763,
+        "l_opt_m": 0.11200222831450818,
+        "ratio": 0.9593582827662286,
+        "f_iso_N": 557.11475409836,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 227510.8126974596,
+        "tendon_stretch_at_f_iso_mm": 5.265063005668083,
+        "passive_fiber_strain_at_one_norm_force": 0.6994890695386067
+      },
+      {
+        "muscle": "edl_r",
+        "l_slack_m": 0.37254805810461405,
+        "l_opt_m": 0.06999000541250378,
+        "ratio": 5.322875114938311,
+        "f_iso_N": 603.4981556,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 71081.81647107659,
+        "tendon_stretch_at_f_iso_mm": 18.25485484712609,
+        "passive_fiber_strain_at_one_norm_force": 0.7074930778561314
+      },
+      {
+        "muscle": "ehl_r",
+        "l_slack_m": 0.33011578585193235,
+        "l_opt_m": 0.0755600289474643,
+        "ratio": 4.368920849427634,
+        "f_iso_N": 285.8675474,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 37998.23616262121,
+        "tendon_stretch_at_f_iso_mm": 16.175673506744687,
+        "passive_fiber_strain_at_one_norm_force": 0.7147756039906883
+      },
+      {
+        "muscle": "fdl_r",
+        "l_slack_m": 0.3827179411639273,
+        "l_opt_m": 0.04506452843636991,
+        "ratio": 8.492664950534573,
+        "f_iso_N": 423.177049180328,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 48518.58857404166,
+        "tendon_stretch_at_f_iso_mm": 18.75317911703244,
+        "passive_fiber_strain_at_one_norm_force": 0.6998541609681577
+      },
+      {
+        "muscle": "fhl_r",
+        "l_slack_m": 0.3581040092678575,
+        "l_opt_m": 0.05325985917492141,
+        "ratio": 6.723713032956699,
+        "f_iso_N": 907.839344262294,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 111240.9506066648,
+        "tendon_stretch_at_f_iso_mm": 17.54709645412502,
+        "passive_fiber_strain_at_one_norm_force": 0.7001851814726195
+      },
+      {
+        "muscle": "gaslat_r",
+        "l_slack_m": 0.3773067265694979,
+        "l_opt_m": 0.06961006452752769,
+        "ratio": 5.420289855072463,
+        "f_iso_N": 1575.05901639344,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 183175.40384672175,
+        "tendon_stretch_at_f_iso_mm": 18.488029601905396,
+        "passive_fiber_strain_at_one_norm_force": 0.6636806970704984
+      },
+      {
+        "muscle": "gasmed_r",
+        "l_slack_m": 0.3904328317152066,
+        "l_opt_m": 0.05952335160516069,
+        "ratio": 6.559322033898306,
+        "f_iso_N": 3115.51475409836,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 350145.3442242201,
+        "tendon_stretch_at_f_iso_mm": 19.131208754045122,
+        "passive_fiber_strain_at_one_norm_force": 0.5506359622562749
+      },
+      {
+        "muscle": "glmax1_r",
+        "l_slack_m": 0.09445026394521386,
+        "l_opt_m": 0.15903996318272717,
+        "ratio": 0.5938775516232753,
+        "f_iso_N": 983.783606557378,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 457047.43901338434,
+        "tendon_stretch_at_f_iso_mm": 4.628062933315479,
+        "passive_fiber_strain_at_one_norm_force": 0.6999998712561831
+      },
+      {
+        "muscle": "glmax2_r",
+        "l_slack_m": 0.11673850054697013,
+        "l_opt_m": 0.16814628038472923,
+        "ratio": 0.694267516830376,
+        "f_iso_N": 1406.04590163935,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 528506.4142494551,
+        "tendon_stretch_at_f_iso_mm": 5.720186526801537,
+        "passive_fiber_strain_at_one_norm_force": 0.7000000874624024
+      },
+      {
+        "muscle": "glmax3_r",
+        "l_slack_m": 0.10925019872452484,
+        "l_opt_m": 0.17713381695109812,
+        "ratio": 0.6167664684529769,
+        "f_iso_N": 947.754098360656,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 380660.93487103656,
+        "tendon_stretch_at_f_iso_mm": 5.353259737501717,
+        "passive_fiber_strain_at_one_norm_force": 0.7004987591743358
+      },
+      {
+        "muscle": "glmed1_r",
+        "l_slack_m": 0.06375988079376604,
+        "l_opt_m": 0.08337830565338636,
+        "ratio": 0.7647058823529412,
+        "f_iso_N": 1093.4667688,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 752528.5254458066,
+        "tendon_stretch_at_f_iso_mm": 3.124234158894536,
+        "passive_fiber_strain_at_one_norm_force": 0.70000009980647
+      },
+      {
+        "muscle": "glmed2_r",
+        "l_slack_m": 0.0826239374035091,
+        "l_opt_m": 0.09198688856056679,
+        "ratio": 0.8982142857142856,
+        "f_iso_N": 765.0916616,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 406323.98198462586,
+        "tendon_stretch_at_f_iso_mm": 4.048572932771946,
+        "passive_fiber_strain_at_one_norm_force": 0.6904087964123443
+      },
+      {
+        "muscle": "glmed3_r",
+        "l_slack_m": 0.05272720561940811,
+        "l_opt_m": 0.08508253634040853,
+        "ratio": 0.619718309859155,
+        "f_iso_N": 871.1992642,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 725016.0463297823,
+        "tendon_stretch_at_f_iso_mm": 2.5836330753509973,
+        "passive_fiber_strain_at_one_norm_force": 0.6558112677200998
+      },
+      {
+        "muscle": "glmin1_r",
+        "l_slack_m": 0.02105886422749125,
+        "l_opt_m": 0.08870910164222998,
+        "ratio": 0.23739237392373927,
+        "f_iso_N": 374.045901639344,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 779390.0020379536,
+        "tendon_stretch_at_f_iso_mm": 1.0318843471470713,
+        "passive_fiber_strain_at_one_norm_force": 0.7000000951073869
+      },
+      {
+        "muscle": "glmin2_r",
+        "l_slack_m": 0.03492211770799022,
+        "l_opt_m": 0.07492659233413267,
+        "ratio": 0.4660844250363901,
+        "f_iso_N": 394.819672131148,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 496092.9851265601,
+        "tendon_stretch_at_f_iso_mm": 1.7111837676915207,
+        "passive_fiber_strain_at_one_norm_force": 0.6999803863988937
+      },
+      {
+        "muscle": "glmin3_r",
+        "l_slack_m": 0.05089008512223906,
+        "l_opt_m": 0.0380597458647254,
+        "ratio": 1.337110481586402,
+        "f_iso_N": 446.773770491804,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 385229.3477608956,
+        "tendon_stretch_at_f_iso_mm": 2.493614170989714,
+        "passive_fiber_strain_at_one_norm_force": 0.6990980629025787
+      },
+      {
+        "muscle": "grac_r",
+        "l_slack_m": 0.17286874736025343,
+        "l_opt_m": 0.22893220328915784,
+        "ratio": 0.7551089138032179,
+        "f_iso_N": 281.311475409836,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 71406.1861640547,
+        "tendon_stretch_at_f_iso_mm": 8.470568620652418,
+        "passive_fiber_strain_at_one_norm_force": 0.7244613831607012
+      },
+      {
+        "muscle": "iliacus_r",
+        "l_slack_m": 0.10429806436915766,
+        "l_opt_m": 0.11566886935204755,
+        "ratio": 0.9016952007347636,
+        "f_iso_N": 1021.14098360656,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 429609.95145479543,
+        "tendon_stretch_at_f_iso_mm": 5.110605154088725,
+        "passive_fiber_strain_at_one_norm_force": 0.5020881933758535
+      },
+      {
+        "muscle": "perbrev_r",
+        "l_slack_m": 0.14889043457539747,
+        "l_opt_m": 0.045819417897369916,
+        "ratio": 3.2495051532277093,
+        "f_iso_N": 521.2015988,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 153604.45653603636,
+        "tendon_stretch_at_f_iso_mm": 7.295631294194476,
+        "passive_fiber_strain_at_one_norm_force": 0.6992206842965657
+      },
+      {
+        "muscle": "perlong_r",
+        "l_slack_m": 0.33543101925234087,
+        "l_opt_m": 0.05129088152924187,
+        "ratio": 6.5397787920861825,
+        "f_iso_N": 1115.3714214,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 145908.69228646104,
+        "tendon_stretch_at_f_iso_mm": 16.4361199433647,
+        "passive_fiber_strain_at_one_norm_force": 0.6966413708251057
+      },
+      {
+        "muscle": "piri_r",
+        "l_slack_m": 0.12558960195496724,
+        "l_opt_m": 0.028417340067195568,
+        "ratio": 4.419470705491731,
+        "f_iso_N": 1029.7868852459,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 359797.8360234025,
+        "tendon_stretch_at_f_iso_mm": 6.153890495793394,
+        "passive_fiber_strain_at_one_norm_force": 0.7031405216751331
+      },
+      {
+        "muscle": "psoas_r",
+        "l_slack_m": 0.10841108748790738,
+        "l_opt_m": 0.12731417589965158,
+        "ratio": 0.851524087728899,
+        "f_iso_N": 1426.79016393443,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 577499.0580088615,
+        "tendon_stretch_at_f_iso_mm": 5.312143286907462,
+        "passive_fiber_strain_at_one_norm_force": 0.5032605384426551
+      },
+      {
+        "muscle": "recfem_r",
+        "l_slack_m": 0.4607540506957517,
+        "l_opt_m": 0.0776443061402686,
+        "ratio": 5.934164056580979,
+        "f_iso_N": 2191.74098360656,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 208730.03262984057,
+        "tendon_stretch_at_f_iso_mm": 22.576948484091833,
+        "passive_fiber_strain_at_one_norm_force": 0.8997464718661979
+      },
+      {
+        "muscle": "sart_r",
+        "l_slack_m": 0.12728198548704706,
+        "l_opt_m": 0.41366701930851246,
+        "ratio": 0.3076918863384665,
+        "f_iso_N": 249.413114754098,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 85983.91572088972,
+        "tendon_stretch_at_f_iso_mm": 6.236817288865305,
+        "passive_fiber_strain_at_one_norm_force": 0.7021360967635284
+      },
+      {
+        "muscle": "semimem_r",
+        "l_slack_m": 0.3376867233316748,
+        "l_opt_m": 0.08668972598962398,
+        "ratio": 3.8953488372093026,
+        "f_iso_N": 2200.9868852459,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 286001.5212247845,
+        "tendon_stretch_at_f_iso_mm": 16.546649443252065,
+        "passive_fiber_strain_at_one_norm_force": 0.7044744859943963
+      },
+      {
+        "muscle": "semiten_r",
+        "l_slack_m": 0.2485804438885053,
+        "l_opt_m": 0.19407860200698526,
+        "ratio": 1.2808235494171503,
+        "f_iso_N": 591.295081967214,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 104376.36833748303,
+        "tendon_stretch_at_f_iso_mm": 12.18044175053676,
+        "passive_fiber_strain_at_one_norm_force": 0.7136122317096973
+      },
+      {
+        "muscle": "soleus_r",
+        "l_slack_m": 0.2837748434015689,
+        "l_opt_m": 0.044379218452146374,
+        "ratio": 6.394318180874686,
+        "f_iso_N": 6194.84262295082,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 957902.3958226633,
+        "tendon_stretch_at_f_iso_mm": 13.904967326676875,
+        "passive_fiber_strain_at_one_norm_force": 0.7659520975414122
+      },
+      {
+        "muscle": "tfl_r",
+        "l_slack_m": 0.45474208580714265,
+        "l_opt_m": 0.09610714757330763,
+        "ratio": 4.731615673644659,
+        "f_iso_N": 411.20655737705,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 39678.912113108905,
+        "tendon_stretch_at_f_iso_mm": 22.28236220454999,
+        "passive_fiber_strain_at_one_norm_force": 0.6394004080968974
+      },
+      {
+        "muscle": "tibant_r",
+        "l_slack_m": 0.24266786651742847,
+        "l_opt_m": 0.06892682581718668,
+        "ratio": 3.520659244646662,
+        "f_iso_N": 1227.45245901639,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 221951.09026655095,
+        "tendon_stretch_at_f_iso_mm": 11.890725459353995,
+        "passive_fiber_strain_at_one_norm_force": 0.7083714808914497
+      },
+      {
+        "muscle": "tibpost_r",
+        "l_slack_m": 0.28331728600688305,
+        "l_opt_m": 0.03814163451156523,
+        "ratio": 7.428032113332116,
+        "f_iso_N": 1730.15409836065,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 267964.0834575841,
+        "tendon_stretch_at_f_iso_mm": 13.88254701433727,
+        "passive_fiber_strain_at_one_norm_force": 0.6980289529111696
+      },
+      {
+        "muscle": "vasint_r",
+        "l_slack_m": 0.20811813509125376,
+        "l_opt_m": 0.11877961856427655,
+        "ratio": 1.7521367521367521,
+        "f_iso_N": 1697.36065573771,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 357873.1202731067,
+        "tendon_stretch_at_f_iso_mm": 10.197788619471435,
+        "passive_fiber_strain_at_one_norm_force": 0.707475376412601
+      },
+      {
+        "muscle": "vaslat_r",
+        "l_slack_m": 0.22437660966487658,
+        "l_opt_m": 0.11878761688140525,
+        "ratio": 1.8888888888888888,
+        "f_iso_N": 5148.76721311476,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 1006909.7581411287,
+        "tendon_stretch_at_f_iso_mm": 10.994453873578951,
+        "passive_fiber_strain_at_one_norm_force": 0.7111350167231973
+      },
+      {
+        "muscle": "vasmed_r",
+        "l_slack_m": 0.21115228204574282,
+        "l_opt_m": 0.11166707223572939,
+        "ratio": 1.8909090909090907,
+        "f_iso_N": 2747.82295081966,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 571028.5750741906,
+        "tendon_stretch_at_f_iso_mm": 10.346461820241398,
+        "passive_fiber_strain_at_one_norm_force": 0.7060129501893572
+      },
+      {
+        "muscle": "addbrev_l",
+        "l_slack_m": 0.037753302391133454,
+        "l_opt_m": 0.1097978417406259,
+        "ratio": 0.3438437567863822,
+        "f_iso_N": 625.819672131148,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 727376.2866956204,
+        "tendon_stretch_at_f_iso_mm": 1.8499118171655393,
+        "passive_fiber_strain_at_one_norm_force": 0.5059595363767915
+      },
+      {
+        "muscle": "addlong_l",
+        "l_slack_m": 0.1386300662450016,
+        "l_opt_m": 0.1138076299259808,
+        "ratio": 1.2181087185030128,
+        "f_iso_N": 916.8,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 290189.7365485544,
+        "tendon_stretch_at_f_iso_mm": 6.792873246005079,
+        "passive_fiber_strain_at_one_norm_force": 0.5013183630169146
+      },
+      {
+        "muscle": "addmagDist_l",
+        "l_slack_m": 0.09064187762581011,
+        "l_opt_m": 0.18381337697546984,
+        "ratio": 0.49311904888133573,
+        "f_iso_N": 597.295081967214,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 289151.1473693902,
+        "tendon_stretch_at_f_iso_mm": 4.441452003664695,
+        "passive_fiber_strain_at_one_norm_force": 0.7000000990651802
+      },
+      {
+        "muscle": "addmagIsch_l",
+        "l_slack_m": 0.22469104202914672,
+        "l_opt_m": 0.1622272824173576,
+        "ratio": 1.3850385624477783,
+        "f_iso_N": 597.295081967214,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 116645.51767853306,
+        "tendon_stretch_at_f_iso_mm": 11.00986105942819,
+        "passive_fiber_strain_at_one_norm_force": 0.7000407741416836
+      },
+      {
+        "muscle": "addmagMid_l",
+        "l_slack_m": 0.04867037249984893,
+        "l_opt_m": 0.143732380250144,
+        "ratio": 0.33861800949198545,
+        "f_iso_N": 597.295081967214,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 538504.2597588543,
+        "tendon_stretch_at_f_iso_mm": 2.3848482524925974,
+        "passive_fiber_strain_at_one_norm_force": 0.7000000952466664
+      },
+      {
+        "muscle": "addmagProx_l",
+        "l_slack_m": 0.04333541869740065,
+        "l_opt_m": 0.11348599101097247,
+        "ratio": 0.3818569879097301,
+        "f_iso_N": 597.295081967214,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 604798.6543808548,
+        "tendon_stretch_at_f_iso_mm": 2.123435516172632,
+        "passive_fiber_strain_at_one_norm_force": 0.7000000991369466
+      },
+      {
+        "muscle": "bflh_l",
+        "l_slack_m": 0.34385109082675397,
+        "l_opt_m": 0.10093228210743205,
+        "ratio": 3.406750383992703,
+        "f_iso_N": 1313.18360655738,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 167579.1257502047,
+        "tendon_stretch_at_f_iso_mm": 16.848703450510943,
+        "passive_fiber_strain_at_one_norm_force": 0.7054015980110313
+      },
+      {
+        "muscle": "bfsh_l",
+        "l_slack_m": 0.10986778142255782,
+        "l_opt_m": 0.11452215860977753,
+        "ratio": 0.9593582827662285,
+        "f_iso_N": 557.11475409836,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 222504.69513578163,
+        "tendon_stretch_at_f_iso_mm": 5.3835212897053335,
+        "passive_fiber_strain_at_one_norm_force": 0.6994890695386067
+      },
+      {
+        "muscle": "edl_l",
+        "l_slack_m": 0.3671139234403293,
+        "l_opt_m": 0.06896910325963639,
+        "ratio": 5.322875114938311,
+        "f_iso_N": 603.4981556,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 72133.99166308777,
+        "tendon_stretch_at_f_iso_mm": 17.988582248576133,
+        "passive_fiber_strain_at_one_norm_force": 0.7074930778561314
+      },
+      {
+        "muscle": "ehl_l",
+        "l_slack_m": 0.32576242435414043,
+        "l_opt_m": 0.07456359031929319,
+        "ratio": 4.368920849427633,
+        "f_iso_N": 285.8675474,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 38506.029713772245,
+        "tendon_stretch_at_f_iso_mm": 15.962358793352882,
+        "passive_fiber_strain_at_one_norm_force": 0.7147756039906883
+      },
+      {
+        "muscle": "fdl_l",
+        "l_slack_m": 0.378319609133329,
+        "l_opt_m": 0.044546630690937075,
+        "ratio": 8.492664950534573,
+        "f_iso_N": 423.177049180328,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 49082.66417851138,
+        "tendon_stretch_at_f_iso_mm": 18.53766084753312,
+        "passive_fiber_strain_at_one_norm_force": 0.6998541609681577
+      },
+      {
+        "muscle": "fhl_l",
+        "l_slack_m": 0.354495692269547,
+        "l_opt_m": 0.052723203761368805,
+        "ratio": 6.723713032956698,
+        "f_iso_N": 907.839344262294,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 112373.24254063008,
+        "tendon_stretch_at_f_iso_mm": 17.370288921207806,
+        "passive_fiber_strain_at_one_norm_force": 0.7001851814726195
+      },
+      {
+        "muscle": "gaslat_l",
+        "l_slack_m": 0.36892028933829296,
+        "l_opt_m": 0.06806283412925726,
+        "ratio": 5.420289855072464,
+        "f_iso_N": 1575.05901639344,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 187339.41724218044,
+        "tendon_stretch_at_f_iso_mm": 18.077094177576356,
+        "passive_fiber_strain_at_one_norm_force": 0.6636806970704984
+      },
+      {
+        "muscle": "gasmed_l",
+        "l_slack_m": 0.3818392881973217,
+        "l_opt_m": 0.05821322481561235,
+        "ratio": 6.559322033898305,
+        "f_iso_N": 3115.51475409836,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 358025.5947541778,
+        "tendon_stretch_at_f_iso_mm": 18.710125121668764,
+        "passive_fiber_strain_at_one_norm_force": 0.5506359622562749
+      },
+      {
+        "muscle": "glmax1_l",
+        "l_slack_m": 0.0952769376535578,
+        "l_opt_m": 0.16043195678057826,
+        "ratio": 0.5938775513650778,
+        "f_iso_N": 983.783606557378,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 453081.85079651553,
+        "tendon_stretch_at_f_iso_mm": 4.668569945024332,
+        "passive_fiber_strain_at_one_norm_force": 0.6999998712561831
+      },
+      {
+        "muscle": "glmax2_l",
+        "l_slack_m": 0.11815057090222623,
+        "l_opt_m": 0.17018017998015286,
+        "ratio": 0.6942675164405482,
+        "f_iso_N": 1406.04590163935,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 522189.99754130444,
+        "tendon_stretch_at_f_iso_mm": 5.789377974209086,
+        "passive_fiber_strain_at_one_norm_force": 0.7000000874624024
+      },
+      {
+        "muscle": "glmax3_l",
+        "l_slack_m": 0.11090967276846175,
+        "l_opt_m": 0.1798244206671808,
+        "ratio": 0.6167664678521806,
+        "f_iso_N": 947.754098360656,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 374965.3365955102,
+        "tendon_stretch_at_f_iso_mm": 5.434573965654626,
+        "passive_fiber_strain_at_one_norm_force": 0.7004987591743358
+      },
+      {
+        "muscle": "glmed1_l",
+        "l_slack_m": 0.06416044452870485,
+        "l_opt_m": 0.08390211976830633,
+        "ratio": 0.7647058823529413,
+        "f_iso_N": 1093.4667688,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 747830.3716375718,
+        "tendon_stretch_at_f_iso_mm": 3.143861781906538,
+        "passive_fiber_strain_at_one_norm_force": 0.70000009980647
+      },
+      {
+        "muscle": "glmed2_l",
+        "l_slack_m": 0.08301848465565101,
+        "l_opt_m": 0.09242614593869695,
+        "ratio": 0.8982142857142856,
+        "f_iso_N": 765.0916616,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 404392.91794224596,
+        "tendon_stretch_at_f_iso_mm": 4.0679057481269,
+        "passive_fiber_strain_at_one_norm_force": 0.6904087964123443
+      },
+      {
+        "muscle": "glmed3_l",
+        "l_slack_m": 0.053066459455774845,
+        "l_opt_m": 0.08562996866727306,
+        "ratio": 0.6197183098591549,
+        "f_iso_N": 871.1992642,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 720381.019277529,
+        "tendon_stretch_at_f_iso_mm": 2.6002565133329676,
+        "passive_fiber_strain_at_one_norm_force": 0.6558112677200998
+      },
+      {
+        "muscle": "glmin1_l",
+        "l_slack_m": 0.02118138707653151,
+        "l_opt_m": 0.08922522120839439,
+        "ratio": 0.23739237392373924,
+        "f_iso_N": 374.045901639344,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 774881.6531173588,
+        "tendon_stretch_at_f_iso_mm": 1.037887966750044,
+        "passive_fiber_strain_at_one_norm_force": 0.7000000951073869
+      },
+      {
+        "muscle": "glmin2_l",
+        "l_slack_m": 0.035133229888756244,
+        "l_opt_m": 0.07537954070448326,
+        "ratio": 0.46608442503639014,
+        "f_iso_N": 394.819672131148,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 493112.0103546871,
+        "tendon_stretch_at_f_iso_mm": 1.721528264549056,
+        "passive_fiber_strain_at_one_norm_force": 0.6999803863988937
+      },
+      {
+        "muscle": "glmin3_l",
+        "l_slack_m": 0.05139063657413501,
+        "l_opt_m": 0.03843409896328317,
+        "ratio": 1.3371104815864023,
+        "f_iso_N": 446.773770491804,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 381477.1640521674,
+        "tendon_stretch_at_f_iso_mm": 2.5181411921326156,
+        "passive_fiber_strain_at_one_norm_force": 0.6990980629025787
+      },
+      {
+        "muscle": "grac_l",
+        "l_slack_m": 0.1770032322228449,
+        "l_opt_m": 0.23440755232426264,
+        "ratio": 0.7551089138032178,
+        "f_iso_N": 281.311475409836,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 69738.26297370876,
+        "tendon_stretch_at_f_iso_mm": 8.6731583789194,
+        "passive_fiber_strain_at_one_norm_force": 0.7244613831607012
+      },
+      {
+        "muscle": "iliacus_l",
+        "l_slack_m": 0.10511091084813264,
+        "l_opt_m": 0.11657033414670612,
+        "ratio": 0.9016952007347636,
+        "f_iso_N": 1021.14098360656,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 426287.68040267617,
+        "tendon_stretch_at_f_iso_mm": 5.1504346315584995,
+        "passive_fiber_strain_at_one_norm_force": 0.5020881933758535
+      },
+      {
+        "muscle": "perbrev_l",
+        "l_slack_m": 0.14599708901555514,
+        "l_opt_m": 0.04492902215296914,
+        "ratio": 3.2495051532277093,
+        "f_iso_N": 521.2015988,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 156648.5636157548,
+        "tendon_stretch_at_f_iso_mm": 7.153857361762202,
+        "passive_fiber_strain_at_one_norm_force": 0.6992206842965657
+      },
+      {
+        "muscle": "perlong_l",
+        "l_slack_m": 0.3298683723290955,
+        "l_opt_m": 0.05044029512561967,
+        "ratio": 6.539778792086181,
+        "f_iso_N": 1115.3714214,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 148369.18442910363,
+        "tendon_stretch_at_f_iso_mm": 16.16355024412568,
+        "passive_fiber_strain_at_one_norm_force": 0.6966413708251057
+      },
+      {
+        "muscle": "piri_l",
+        "l_slack_m": 0.12627008690552807,
+        "l_opt_m": 0.02857131437676962,
+        "ratio": 4.419470705491731,
+        "f_iso_N": 1029.7868852459,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 357858.8414550258,
+        "tendon_stretch_at_f_iso_mm": 6.187234258370876,
+        "passive_fiber_strain_at_one_norm_force": 0.7031405216751331
+      },
+      {
+        "muscle": "psoas_l",
+        "l_slack_m": 0.10913191191166714,
+        "l_opt_m": 0.12816068680186488,
+        "ratio": 0.8515240877288991,
+        "f_iso_N": 1426.79016393443,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 573684.6336263035,
+        "tendon_stretch_at_f_iso_mm": 5.34746368367169,
+        "passive_fiber_strain_at_one_norm_force": 0.5032605384426551
+      },
+      {
+        "muscle": "recfem_l",
+        "l_slack_m": 0.47132704603731274,
+        "l_opt_m": 0.07942619329376578,
+        "ratio": 5.934151272919025,
+        "f_iso_N": 2191.74098360656,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 204047.71770394413,
+        "tendon_stretch_at_f_iso_mm": 23.095025255828325,
+        "passive_fiber_strain_at_one_norm_force": 0.8997464718661979
+      },
+      {
+        "muscle": "sart_l",
+        "l_slack_m": 0.12941305869084616,
+        "l_opt_m": 0.4205930167053204,
+        "ratio": 0.30769188633846645,
+        "f_iso_N": 249.413114754098,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 84567.99973370759,
+        "tendon_stretch_at_f_iso_mm": 6.341239875851461,
+        "passive_fiber_strain_at_one_norm_force": 0.7021360967635284
+      },
+      {
+        "muscle": "semimem_l",
+        "l_slack_m": 0.3471451363767866,
+        "l_opt_m": 0.08911785590568252,
+        "ratio": 3.895348837209303,
+        "f_iso_N": 2200.9868852459,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 278209.04414298484,
+        "tendon_stretch_at_f_iso_mm": 17.010111682462544,
+        "passive_fiber_strain_at_one_norm_force": 0.7044744859943963
+      },
+      {
+        "muscle": "semiten_l",
+        "l_slack_m": 0.2541683903265245,
+        "l_opt_m": 0.19844137816031415,
+        "ratio": 1.28082354941715,
+        "f_iso_N": 591.295081967214,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 102081.63154934219,
+        "tendon_stretch_at_f_iso_mm": 12.4542511259997,
+        "passive_fiber_strain_at_one_norm_force": 0.7136122317096973
+      },
+      {
+        "muscle": "soleus_l",
+        "l_slack_m": 0.2770347472708821,
+        "l_opt_m": 0.04332514263517557,
+        "ratio": 6.394318181562277,
+        "f_iso_N": 6194.84262295082,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 981207.6104040925,
+        "tendon_stretch_at_f_iso_mm": 13.574702616273225,
+        "passive_fiber_strain_at_one_norm_force": 0.7659520975414122
+      },
+      {
+        "muscle": "tfl_l",
+        "l_slack_m": 0.4642585094417601,
+        "l_opt_m": 0.09811838946001124,
+        "ratio": 4.73161567364466,
+        "f_iso_N": 411.20655737705,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 38865.56926779813,
+        "tendon_stretch_at_f_iso_mm": 22.748666962646247,
+        "passive_fiber_strain_at_one_norm_force": 0.6394004080968974
+      },
+      {
+        "muscle": "tibant_l",
+        "l_slack_m": 0.23784079754098966,
+        "l_opt_m": 0.06755575618476525,
+        "ratio": 3.5206592446466614,
+        "f_iso_N": 1227.45245901639,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 226455.6716217652,
+        "tendon_stretch_at_f_iso_mm": 11.654199079508494,
+        "passive_fiber_strain_at_one_norm_force": 0.7083714808914497
+      },
+      {
+        "muscle": "tibpost_l",
+        "l_slack_m": 0.2774016723942483,
+        "l_opt_m": 0.037345244091817685,
+        "ratio": 7.428032113332117,
+        "f_iso_N": 1730.15409836065,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 273678.4397053936,
+        "tendon_stretch_at_f_iso_mm": 13.592681947318166,
+        "passive_fiber_strain_at_one_norm_force": 0.6980289529111696
+      },
+      {
+        "muscle": "vasint_l",
+        "l_slack_m": 0.21256015891765015,
+        "l_opt_m": 0.12131482240665888,
+        "ratio": 1.752136752136752,
+        "f_iso_N": 1697.36065573771,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 350394.3860871023,
+        "tendon_stretch_at_f_iso_mm": 10.415447786964858,
+        "passive_fiber_strain_at_one_norm_force": 0.707475376412601
+      },
+      {
+        "muscle": "vaslat_l",
+        "l_slack_m": 0.22926716093693342,
+        "l_opt_m": 0.12137673226072947,
+        "ratio": 1.8888888888888886,
+        "f_iso_N": 5148.76721311476,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 985431.1312919998,
+        "tendon_stretch_at_f_iso_mm": 11.234090885909737,
+        "passive_fiber_strain_at_one_norm_force": 0.7111350167231973
+      },
+      {
+        "muscle": "vasmed_l",
+        "l_slack_m": 0.21558363516919207,
+        "l_opt_m": 0.11401057629139966,
+        "ratio": 1.8909090909090909,
+        "f_iso_N": 2747.82295081966,
+        "tendon_strain_at_one_norm_force": 0.049,
+        "kT": 36.566519780164384,
+        "stiffness_at_f_iso_N_per_m": 559290.9992709629,
+        "tendon_stretch_at_f_iso_mm": 10.563598123290411,
+        "passive_fiber_strain_at_one_norm_force": 0.7060129501893572
+      }
+    ],
+    "tendon_stiffness_note": "every muscle has tendon_strain_at_one_norm_force = 0.049 (DGF default; the Rajagopal-Lai-Uhlrich Millard muscles use the default tendon curve, so nothing like the 0.10 Achilles strain some versions use). kT = ln(6)/0.049 = 36.6; normalized stiffness at F_iso = 0.2 kT 6 = 43.9, i.e. k = 43.9 F_iso / l_slack N/m (soleus_r ~957 kN/m at F_iso).",
+    "stages": {
+      "c1": {
+        "stage": "c1",
+        "compliant_muscles": [
+          "gaslat_l",
+          "gaslat_r",
+          "gasmed_l",
+          "gasmed_r",
+          "soleus_l",
+          "soleus_r"
+        ],
+        "n_compliant": 6,
+        "passive_fiber_force": false,
+        "tendon_compliance_dynamics_mode": "implicit",
+        "solver": "MocoCasADiSolver (CasADi + IPOPT), MocoInverse problem solved through study.solve() so a guess can be set",
+        "transcription_scheme": "hermite-simpson",
+        "num_mesh_intervals": 256,
+        "mesh_interval_s": 0.02,
+        "optim_convergence_tolerance": 0.001,
+        "optim_constraint_tolerance": 0.001,
+        "optim_max_iterations": 3000,
+        "optim_hessian_approximation": "limited-memory",
+        "minimize_implicit_auxiliary_derivatives": true,
+        "implicit_auxiliary_derivatives_weight": 0.01,
+        "extra_goals": [
+          "MocoInitialVelocityEquilibriumDGFGoal (endpoint constraint)"
+        ],
+        "window_s": [
+          0.1,
+          5.2
+        ],
+        "guess": {
+          "copied_by_name": 191,
+          "tendon_state_from_previous_force": [
+            "gaslat_r",
+            "gasmed_r",
+            "soleus_r",
+            "gaslat_l",
+            "gasmed_l",
+            "soleus_l"
+          ],
+          "previous_solution": "p1_trial13_mocoinverse_solution.sto"
+        },
+        "runtime_s": 3491.2225501537323,
+        "success": true,
+        "status": "Solve_Succeeded",
+        "num_iterations": 540,
+        "objective": 155.27199475669758,
+        "objective_terms": {
+          "excitation_effort": 141.4767864048502,
+          "activation_effort": 12.729455998382162,
+          "auxiliary_derivatives": 1.0657523534652318
+        },
+        "converged": true,
+        "source_solve": "c1",
+        "full_mesh_attempt": null,
+        "coarse_mesh_run": null,
+        "stored_in_npz": true,
+        "reserve_and_residual_usage_N_or_Nm": {
+          "/forceset/residual_pelvis_tilt": {
+            "max_abs": 143.3577063678761,
+            "rms": 35.51840033140428
+          },
+          "/forceset/residual_pelvis_list": {
+            "max_abs": 84.49709951023323,
+            "rms": 20.29359587550809
+          },
+          "/forceset/residual_pelvis_rotation": {
+            "max_abs": 47.90616369786316,
+            "rms": 12.459778458285511
+          },
+          "/forceset/residual_pelvis_tx": {
+            "max_abs": 149.6300243131048,
+            "rms": 51.737672459551234
+          },
+          "/forceset/residual_pelvis_ty": {
+            "max_abs": 313.0729010922046,
+            "rms": 92.21819787527733
+          },
+          "/forceset/residual_pelvis_tz": {
+            "max_abs": 169.2242765124197,
+            "rms": 55.31247154932283
+          },
+          "/forceset/reserve_jointset_hip_r_hip_flexion_r": {
+            "max_abs": 1.725031299625142,
+            "rms": 0.32958678661415314
+          },
+          "/forceset/reserve_jointset_hip_r_hip_adduction_r": {
+            "max_abs": 2.458175324971271,
+            "rms": 0.514269989608322
+          },
+          "/forceset/reserve_jointset_hip_r_hip_rotation_r": {
+            "max_abs": 6.028122681467278,
+            "rms": 0.8064425014328844
+          },
+          "/forceset/reserve_jointset_walker_knee_r_knee_angle_r": {
+            "max_abs": 2.827787614122137,
+            "rms": 0.6259451455057273
+          },
+          "/forceset/reserve_jointset_ankle_r_ankle_angle_r": {
+            "max_abs": 3.851354687335428,
+            "rms": 0.8379371379902858
+          },
+          "/forceset/reserve_jointset_hip_l_hip_flexion_l": {
+            "max_abs": 0.7133807627567279,
+            "rms": 0.2468404880433194
+          },
+          "/forceset/reserve_jointset_hip_l_hip_adduction_l": {
+            "max_abs": 0.6131184649230618,
+            "rms": 0.15813856059484943
+          },
+          "/forceset/reserve_jointset_hip_l_hip_rotation_l": {
+            "max_abs": 1.992331018902285,
+            "rms": 0.40487722772570284
+          },
+          "/forceset/reserve_jointset_walker_knee_l_knee_angle_l": {
+            "max_abs": 1.033849662479618,
+            "rms": 0.3166407480775498
+          },
+          "/forceset/reserve_jointset_ankle_l_ankle_angle_l": {
+            "max_abs": 2.567982724962063,
+            "rms": 0.5825169225288752
+          }
+        },
+        "muscle_moment_vs_opensim_id": {
+          "ankle": {
+            "rmse_Nm": 1.4011815955755407,
+            "corr": 0.9995630310434974
+          },
+          "knee": {
+            "rmse_Nm": 1.4468380106493057,
+            "corr": 0.999366130572512
+          },
+          "hip": {
+            "rmse_Nm": 1.7500172201274244,
+            "corr": 0.9992898342570546
+          }
+        },
+        "peak_force_timing_right": {
+          "soleus_r": {
+            "peak_N_mean": 1585.8952697540356,
+            "peak_N_max": 1880.3293445696468,
+            "peak_time_pct_stance_mean": 82.80757520399465,
+            "peak_time_pct_stance": [
+              82.35294117647061,
+              85.29411764705883,
+              82.85714285714285,
+              79.71014492753623,
+              83.82352941176471
+            ]
+          },
+          "gasmed_r": {
+            "peak_N_mean": 1881.1833075860536,
+            "peak_N_max": 1940.9093946559683,
+            "peak_time_pct_stance_mean": 79.000852514919,
+            "peak_time_pct_stance": [
+              76.47058823529413,
+              79.41176470588238,
+              80.0,
+              79.71014492753623,
+              79.41176470588229
+            ]
+          },
+          "gaslat_r": {
+            "peak_N_mean": 559.55231931792,
+            "peak_N_max": 579.8789498405071,
+            "peak_time_pct_stance_mean": 79.2865668006333,
+            "peak_time_pct_stance": [
+              76.47058823529413,
+              79.41176470588238,
+              81.42857142857143,
+              79.71014492753623,
+              79.41176470588229
+            ]
+          },
+          "tibant_r": {
+            "peak_N_mean": 801.2433618739296,
+            "peak_N_max": 1029.7610706715839,
+            "peak_time_pct_stance_mean": 19.411764705882355,
+            "peak_time_pct_stance": [
+              97.05882352941177,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "vaslat_r": {
+            "peak_N_mean": 1849.7922686510083,
+            "peak_N_max": 2280.6530484043337,
+            "peak_time_pct_stance_mean": 18.95725246620388,
+            "peak_time_pct_stance": [
+              22.058823529411775,
+              17.647058823529427,
+              18.571428571428577,
+              17.391304347826097,
+              19.11764705882352
+            ]
+          },
+          "vasmed_r": {
+            "peak_N_mean": 425.46258712070403,
+            "peak_N_max": 527.2297859968604,
+            "peak_time_pct_stance_mean": 18.373279746681284,
+            "peak_time_pct_stance": [
+              20.588235294117645,
+              17.647058823529427,
+              18.571428571428577,
+              15.942028985507262,
+              19.11764705882352
+            ]
+          },
+          "vasint_r": {
+            "peak_N_mean": 217.14881991103886,
+            "peak_N_max": 266.42389903182055,
+            "peak_time_pct_stance_mean": 18.373279746681284,
+            "peak_time_pct_stance": [
+              20.588235294117645,
+              17.647058823529427,
+              18.571428571428577,
+              15.942028985507262,
+              19.11764705882352
+            ]
+          },
+          "recfem_r": {
+            "peak_N_mean": 1155.4905879711891,
+            "peak_N_max": 1368.3186212825435,
+            "peak_time_pct_stance_mean": 68.74461088783339,
+            "peak_time_pct_stance": [
+              83.82352941176472,
+              30.882352941176478,
+              74.2857142857143,
+              78.26086956521739,
+              76.47058823529407
+            ]
+          },
+          "glmax2_r": {
+            "peak_N_mean": 795.4761390038001,
+            "peak_N_max": 945.6904444891039,
+            "peak_time_pct_stance_mean": 19.532821824381944,
+            "peak_time_pct_stance": [
+              19.117647058823533,
+              19.11764705882354,
+              20.0,
+              18.84057971014493,
+              20.58823529411771
+            ]
+          },
+          "glmed1_r": {
+            "peak_N_mean": 296.28103610352014,
+            "peak_N_max": 393.74771660060395,
+            "peak_time_pct_stance_mean": 39.57459505541348,
+            "peak_time_pct_stance": [
+              22.058823529411775,
+              67.6470588235294,
+              60.0,
+              24.63768115942027,
+              23.52941176470593
+            ]
+          },
+          "semimem_r": {
+            "peak_N_mean": 623.106352003913,
+            "peak_N_max": 742.4275925609757,
+            "peak_time_pct_stance_mean": 3.4914139568870985,
+            "peak_time_pct_stance": [
+              2.9411764705882346,
+              2.941176470588264,
+              4.285714285714269,
+              4.347826086956505,
+              2.9411764705882213
+            ]
+          },
+          "bflh_r": {
+            "peak_N_mean": 433.05059515536425,
+            "peak_N_max": 506.0211099423651,
+            "peak_time_pct_stance_mean": 3.7979539641943725,
+            "peak_time_pct_stance": [
+              4.4117647058823675,
+              2.941176470588264,
+              0.0,
+              8.69565217391301,
+              2.9411764705882213
+            ]
+          }
+        },
+        "operating_range_right": {
+          "soleus_r": {
+            "lM_norm": [
+              0.510126002137141,
+              1.0085898636725135
+            ],
+            "vM_norm": [
+              -0.4554302175355546,
+              0.36167618724006506
+            ],
+            "tendon_strain_max": 0.025250657105250696,
+            "tendon_stretch_max_mm": 7.16550126582921
+          },
+          "gasmed_r": {
+            "lM_norm": [
+              0.4715311409116729,
+              0.9732345746535459
+            ],
+            "vM_norm": [
+              -0.6305040947994806,
+              0.3272447990887837
+            ],
+            "tendon_strain_max": 0.03868602768167087,
+            "tendon_stretch_max_mm": 15.104295335567674
+          },
+          "gaslat_r": {
+            "lM_norm": [
+              0.4935543516271235,
+              0.977237171295379
+            ],
+            "vM_norm": [
+              -0.5642438609404461,
+              0.236589384133778
+            ],
+            "tendon_strain_max": 0.03025770897643802,
+            "tendon_stretch_max_mm": 11.416437127392376
+          },
+          "vaslat_r": {
+            "lM_norm": [
+              0.7219500114698536,
+              1.0884015744331916
+            ],
+            "vM_norm": [
+              -0.3020433599390111,
+              0.24990963574194344
+            ],
+            "tendon_strain_max": 0.0,
+            "tendon_stretch_max_mm": 2.7755575615628914e-14
+          },
+          "tibant_r": {
+            "lM_norm": [
+              0.9228435781839363,
+              1.304223147021059
+            ],
+            "vM_norm": [
+              -0.2536718044869455,
+              0.41560670615822987
+            ],
+            "tendon_strain_max": 0.0,
+            "tendon_stretch_max_mm": 2.7755575615628914e-14
+          }
+        },
+        "stance_work_J": {
+          "triceps_surae_r": {
+            "mtu": {
+              "positive_J_mean": 54.812701431266284,
+              "negative_J_mean": -17.559424211365346,
+              "net_J_mean": 37.25327721990094,
+              "positive_J_per_stance": [
+                50.33787988380792,
+                61.28208322863206,
+                55.064676012087396,
+                54.75089491014829,
+                52.62797312165572
+              ],
+              "negative_J_per_stance": [
+                -16.290956982521394,
+                -18.11292004746501,
+                -17.5862725978579,
+                -17.52046316870564,
+                -18.286508260276797
+              ]
+            },
+            "tendon": {
+              "positive_J_mean": 21.063501354186688,
+              "negative_J_mean": -18.471369380614412,
+              "net_J_mean": 2.5921319735722754,
+              "positive_J_per_stance": [
+                16.89777283442922,
+                22.390274280404764,
+                23.9558304862098,
+                21.071197256442346,
+                21.0024319134473
+              ],
+              "negative_J_per_stance": [
+                -16.09042086254578,
+                -18.791140092294473,
+                -20.166981393948436,
+                -18.443846558491728,
+                -18.86445799579164
+              ]
+            },
+            "fibre": {
+              "positive_J_mean": 43.5184264524204,
+              "negative_J_mean": -8.857281206091738,
+              "net_J_mean": 34.66114524632866,
+              "positive_J_per_stance": [
+                42.23608642630261,
+                50.0512053468756,
+                42.0920263172775,
+                42.56744520344981,
+                40.64536896819647
+              ],
+              "negative_J_per_stance": [
+                -8.996515496899516,
+                -10.481176353818842,
+                -8.402471995309366,
+                -7.964364159957771,
+                -8.441878024473194
+              ]
+            }
+          },
+          "soleus_r": {
+            "mtu": {
+              "positive_J_mean": 19.195393203572273,
+              "negative_J_mean": -6.8186139453101715,
+              "net_J_mean": 12.3767792582621,
+              "positive_J_per_stance": [
+                19.14311219412018,
+                20.886061765905236,
+                19.905092664203504,
+                17.574641176818407,
+                18.46805821681405
+              ],
+              "negative_J_per_stance": [
+                -7.455780594636822,
+                -6.3770430443890636,
+                -6.6920559725696815,
+                -6.745780480115712,
+                -6.82240963483958
+              ]
+            },
+            "tendon": {
+              "positive_J_mean": 6.853881875445062,
+              "negative_J_mean": -6.804992517894243,
+              "net_J_mean": 0.048889357550818247,
+              "positive_J_per_stance": [
+                6.0864093530372765,
+                6.98172612749563,
+                8.362513563195336,
+                5.864667489270591,
+                6.974092844226477
+              ],
+              "negative_J_per_stance": [
+                -6.156969938009155,
+                -7.128039473149032,
+                -8.269900160247737,
+                -5.776740739025424,
+                -6.693312279039866
+              ]
+            },
+            "fibre": {
+              "positive_J_mean": 17.84372520624526,
+              "negative_J_mean": -5.515835305533971,
+              "net_J_mean": 12.32788990071129,
+              "positive_J_per_stance": [
+                17.92099977186967,
+                20.78200191035047,
+                17.762595639821196,
+                16.023597598719615,
+                16.729431110465338
+              ],
+              "negative_J_per_stance": [
+                -6.163107587414434,
+                -6.12666984318089,
+                -4.642172351134964,
+                -5.282663652262089,
+                -5.364563093677479
+              ]
+            }
+          },
+          "gastrocnemius_r": {
+            "mtu": {
+              "positive_J_mean": 36.46905461633746,
+              "negative_J_mean": -11.59255665469863,
+              "net_J_mean": 24.87649796163883,
+              "positive_J_per_stance": [
+                32.350156268117594,
+                40.81399179715061,
+                36.46322083755116,
+                37.65426767354686,
+                35.06363650532108
+              ],
+              "negative_J_per_stance": [
+                -9.990564966314416,
+                -12.15384733749972,
+                -12.19785411495549,
+                -11.252696628806902,
+                -12.367820225916622
+              ]
+            },
+            "tendon": {
+              "positive_J_mean": 15.94786972585221,
+              "negative_J_mean": -13.40462710983075,
+              "net_J_mean": 2.543242616021459,
+              "positive_J_per_stance": [
+                12.35433444001956,
+                17.90577208042869,
+                17.323117388955914,
+                16.36089502532091,
+                15.795229694535962
+              ],
+              "negative_J_per_stance": [
+                -11.476421883164242,
+                -14.160324546664992,
+                -13.626881699642148,
+                -13.82147107761546,
+                -13.938036342066914
+              ]
+            },
+            "fibre": {
+              "positive_J_mean": 26.295108610768473,
+              "negative_J_mean": -3.9618532651510967,
+              "net_J_mean": 22.333255345617378,
+              "positive_J_per_stance": [
+                24.627803614902938,
+                29.876921585544785,
+                24.856369885666094,
+                27.360169999766413,
+                24.75427796796213
+              ],
+              "negative_J_per_stance": [
+                -3.146124869955079,
+                -4.962224659657595,
+                -4.287238852384193,
+                -3.4980229027319014,
+                -3.9156550410267177
+              ]
+            }
+          }
+        }
+      },
+      "c2": {
+        "stage": "c2",
+        "compliant_muscles": [
+          "addlong_l",
+          "addlong_r",
+          "addmagIsch_l",
+          "addmagIsch_r",
+          "bflh_l",
+          "bflh_r",
+          "edl_l",
+          "edl_r",
+          "ehl_l",
+          "ehl_r",
+          "fdl_l",
+          "fdl_r",
+          "fhl_l",
+          "fhl_r",
+          "gaslat_l",
+          "gaslat_r",
+          "gasmed_l",
+          "gasmed_r",
+          "glmin3_l",
+          "glmin3_r",
+          "perbrev_l",
+          "perbrev_r",
+          "perlong_l",
+          "perlong_r",
+          "piri_l",
+          "piri_r",
+          "recfem_l",
+          "recfem_r",
+          "semimem_l",
+          "semimem_r",
+          "semiten_l",
+          "semiten_r",
+          "soleus_l",
+          "soleus_r",
+          "tfl_l",
+          "tfl_r",
+          "tibant_l",
+          "tibant_r",
+          "tibpost_l",
+          "tibpost_r",
+          "vasint_l",
+          "vasint_r",
+          "vaslat_l",
+          "vaslat_r",
+          "vasmed_l",
+          "vasmed_r"
+        ],
+        "n_compliant": 46,
+        "passive_fiber_force": false,
+        "tendon_compliance_dynamics_mode": "implicit",
+        "solver": "MocoCasADiSolver (CasADi + IPOPT), MocoInverse problem solved through study.solve() so a guess can be set",
+        "transcription_scheme": "hermite-simpson",
+        "num_mesh_intervals": 256,
+        "mesh_interval_s": 0.02,
+        "optim_convergence_tolerance": 0.001,
+        "optim_constraint_tolerance": 0.001,
+        "optim_max_iterations": 3000,
+        "optim_hessian_approximation": "limited-memory",
+        "minimize_implicit_auxiliary_derivatives": true,
+        "implicit_auxiliary_derivatives_weight": 0.01,
+        "extra_goals": [
+          "MocoInitialVelocityEquilibriumDGFGoal (endpoint constraint)"
+        ],
+        "variant_tag": "",
+        "window_s": [
+          0.1,
+          5.2
+        ],
+        "guess": {
+          "copied_by_name": 197,
+          "tendon_state_from_previous_force": [
+            "addlong_r",
+            "addmagIsch_r",
+            "bflh_r",
+            "edl_r",
+            "ehl_r",
+            "fdl_r",
+            "fhl_r",
+            "glmin3_r",
+            "perbrev_r",
+            "perlong_r",
+            "piri_r",
+            "recfem_r",
+            "semimem_r",
+            "semiten_r",
+            "tfl_r",
+            "tibant_r",
+            "tibpost_r",
+            "vasint_r",
+            "vaslat_r",
+            "vasmed_r",
+            "addlong_l",
+            "addmagIsch_l",
+            "bflh_l",
+            "edl_l",
+            "ehl_l",
+            "fdl_l",
+            "fhl_l",
+            "glmin3_l",
+            "perbrev_l",
+            "perlong_l",
+            "piri_l",
+            "recfem_l",
+            "semimem_l",
+            "semiten_l",
+            "tfl_l",
+            "tibant_l",
+            "tibpost_l",
+            "vasint_l",
+            "vaslat_l",
+            "vasmed_l"
+          ],
+          "previous_solution": "compliant/c1_solution.sto"
+        },
+        "runtime_s": 3793.472221851349,
+        "success": true,
+        "status": "Solve_Succeeded",
+        "num_iterations": 578,
+        "objective": 189.07737953216477,
+        "objective_terms": {
+          "excitation_effort": 164.34623861123563,
+          "activation_effort": 15.20514972721075,
+          "auxiliary_derivatives": 9.52599119371839
+        },
+        "converged": true,
+        "source_solve": "c2",
+        "full_mesh_attempt": null,
+        "coarse_mesh_run": null,
+        "stored_in_npz": true,
+        "reserve_and_residual_usage_N_or_Nm": {
+          "/forceset/residual_pelvis_tilt": {
+            "max_abs": 143.4213343585467,
+            "rms": 35.516924422223966
+          },
+          "/forceset/residual_pelvis_list": {
+            "max_abs": 84.50046873074515,
+            "rms": 20.290864991984016
+          },
+          "/forceset/residual_pelvis_rotation": {
+            "max_abs": 47.83903309795547,
+            "rms": 12.448496023810796
+          },
+          "/forceset/residual_pelvis_tx": {
+            "max_abs": 149.6300243070731,
+            "rms": 51.73767245960029
+          },
+          "/forceset/residual_pelvis_ty": {
+            "max_abs": 313.072901081615,
+            "rms": 92.2181978763241
+          },
+          "/forceset/residual_pelvis_tz": {
+            "max_abs": 169.22427650300818,
+            "rms": 55.312471549332955
+          },
+          "/forceset/reserve_jointset_hip_r_hip_flexion_r": {
+            "max_abs": 2.713164154180324,
+            "rms": 0.586882269262317
+          },
+          "/forceset/reserve_jointset_hip_r_hip_adduction_r": {
+            "max_abs": 3.301776495792832,
+            "rms": 0.6811107512737347
+          },
+          "/forceset/reserve_jointset_hip_r_hip_rotation_r": {
+            "max_abs": 6.224688931122656,
+            "rms": 0.9681494781960455
+          },
+          "/forceset/reserve_jointset_walker_knee_r_knee_angle_r": {
+            "max_abs": 4.125578717941981,
+            "rms": 1.009916378563694
+          },
+          "/forceset/reserve_jointset_ankle_r_ankle_angle_r": {
+            "max_abs": 8.7863748349897,
+            "rms": 1.460323358530119
+          },
+          "/forceset/reserve_jointset_hip_l_hip_flexion_l": {
+            "max_abs": 1.562374892017709,
+            "rms": 0.41533050138633415
+          },
+          "/forceset/reserve_jointset_hip_l_hip_adduction_l": {
+            "max_abs": 1.319295521295136,
+            "rms": 0.26657630426260903
+          },
+          "/forceset/reserve_jointset_hip_l_hip_rotation_l": {
+            "max_abs": 3.380391701613343,
+            "rms": 0.6382379279881156
+          },
+          "/forceset/reserve_jointset_walker_knee_l_knee_angle_l": {
+            "max_abs": 3.237122132234227,
+            "rms": 0.7320768133268326
+          },
+          "/forceset/reserve_jointset_ankle_l_ankle_angle_l": {
+            "max_abs": 5.905948373423968,
+            "rms": 1.191513969388394
+          }
+        },
+        "muscle_moment_vs_opensim_id": {
+          "ankle": {
+            "rmse_Nm": 1.7969399118815146,
+            "corr": 0.9992797403049016
+          },
+          "knee": {
+            "rmse_Nm": 1.59669425837418,
+            "corr": 0.9992231760673868
+          },
+          "hip": {
+            "rmse_Nm": 1.8063484010817439,
+            "corr": 0.9992475281390042
+          }
+        },
+        "peak_force_timing_right": {
+          "soleus_r": {
+            "peak_N_mean": 1751.0873297302526,
+            "peak_N_max": 2113.0853493077366,
+            "peak_time_pct_stance_mean": 78.71952259164536,
+            "peak_time_pct_stance": [
+              75.0,
+              85.29411764705883,
+              80.0,
+              75.36231884057966,
+              77.94117647058826
+            ]
+          },
+          "gasmed_r": {
+            "peak_N_mean": 1747.081660931488,
+            "peak_N_max": 1924.0656220217081,
+            "peak_time_pct_stance_mean": 81.03860674704663,
+            "peak_time_pct_stance": [
+              79.41176470588236,
+              79.41176470588238,
+              82.85714285714285,
+              81.15942028985506,
+              82.35294117647052
+            ]
+          },
+          "gaslat_r": {
+            "peak_N_mean": 619.9131111766671,
+            "peak_N_max": 705.0424365105013,
+            "peak_time_pct_stance_mean": 79.55961515040799,
+            "peak_time_pct_stance": [
+              70.58823529411767,
+              79.41176470588238,
+              84.28571428571428,
+              81.15942028985506,
+              82.35294117647052
+            ]
+          },
+          "tibant_r": {
+            "peak_N_mean": 828.813043181942,
+            "peak_N_max": 959.0837961919661,
+            "peak_time_pct_stance_mean": 3.50420168067227,
+            "peak_time_pct_stance": [
+              5.88235294117648,
+              4.411764705882377,
+              4.285714285714269,
+              0.0,
+              2.9411764705882213
+            ]
+          },
+          "vaslat_r": {
+            "peak_N_mean": 1882.3294370539763,
+            "peak_N_max": 2203.926538259463,
+            "peak_time_pct_stance_mean": 20.406771404213856,
+            "peak_time_pct_stance": [
+              20.588235294117645,
+              19.11764705882354,
+              21.428571428571423,
+              18.84057971014493,
+              22.05882352941174
+            ]
+          },
+          "vasmed_r": {
+            "peak_N_mean": 496.06401875647833,
+            "peak_N_max": 579.900584210169,
+            "peak_time_pct_stance_mean": 18.9404457435148,
+            "peak_time_pct_stance": [
+              20.588235294117645,
+              16.176470588235315,
+              21.428571428571423,
+              17.391304347826097,
+              19.11764705882352
+            ]
+          },
+          "vasint_r": {
+            "peak_N_mean": 236.43071196998434,
+            "peak_N_max": 274.13913603455285,
+            "peak_time_pct_stance_mean": 18.65059067105103,
+            "peak_time_pct_stance": [
+              20.588235294117645,
+              16.176470588235315,
+              21.428571428571423,
+              15.942028985507262,
+              19.11764705882352
+            ]
+          },
+          "recfem_r": {
+            "peak_N_mean": 1012.181186986921,
+            "peak_N_max": 1129.0346089989453,
+            "peak_time_pct_stance_mean": 85.70222871757395,
+            "peak_time_pct_stance": [
+              82.35294117647061,
+              86.76470588235294,
+              87.14285714285711,
+              86.95652173913041,
+              85.29411764705873
+            ]
+          },
+          "glmax2_r": {
+            "peak_N_mean": 707.9242149327825,
+            "peak_N_max": 800.1947204208868,
+            "peak_time_pct_stance_mean": 18.952989891608834,
+            "peak_time_pct_stance": [
+              19.117647058823533,
+              17.647058823529427,
+              18.571428571428577,
+              18.84057971014493,
+              20.58823529411771
+            ]
+          },
+          "glmed1_r": {
+            "peak_N_mean": 412.8664478785471,
+            "peak_N_max": 491.74985311506805,
+            "peak_time_pct_stance_mean": 23.036779929363053,
+            "peak_time_pct_stance": [
+              22.058823529411775,
+              23.529411764705877,
+              21.428571428571423,
+              24.63768115942027,
+              23.52941176470593
+            ]
+          },
+          "semimem_r": {
+            "peak_N_mean": 508.8162305706257,
+            "peak_N_max": 563.7500350903514,
+            "peak_time_pct_stance_mean": 4.634271099744252,
+            "peak_time_pct_stance": [
+              2.9411764705882346,
+              2.941176470588264,
+              10.000000000000037,
+              4.347826086956505,
+              2.9411764705882213
+            ]
+          },
+          "bflh_r": {
+            "peak_N_mean": 484.2743282186658,
+            "peak_N_max": 616.0403702933882,
+            "peak_time_pct_stance_mean": 3.487273170137616,
+            "peak_time_pct_stance": [
+              2.9411764705882346,
+              2.941176470588264,
+              5.714285714285692,
+              2.89855072463767,
+              2.9411764705882213
+            ]
+          }
+        },
+        "operating_range_right": {
+          "soleus_r": {
+            "lM_norm": [
+              0.5059014054945933,
+              1.01172321210351
+            ],
+            "vM_norm": [
+              -0.5738258922068089,
+              0.4788376053622595
+            ],
+            "tendon_strain_max": 0.027216649442310604,
+            "tendon_stretch_max_mm": 7.723400433407079
+          },
+          "gasmed_r": {
+            "lM_norm": [
+              0.47181100357497735,
+              0.983095039944875
+            ],
+            "vM_norm": [
+              -0.6155462219654543,
+              0.513327386365369
+            ],
+            "tendon_strain_max": 0.03850579567865812,
+            "tendon_stretch_max_mm": 15.033926844265688
+          },
+          "gaslat_r": {
+            "lM_norm": [
+              0.49421733475206836,
+              0.9848793344803037
+            ],
+            "vM_norm": [
+              -0.5832297282512594,
+              0.40433571042837435
+            ],
+            "tendon_strain_max": 0.03308506533139158,
+            "tendon_stretch_max_mm": 12.48321769852534
+          },
+          "vaslat_r": {
+            "lM_norm": [
+              0.7196490286314131,
+              1.0858473108050288
+            ],
+            "vM_norm": [
+              -0.29322843021489214,
+              0.2931552371662612
+            ],
+            "tendon_strain_max": 0.03129352177475296,
+            "tendon_stretch_max_mm": 7.021534320293093
+          },
+          "tibant_r": {
+            "lM_norm": [
+              0.8547738394814409,
+              1.2179221698380724
+            ],
+            "vM_norm": [
+              -0.22251143438516746,
+              0.9405134356773536
+            ],
+            "tendon_strain_max": 0.04349145396309813,
+            "tendon_stretch_max_mm": 10.553978344965936
+          }
+        },
+        "stance_work_J": {
+          "triceps_surae_r": {
+            "mtu": {
+              "positive_J_mean": 55.41205118653225,
+              "negative_J_mean": -20.428717004127982,
+              "net_J_mean": 34.98333418240427,
+              "positive_J_per_stance": [
+                48.52351790056842,
+                62.82778631165861,
+                57.11860469398069,
+                54.73493620290228,
+                53.85541082355125
+              ],
+              "negative_J_per_stance": [
+                -18.649005067070206,
+                -19.074783923072395,
+                -22.11875835785984,
+                -21.086156275013266,
+                -21.214881397624197
+              ]
+            },
+            "tendon": {
+              "positive_J_mean": 23.700204403385108,
+              "negative_J_mean": -19.825871580127465,
+              "net_J_mean": 3.8743328232576424,
+              "positive_J_per_stance": [
+                19.76229976113413,
+                24.733832045385693,
+                26.15881513270093,
+                24.385571213085434,
+                23.46050386461936
+              ],
+              "negative_J_per_stance": [
+                -18.28847652091642,
+                -20.0656653065868,
+                -21.578055178558884,
+                -18.80698741910132,
+                -20.39017347547392
+              ]
+            },
+            "fibre": {
+              "positive_J_mean": 46.208571074089704,
+              "negative_J_mean": -15.099569714943076,
+              "net_J_mean": 31.109001359146628,
+              "positive_J_per_stance": [
+                43.022751793172766,
+                54.97221816129744,
+                45.871720714059244,
+                43.46224521894604,
+                43.713919482973026
+              ],
+              "negative_J_per_stance": [
+                -14.622062199892264,
+                -15.887382511510117,
+                -15.452634332080445,
+                -15.392049085041132,
+                -14.143720446191423
+              ]
+            }
+          },
+          "soleus_r": {
+            "mtu": {
+              "positive_J_mean": 16.401123883571525,
+              "negative_J_mean": -9.12634840005095,
+              "net_J_mean": 7.274775483520575,
+              "positive_J_per_stance": [
+                14.238822639484425,
+                23.129018193321873,
+                15.572041196122147,
+                14.60614750518828,
+                14.459589883740922
+              ],
+              "negative_J_per_stance": [
+                -10.113616602218844,
+                -7.672381668145901,
+                -10.377448351802023,
+                -8.010627125202962,
+                -9.457668252885021
+              ]
+            },
+            "tendon": {
+              "positive_J_mean": 10.410530416850175,
+              "negative_J_mean": -9.669469047051729,
+              "net_J_mean": 0.7410613697984463,
+              "positive_J_per_stance": [
+                10.49708074676893,
+                11.60066165710277,
+                10.959823084300206,
+                9.654651133989836,
+                9.340435462089134
+              ],
+              "negative_J_per_stance": [
+                -9.872533249567798,
+                -10.337536621234882,
+                -10.395363855152615,
+                -9.01229115133868,
+                -8.729620357964668
+              ]
+            },
+            "fibre": {
+              "positive_J_mean": 16.40771306022566,
+              "negative_J_mean": -9.873998946503525,
+              "net_J_mean": 6.5337141137221355,
+              "positive_J_per_stance": [
+                14.836220394091317,
+                23.93789049738536,
+                13.954734990678851,
+                15.510746420931719,
+                13.798972998041052
+              ],
+              "negative_J_per_stance": [
+                -11.335561854026867,
+                -9.74437900807727,
+                -9.324601375506319,
+                -9.557586023597555,
+                -9.407866471309617
+              ]
+            }
+          },
+          "gastrocnemius_r": {
+            "mtu": {
+              "positive_J_mean": 39.759654708782044,
+              "negative_J_mean": -12.051096009898359,
+              "net_J_mean": 27.708558698883685,
+              "positive_J_per_stance": [
+                35.400136113825695,
+                40.13442097015346,
+                42.476953832376374,
+                40.53930107961239,
+                40.24746154794233
+              ],
+              "negative_J_per_stance": [
+                -9.65082931759305,
+                -11.83805510674322,
+                -12.671700340575649,
+                -13.486041531708691,
+                -12.60885375287118
+              ]
+            },
+            "tendon": {
+              "positive_J_mean": 19.287817468203848,
+              "negative_J_mean": -16.154546014744657,
+              "net_J_mean": 3.133271453459191,
+              "positive_J_per_stance": [
+                14.816926827290034,
+                21.202089074930825,
+                19.50767765691433,
+                22.26440070769668,
+                18.64799307418739
+              ],
+              "negative_J_per_stance": [
+                -13.967651084273449,
+                -17.79704737199982,
+                -15.491376931919874,
+                -17.32817689636373,
+                -16.18847778916641
+              ]
+            },
+            "fibre": {
+              "positive_J_mean": 33.92345060316311,
+              "negative_J_mean": -9.348163357738619,
+              "net_J_mean": 24.57528724542449,
+              "positive_J_per_stance": [
+                32.79368990286829,
+                34.82524122302574,
+                35.20695922836496,
+                32.921934534798936,
+                33.86942812675765
+              ],
+              "negative_J_per_stance": [
+                -7.893658849652227,
+                -9.933917062546506,
+                -9.418006461558686,
+                -10.804898798228196,
+                -8.69033561670748
+              ]
+            }
+          }
+        }
+      },
+      "c3": {
+        "stage": "c3",
+        "compliant_muscles": [
+          "addbrev_l",
+          "addbrev_r",
+          "addlong_l",
+          "addlong_r",
+          "addmagDist_l",
+          "addmagDist_r",
+          "addmagIsch_l",
+          "addmagIsch_r",
+          "addmagMid_l",
+          "addmagMid_r",
+          "addmagProx_l",
+          "addmagProx_r",
+          "bflh_l",
+          "bflh_r",
+          "bfsh_l",
+          "bfsh_r",
+          "edl_l",
+          "edl_r",
+          "ehl_l",
+          "ehl_r",
+          "fdl_l",
+          "fdl_r",
+          "fhl_l",
+          "fhl_r",
+          "gaslat_l",
+          "gaslat_r",
+          "gasmed_l",
+          "gasmed_r",
+          "glmax1_l",
+          "glmax1_r",
+          "glmax2_l",
+          "glmax2_r",
+          "glmax3_l",
+          "glmax3_r",
+          "glmed1_l",
+          "glmed1_r",
+          "glmed2_l",
+          "glmed2_r",
+          "glmed3_l",
+          "glmed3_r",
+          "glmin1_l",
+          "glmin1_r",
+          "glmin2_l",
+          "glmin2_r",
+          "glmin3_l",
+          "glmin3_r",
+          "grac_l",
+          "grac_r",
+          "iliacus_l",
+          "iliacus_r",
+          "perbrev_l",
+          "perbrev_r",
+          "perlong_l",
+          "perlong_r",
+          "piri_l",
+          "piri_r",
+          "psoas_l",
+          "psoas_r",
+          "recfem_l",
+          "recfem_r",
+          "sart_l",
+          "sart_r",
+          "semimem_l",
+          "semimem_r",
+          "semiten_l",
+          "semiten_r",
+          "soleus_l",
+          "soleus_r",
+          "tfl_l",
+          "tfl_r",
+          "tibant_l",
+          "tibant_r",
+          "tibpost_l",
+          "tibpost_r",
+          "vasint_l",
+          "vasint_r",
+          "vaslat_l",
+          "vaslat_r",
+          "vasmed_l",
+          "vasmed_r"
+        ],
+        "n_compliant": 80,
+        "passive_fiber_force": true,
+        "tendon_compliance_dynamics_mode": "implicit",
+        "solver": "MocoCasADiSolver (CasADi + IPOPT), MocoInverse problem solved through study.solve() so a guess can be set",
+        "transcription_scheme": "hermite-simpson",
+        "num_mesh_intervals": 256,
+        "mesh_interval_s": 0.02,
+        "optim_convergence_tolerance": 0.001,
+        "optim_constraint_tolerance": 0.001,
+        "optim_max_iterations": 3000,
+        "optim_hessian_approximation": "limited-memory",
+        "minimize_implicit_auxiliary_derivatives": true,
+        "implicit_auxiliary_derivatives_weight": 0.01,
+        "extra_goals": [
+          "MocoInitialVelocityEquilibriumDGFGoal (endpoint constraint)"
+        ],
+        "variant_tag": "",
+        "window_s": [
+          0.1,
+          5.2
+        ],
+        "guess": {
+          "copied_by_name": 237,
+          "tendon_state_from_previous_force": [
+            "addbrev_r",
+            "addmagDist_r",
+            "addmagMid_r",
+            "addmagProx_r",
+            "bfsh_r",
+            "glmax1_r",
+            "glmax2_r",
+            "glmax3_r",
+            "glmed1_r",
+            "glmed2_r",
+            "glmed3_r",
+            "glmin1_r",
+            "glmin2_r",
+            "grac_r",
+            "iliacus_r",
+            "psoas_r",
+            "sart_r",
+            "addbrev_l",
+            "addmagDist_l",
+            "addmagMid_l",
+            "addmagProx_l",
+            "bfsh_l",
+            "glmax1_l",
+            "glmax2_l",
+            "glmax3_l",
+            "glmed1_l",
+            "glmed2_l",
+            "glmed3_l",
+            "glmin1_l",
+            "glmin2_l",
+            "grac_l",
+            "iliacus_l",
+            "psoas_l",
+            "sart_l"
+          ],
+          "previous_solution": "compliant/c2_solution.sto"
+        },
+        "runtime_s": 5090.811903953552,
+        "success": true,
+        "status": "Solve_Succeeded",
+        "num_iterations": 104,
+        "objective": 237.06479682024008,
+        "objective_terms": {
+          "excitation_effort": 186.3884376267801,
+          "activation_effort": 16.94922271085059,
+          "auxiliary_derivatives": 33.72713648260939
+        },
+        "converged": true,
+        "source_solve": "c3",
+        "full_mesh_attempt": null,
+        "coarse_mesh_run": {
+          "success": true,
+          "status": "Solve_Succeeded",
+          "num_iterations": 301,
+          "runtime_s": 3281.969803094864,
+          "objective": 316.5075511405908,
+          "num_mesh_intervals": 128,
+          "mesh_interval_s": 0.04
+        },
+        "stored_in_npz": true,
+        "reserve_and_residual_usage_N_or_Nm": {
+          "/forceset/residual_pelvis_tilt": {
+            "max_abs": 143.4690163228636,
+            "rms": 35.52426305761944
+          },
+          "/forceset/residual_pelvis_list": {
+            "max_abs": 84.50288009648906,
+            "rms": 20.291667031233665
+          },
+          "/forceset/residual_pelvis_rotation": {
+            "max_abs": 47.72844932004102,
+            "rms": 12.43509177940142
+          },
+          "/forceset/residual_pelvis_tx": {
+            "max_abs": 149.6300243129818,
+            "rms": 51.7376724596403
+          },
+          "/forceset/residual_pelvis_ty": {
+            "max_abs": 313.0729010889836,
+            "rms": 92.21819787506031
+          },
+          "/forceset/residual_pelvis_tz": {
+            "max_abs": 169.2242765124607,
+            "rms": 55.31247154930637
+          },
+          "/forceset/reserve_jointset_hip_r_hip_flexion_r": {
+            "max_abs": 4.133774078331642,
+            "rms": 0.8747376717757213
+          },
+          "/forceset/reserve_jointset_hip_r_hip_adduction_r": {
+            "max_abs": 6.031638278587803,
+            "rms": 1.039820316254915
+          },
+          "/forceset/reserve_jointset_hip_r_hip_rotation_r": {
+            "max_abs": 8.901841199644705,
+            "rms": 1.690744001847547
+          },
+          "/forceset/reserve_jointset_walker_knee_r_knee_angle_r": {
+            "max_abs": 4.616575016080263,
+            "rms": 1.083653532874852
+          },
+          "/forceset/reserve_jointset_ankle_r_ankle_angle_r": {
+            "max_abs": 8.243987889992288,
+            "rms": 1.443369731298316
+          },
+          "/forceset/reserve_jointset_hip_l_hip_flexion_l": {
+            "max_abs": 3.527056296461518,
+            "rms": 0.7250097864820502
+          },
+          "/forceset/reserve_jointset_hip_l_hip_adduction_l": {
+            "max_abs": 2.807670582562147,
+            "rms": 0.6496583953636936
+          },
+          "/forceset/reserve_jointset_hip_l_hip_rotation_l": {
+            "max_abs": 7.367832376700658,
+            "rms": 1.3353853817995645
+          },
+          "/forceset/reserve_jointset_walker_knee_l_knee_angle_l": {
+            "max_abs": 3.456432631563462,
+            "rms": 0.7933942596348841
+          },
+          "/forceset/reserve_jointset_ankle_l_ankle_angle_l": {
+            "max_abs": 5.780868412895749,
+            "rms": 1.1813361252548844
+          }
+        },
+        "muscle_moment_vs_opensim_id": {
+          "ankle": {
+            "rmse_Nm": 1.7839677441007764,
+            "corr": 0.9992901098871421
+          },
+          "knee": {
+            "rmse_Nm": 1.6406256604893812,
+            "corr": 0.9991808981879609
+          },
+          "hip": {
+            "rmse_Nm": 1.9252623012190164,
+            "corr": 0.9991483854556227
+          }
+        },
+        "peak_force_timing_right": {
+          "soleus_r": {
+            "peak_N_mean": 1676.5939053264742,
+            "peak_N_max": 2036.2857883211193,
+            "peak_time_pct_stance_mean": 78.71952259164536,
+            "peak_time_pct_stance": [
+              75.0,
+              85.29411764705883,
+              80.0,
+              75.36231884057966,
+              77.94117647058826
+            ]
+          },
+          "gasmed_r": {
+            "peak_N_mean": 1784.8561769719356,
+            "peak_N_max": 1949.0252470255814,
+            "peak_time_pct_stance_mean": 78.69833150651567,
+            "peak_time_pct_stance": [
+              77.94117647058825,
+              79.41176470588238,
+              81.42857142857143,
+              79.71014492753623,
+              75.00000000000004
+            ]
+          },
+          "gaslat_r": {
+            "peak_N_mean": 703.0461666415526,
+            "peak_N_max": 826.2549637371709,
+            "peak_time_pct_stance_mean": 46.470588235294116,
+            "peak_time_pct_stance": [
+              70.58823529411767,
+              79.41176470588238,
+              0.0,
+              0.0,
+              82.35294117647052
+            ]
+          },
+          "tibant_r": {
+            "peak_N_mean": 920.0763681983606,
+            "peak_N_max": 1054.4094769432263,
+            "peak_time_pct_stance_mean": 2.03361344537815,
+            "peak_time_pct_stance": [
+              5.88235294117648,
+              0.0,
+              4.285714285714269,
+              0.0,
+              0.0
+            ]
+          },
+          "vaslat_r": {
+            "peak_N_mean": 1948.777791694653,
+            "peak_N_max": 2291.1947023814614,
+            "peak_time_pct_stance_mean": 19.24296675191816,
+            "peak_time_pct_stance": [
+              20.588235294117645,
+              19.11764705882354,
+              20.0,
+              17.391304347826097,
+              19.11764705882352
+            ]
+          },
+          "vasmed_r": {
+            "peak_N_mean": 509.2461892165581,
+            "peak_N_max": 598.0116985775356,
+            "peak_time_pct_stance_mean": 19.234563390573623,
+            "peak_time_pct_stance": [
+              20.588235294117645,
+              17.647058823529427,
+              21.428571428571423,
+              17.391304347826097,
+              19.11764705882352
+            ]
+          },
+          "vasint_r": {
+            "peak_N_mean": 243.65941743961827,
+            "peak_N_max": 284.3240756848485,
+            "peak_time_pct_stance_mean": 18.65059067105103,
+            "peak_time_pct_stance": [
+              20.588235294117645,
+              16.176470588235315,
+              21.428571428571423,
+              15.942028985507262,
+              19.11764705882352
+            ]
+          },
+          "recfem_r": {
+            "peak_N_mean": 1015.8886148206014,
+            "peak_N_max": 1127.5424690588984,
+            "peak_time_pct_stance_mean": 83.93752283522102,
+            "peak_time_pct_stance": [
+              82.35294117647061,
+              86.76470588235294,
+              87.14285714285711,
+              86.95652173913041,
+              76.47058823529407
+            ]
+          },
+          "glmax2_r": {
+            "peak_N_mean": 648.6349022373159,
+            "peak_N_max": 725.4311779449596,
+            "peak_time_pct_stance_mean": 19.826939471440767,
+            "peak_time_pct_stance": [
+              19.117647058823533,
+              20.588235294117652,
+              20.0,
+              18.84057971014493,
+              20.58823529411771
+            ]
+          },
+          "glmed1_r": {
+            "peak_N_mean": 368.293864208526,
+            "peak_N_max": 484.91957124976335,
+            "peak_time_pct_stance_mean": 21.284861770795285,
+            "peak_time_pct_stance": [
+              22.058823529411775,
+              19.11764705882354,
+              21.428571428571423,
+              20.289855072463766,
+              23.52941176470593
+            ]
+          },
+          "semimem_r": {
+            "peak_N_mean": 545.912663824575,
+            "peak_N_max": 643.4013573129583,
+            "peak_time_pct_stance_mean": 4.953598830836677,
+            "peak_time_pct_stance": [
+              8.823529411764703,
+              2.941176470588264,
+              5.714285714285692,
+              4.347826086956505,
+              2.9411764705882213
+            ]
+          },
+          "bflh_r": {
+            "peak_N_mean": 488.70188048869505,
+            "peak_N_max": 550.1818579120849,
+            "peak_time_pct_stance_mean": 7.8567774936061365,
+            "peak_time_pct_stance": [
+              7.352941176470591,
+              10.294117647058826,
+              10.000000000000037,
+              8.69565217391301,
+              2.9411764705882213
+            ]
+          }
+        },
+        "operating_range_right": {
+          "soleus_r": {
+            "lM_norm": [
+              0.5063448981788127,
+              1.0074371925734216
+            ],
+            "vM_norm": [
+              -0.573981027768449,
+              0.46759781312017035
+            ],
+            "tendon_strain_max": 0.026581622682801585,
+            "tendon_stretch_max_mm": 7.5431958141716215
+          },
+          "gasmed_r": {
+            "lM_norm": [
+              0.46703395597321234,
+              0.9848549297302737
+            ],
+            "vM_norm": [
+              -0.6112507948856667,
+              0.49507422223573205
+            ],
+            "tendon_strain_max": 0.038771550680638374,
+            "tendon_stretch_max_mm": 15.137686322231335
+          },
+          "gaslat_r": {
+            "lM_norm": [
+              0.49205272803111344,
+              0.978436384511876
+            ],
+            "vM_norm": [
+              -0.5788726590759296,
+              0.407114533053207
+            ],
+            "tendon_strain_max": 0.037806661801878735,
+            "tendon_stretch_max_mm": 14.264707806986966
+          },
+          "vaslat_r": {
+            "lM_norm": [
+              0.7183657715779038,
+              1.0796182971996757
+            ],
+            "vM_norm": [
+              -0.3052254694513939,
+              0.3626643557728928
+            ],
+            "tendon_strain_max": 0.032021895816440354,
+            "tendon_stretch_max_mm": 7.1849644183348
+          },
+          "tibant_r": {
+            "lM_norm": [
+              0.8541988707713482,
+              1.21360964467731
+            ],
+            "vM_norm": [
+              -0.21116967280699558,
+              0.9289579344250944
+            ],
+            "tendon_strain_max": 0.045578252817672166,
+            "tendon_stretch_max_mm": 11.060377370856383
+          }
+        },
+        "stance_work_J": {
+          "triceps_surae_r": {
+            "mtu": {
+              "positive_J_mean": 57.30374050945106,
+              "negative_J_mean": -20.98665520128082,
+              "net_J_mean": 36.31708530817024,
+              "positive_J_per_stance": [
+                50.90132756254482,
+                64.3518606827035,
+                59.50160253667136,
+                56.57484291843231,
+                55.189068846903275
+              ],
+              "negative_J_per_stance": [
+                -19.10395110953528,
+                -19.696290892265726,
+                -22.41527166657926,
+                -21.95222028443803,
+                -21.76554205358581
+              ]
+            },
+            "tendon": {
+              "positive_J_mean": 24.742914032085018,
+              "negative_J_mean": -20.14907329116062,
+              "net_J_mean": 4.593840740924399,
+              "positive_J_per_stance": [
+                20.53578726299242,
+                25.476624622547114,
+                27.628106700328388,
+                25.7640230370107,
+                24.31002853754647
+              ],
+              "negative_J_per_stance": [
+                -18.355686034979914,
+                -20.3645490996797,
+                -21.73056476771696,
+                -19.489772041247043,
+                -20.804794512179477
+              ]
+            },
+            "fibre": {
+              "positive_J_mean": 47.52432173740636,
+              "negative_J_mean": -15.801077170160536,
+              "net_J_mean": 31.723244567245825,
+              "positive_J_per_stance": [
+                44.84541949611225,
+                56.21972089186806,
+                47.201587039508404,
+                44.74732635502882,
+                44.60755490451428
+              ],
+              "negative_J_per_stance": [
+                -15.22814427111522,
+                -16.676226624297712,
+                -16.012798102027734,
+                -16.398954716798197,
+                -14.689262136563807
+              ]
+            }
+          },
+          "soleus_r": {
+            "mtu": {
+              "positive_J_mean": 16.532276398054705,
+              "negative_J_mean": -9.371980178517358,
+              "net_J_mean": 7.160296219537347,
+              "positive_J_per_stance": [
+                14.760366941623365,
+                23.41275466732813,
+                15.74454135282878,
+                14.262044387868867,
+                14.481674640624373
+              ],
+              "negative_J_per_stance": [
+                -10.334017131700367,
+                -8.08288260560359,
+                -10.635110515880971,
+                -8.08811847055737,
+                -9.71977216884449
+              ]
+            },
+            "tendon": {
+              "positive_J_mean": 10.362494603629965,
+              "negative_J_mean": -9.655055123954543,
+              "net_J_mean": 0.707439479675422,
+              "positive_J_per_stance": [
+                10.202148849174444,
+                11.78916669716829,
+                11.043333310481104,
+                9.35592317050066,
+                9.421900990825334
+              ],
+              "negative_J_per_stance": [
+                -9.581052710238582,
+                -10.51237023815595,
+                -10.487068016974018,
+                -8.916449942133823,
+                -8.778334712270343
+              ]
+            },
+            "fibre": {
+              "positive_J_mean": 16.61433768531271,
+              "negative_J_mean": -10.161480945450787,
+              "net_J_mean": 6.452856739861922,
+              "positive_J_per_stance": [
+                15.16317960403481,
+                24.27118928712621,
+                14.256495583352045,
+                15.24606429472479,
+                14.13475965732569
+              ],
+              "negative_J_per_stance": [
+                -11.357925933047673,
+                -10.218113684414007,
+                -9.703330039911323,
+                -9.511611605780134,
+                -10.0164234641008
+              ]
+            }
+          },
+          "gastrocnemius_r": {
+            "mtu": {
+              "positive_J_mean": 41.593599816446044,
+              "negative_J_mean": -12.436810727813164,
+              "net_J_mean": 29.15678908863288,
+              "positive_J_per_stance": [
+                37.35550387244005,
+                41.378734436004194,
+                44.84434099632754,
+                42.739883999417174,
+                41.64953577804127
+              ],
+              "negative_J_per_stance": [
+                -9.984477229353516,
+                -12.053036707290966,
+                -12.86744096318325,
+                -14.291187282734398,
+                -12.987911456503692
+              ]
+            },
+            "tendon": {
+              "positive_J_mean": 20.783396743990565,
+              "negative_J_mean": -16.89699548274159,
+              "net_J_mean": 3.886401261248974,
+              "positive_J_per_stance": [
+                15.689936682154602,
+                22.21154270041537,
+                21.358660158018996,
+                24.087593622498748,
+                20.56925055686511
+              ],
+              "negative_J_per_stance": [
+                -14.130931593077955,
+                -18.376263636560296,
+                -16.017383518914656,
+                -18.25281585510193,
+                -17.707582810053104
+              ]
+            },
+            "fibre": {
+              "positive_J_mean": 35.18577598437487,
+              "negative_J_mean": -9.915388156990966,
+              "net_J_mean": 25.270387827383907,
+              "positive_J_per_stance": [
+                33.814228476484,
+                35.99608401755173,
+                36.60009684140956,
+                34.155923705950975,
+                35.3625468804781
+              ],
+              "negative_J_per_stance": [
+                -8.002206922474105,
+                -10.50566535269358,
+                -9.964473447369603,
+                -11.542004756665008,
+                -9.562590305752533
+              ]
+            }
+          }
+        }
+      }
+    },
+    "c1_cold_start_check": {
+      "success": true,
+      "num_iterations": 513,
+      "runtime_s": 3340.4670391082764,
+      "objective": 155.27081554604638,
+      "right_tendon_force_diff_vs_warm_N": {
+        "rms": 0.4288251345607945,
+        "max_abs": 26.977070435727683
+      }
+    },
+    "rigid_reference": {
+      "peak_force_timing_right": {
+        "soleus_r": {
+          "peak_N_mean": 2036.6510189486373,
+          "peak_N_max": 2941.3069669855936,
+          "peak_time_pct_stance_mean": 85.70649129216902,
+          "peak_time_pct_stance": [
+            86.76470588235294,
+            80.88235294117649,
+            87.14285714285711,
+            85.50724637681158,
+            88.23529411764696
+          ]
+        },
+        "gasmed_r": {
+          "peak_N_mean": 1886.1988985924734,
+          "peak_N_max": 2199.708938825594,
+          "peak_time_pct_stance_mean": 74.90427475337962,
+          "peak_time_pct_stance": [
+            72.05882352941177,
+            72.05882352941178,
+            77.14285714285715,
+            78.26086956521739,
+            75.00000000000004
+          ]
+        },
+        "gaslat_r": {
+          "peak_N_mean": 656.8248474718596,
+          "peak_N_max": 730.3183577210337,
+          "peak_time_pct_stance_mean": 78.40421385945683,
+          "peak_time_pct_stance": [
+            76.47058823529413,
+            75.00000000000001,
+            81.42857142857143,
+            79.71014492753623,
+            79.41176470588229
+          ]
+        },
+        "tibant_r": {
+          "peak_N_mean": 797.4328690393501,
+          "peak_N_max": 980.9828313394454,
+          "peak_time_pct_stance_mean": 4.688832054560966,
+          "peak_time_pct_stance": [
+            5.88235294117648,
+            4.411764705882377,
+            0.0,
+            5.79710144927534,
+            7.352941176470631
+          ]
+        },
+        "vaslat_r": {
+          "peak_N_mean": 1856.975182094087,
+          "peak_N_max": 2291.0854303662,
+          "peak_time_pct_stance_mean": 18.373279746681284,
+          "peak_time_pct_stance": [
+            20.588235294117645,
+            17.647058823529427,
+            18.571428571428577,
+            15.942028985507262,
+            19.11764705882352
+          ]
+        },
+        "vasmed_r": {
+          "peak_N_mean": 429.94342446784356,
+          "peak_N_max": 529.3908675563108,
+          "peak_time_pct_stance_mean": 18.373279746681284,
+          "peak_time_pct_stance": [
+            20.588235294117645,
+            17.647058823529427,
+            18.571428571428577,
+            15.942028985507262,
+            19.11764705882352
+          ]
+        },
+        "vasint_r": {
+          "peak_N_mean": 219.07236408091404,
+          "peak_N_max": 270.19501787290403,
+          "peak_time_pct_stance_mean": 17.205212519790535,
+          "peak_time_pct_stance": [
+            16.176470588235308,
+            17.647058823529427,
+            17.142857142857153,
+            15.942028985507262,
+            19.11764705882352
+          ]
+        },
+        "recfem_r": {
+          "peak_N_mean": 1191.2571473320343,
+          "peak_N_max": 1305.4106439620853,
+          "peak_time_pct_stance_mean": 66.68578735842163,
+          "peak_time_pct_stance": [
+            83.82352941176472,
+            20.588235294117652,
+            74.2857142857143,
+            78.26086956521739,
+            76.47058823529407
+          ]
+        },
+        "glmax2_r": {
+          "peak_N_mean": 795.9114793768533,
+          "peak_N_max": 945.741511589121,
+          "peak_time_pct_stance_mean": 19.532821824381944,
+          "peak_time_pct_stance": [
+            19.117647058823533,
+            19.11764705882354,
+            20.0,
+            18.84057971014493,
+            20.58823529411771
+          ]
+        },
+        "glmed1_r": {
+          "peak_N_mean": 296.4307799989964,
+          "peak_N_max": 394.07136302917263,
+          "peak_time_pct_stance_mean": 39.57459505541348,
+          "peak_time_pct_stance": [
+            22.058823529411775,
+            67.6470588235294,
+            60.0,
+            24.63768115942027,
+            23.52941176470593
+          ]
+        },
+        "semimem_r": {
+          "peak_N_mean": 612.8109558293038,
+          "peak_N_max": 682.9096884403269,
+          "peak_time_pct_stance_mean": 3.4914139568870985,
+          "peak_time_pct_stance": [
+            2.9411764705882346,
+            2.941176470588264,
+            4.285714285714269,
+            4.347826086956505,
+            2.9411764705882213
+          ]
+        },
+        "bflh_r": {
+          "peak_N_mean": 429.08262725359947,
+          "peak_N_max": 509.49546198439134,
+          "peak_time_pct_stance_mean": 5.562659846547307,
+          "peak_time_pct_stance": [
+            4.4117647058823675,
+            11.764705882352938,
+            0.0,
+            8.69565217391301,
+            2.9411764705882213
+          ]
+        }
+      },
+      "stance_work_J": {
+        "triceps_surae_r": {
+          "mtu": {
+            "positive_J_mean": 42.88105402697308,
+            "negative_J_mean": -17.355288541828354,
+            "net_J_mean": 25.525765485144728,
+            "positive_J_per_stance": [
+              36.80179878045664,
+              46.65757301100366,
+              45.31956108458665,
+              43.74332684161237,
+              41.8830104172061
+            ],
+            "negative_J_per_stance": [
+              -16.300561945877213,
+              -18.69157065298399,
+              -17.13920401527001,
+              -17.276144375594498,
+              -17.368961719416067
+            ]
+          },
+          "tendon": {
+            "positive_J_mean": 0.0,
+            "negative_J_mean": 0.0,
+            "net_J_mean": 0.0,
+            "positive_J_per_stance": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "negative_J_per_stance": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "fibre": {
+            "positive_J_mean": 42.88105402697308,
+            "negative_J_mean": -17.355288541828354,
+            "net_J_mean": 25.525765485144728,
+            "positive_J_per_stance": [
+              36.80179878045664,
+              46.65757301100366,
+              45.31956108458665,
+              43.74332684161237,
+              41.8830104172061
+            ],
+            "negative_J_per_stance": [
+              -16.300561945877213,
+              -18.69157065298399,
+              -17.13920401527001,
+              -17.276144375594498,
+              -17.368961719416067
+            ]
+          }
+        }
+      },
+      "operating_range_right": {
+        "soleus_r": {
+          "lM_norm": [
+            0.5193018602566448,
+            1.0901502948809314
+          ],
+          "vM_norm": [
+            -0.6431158343658426,
+            0.38335501470829314
+          ]
+        },
+        "gasmed_r": {
+          "lM_norm": [
+            0.48124228983116824,
+            1.1476468771442752
+          ],
+          "vM_norm": [
+            -0.7809973068889088,
+            0.34375781755421936
+          ]
+        },
+        "gaslat_r": {
+          "lM_norm": [
+            0.5027531363694961,
+            1.0974212442519662
+          ],
+          "vM_norm": [
+            -0.6716365795733661,
+            0.32236570986719887
+          ]
+        },
+        "vaslat_r": {
+          "lM_norm": [
+            0.7219500114698542,
+            1.088401574433192
+          ],
+          "vM_norm": [
+            -0.302043359939011,
+            0.2499096357419439
+          ]
+        },
+        "tibant_r": {
+          "lM_norm": [
+            0.9228435781839376,
+            1.3042231470210637
+          ],
+          "vM_norm": [
+            -0.25367180448694504,
+            0.41560670615823175
+          ]
+        }
+      }
+    },
+    "stances": {
+      "frames": [
+        [
+          59,
+          127
+        ],
+        [
+          175,
+          243
+        ],
+        [
+          288,
+          358
+        ],
+        [
+          405,
+          474
+        ],
+        [
+          522,
+          590
+        ]
+      ],
+      "definition": "right Fz > 20 N, complete stances in the window"
+    },
+    "work_definition": "power delivered to the skeleton P = -F v (v + = lengthening); tendon P = -F dl_T/dt (tendon_velocity output), fibre P = -F v_M along the tendon; positive/negative parts integrated over each complete right stance, mean over stances"
   }
 }

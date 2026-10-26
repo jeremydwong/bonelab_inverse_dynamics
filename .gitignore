@@ -22,3 +22,5 @@ data/simulated/
 data/literature_figures/
 # per-step intermediates of the varus sweep (regenerate with scripts/opensim/knee_contact.py)
 data/opensim/varus/
+# compliant-tendon MocoInverse intermediates (regenerate with scripts/opensim/compliance.py)
+data/opensim/compliant/

@@ -172,3 +172,66 @@ in N m.
 
 The JSON has the assumptions, citations (with Semantic Scholar counts), per-stance
 peaks, the sweep table, the IK verification and runtimes.
+
+## Turning on tendon compliance (C1 / C2 / C3)
+
+`compliance.py` (conda env) re-solves the MocoInverse with compliant tendons,
+one stage at a time, each warm-started from the one before
+(rigid -> C1 -> C2 -> C3):
+
+```sh
+PY=/Users/jeremy/.julia/conda/3/aarch64/envs/opensim/bin/python
+$PY scripts/opensim/compliance.py list       # l_slack/l_opt, tendon stiffness, the C1/C2/C3 lists
+$PY scripts/opensim/compliance.py c1         # then c2, then c3 (each needs the previous one)
+$PY scripts/opensim/compliance.py collect    # c*_ keys -> p1_trial13_muscles.npz, JSON block "tendon_compliance"
+$PY scripts/opensim/compliance.py contact    # c*_contact_* -> p1_trial13_knee_contact.npz
+```
+
+- **C1**: compliant soleus, gasmed, gaslat (both legs, since the MocoInverse
+  solves both legs' muscles).
+- **C2**: compliant wherever l_slack / l_opt > 1 (23 muscles per leg). At
+  eps0 = 0.049 a tendon at F_iso stretches 0.049 l_slack, so at a ratio of 1
+  that's ~5% of l_opt of fibre shift, small next to the f-L width. The
+  triceps surae (5.4-6.6) shift 27-32% of l_opt.
+- **C3**: every muscle compliant, and passive fibre force switched on.
+
+Everything else is the rigid solve's: same processed model, IK, window,
+mesh (256 intervals, Hermite-Simpson), tolerances. Compliance is DGF with
+IMPLICIT tendon dynamics (`set_tendon_compliance_dynamics_mode("implicit")`),
+plus a `MocoInitialVelocityEquilibriumDGFGoal`, which MocoInverse doesn't
+add by itself. The problem is solved via `inverse.initialize()` +
+`study.solve()` (that's the only way to hand it a guess), so the kinematic
+states are put back into the solution afterwards from the rigid solution.
+One gotcha: in Python the solver of the returned study must be re-pointed
+with `solver.resetProblem(study.getProblem())` before `createGuess()`, or it
+segfaults.
+
+Tendon stiffness: every muscle in the processed model has
+`tendon_strain_at_one_norm_force = 0.049` (DGF default; the Rajagopal
+Millard muscles use the default tendon curve, no 0.10 Achilles). I kept it.
+
+Intermediates live in `data/opensim/compliant/` (gitignored): per stage
+`*_solution.sto`, `*_outputs.sto`, `*_info.json`, `*_study.xml`, `*.log`.
+Only stages that converged get npz keys (`c1_force`, `c1_activation`,
+`c1_fiber_length_norm`, `c1_fiber_velocity_norm`, `c1_tendon_length`,
+`c1_tendon_strain` [T,M], `c1_moment` [T,3], `compliant_mask_c1` [M], same
+for c2/c3). The JSON gets a `tendon_compliance` block with settings,
+iterations, runtime, status, reserve usage, per-muscle tendon parameters,
+peak timing, operating ranges and the stance work split (tendon vs fibre).
+
+What happened on P1 trial 13 (details in the JSON block):
+
+| stage | compliant (both legs) | iterations | runtime | objective | right ankle reserve max |
+|---|---|---|---|---|---|
+| rigid | 0 | 335 | 18 min | 153.05 | 2.99 N m |
+| C1 | 6 | 540 | 58 min | 155.27 | 3.85 N m |
+| C2 | 46 | 578 | 63 min | 189.08 | 8.79 N m |
+| C3 (+ passive) | 80 | 104 | 85 min | 237.06 | 8.24 N m |
+
+All converged (IPOPT "Optimal Solution Found", tolerances 1e-3) on the
+rigid solve's 256-interval mesh. Checks I ran on the side: C1 from
+MocoInverse's own cold guess lands on the same optimum (objective 155.271
+vs 155.272, right tendon forces 0.43 N RMS apart, 27 N max; 513 iterations).
+A 128-interval C3 started as a fallback while the full one crawled (~49 s
+per iteration) also converged, but at objective 316.51, so it's a worse
+local optimum; it's recorded as `coarse_mesh_run` and not used.

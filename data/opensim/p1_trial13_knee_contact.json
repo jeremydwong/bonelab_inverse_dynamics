@@ -589,5 +589,72 @@
       "50": 1631.012689113617
     }
   },
-  "units": "contact *_BW arrays in body weights; moments in N m; sagittal moments in OpenSim sign (+ = knee flexion moment on the shank, so extension is negative)"
+  "units": "contact *_BW arrays in body weights; moments in N m; sagittal moments in OpenSim sign (+ = knee flexion moment on the shank, so extension is negative)",
+  "tendon_compliance": {
+    "script": "scripts/opensim/compliance.py contact",
+    "keys": "c{1,2,3}_contact_{total,medial,lateral}, c{1,2,3}_lig_lateral (BW)",
+    "stages": {
+      "c1": {
+        "peak_total_BW": {
+          "mean_of_stance_peaks": 6.161915636813452,
+          "sd": 0.4045155844741192,
+          "max": 6.647506827788002,
+          "n_stances": 5
+        },
+        "peak_medial_BW": {
+          "mean_of_stance_peaks": 4.001561869753774,
+          "sd": 0.1160420919450023,
+          "max": 4.19932883399169,
+          "n_stances": 5
+        },
+        "peak_lateral_BW": {
+          "mean_of_stance_peaks": 2.5432277716469054,
+          "sd": 0.26964560878047417,
+          "max": 2.903547513270812,
+          "n_stances": 5
+        }
+      },
+      "c2": {
+        "peak_total_BW": {
+          "mean_of_stance_peaks": 6.083519789130191,
+          "sd": 0.36774967904520994,
+          "max": 6.600853044755857,
+          "n_stances": 5
+        },
+        "peak_medial_BW": {
+          "mean_of_stance_peaks": 3.9243081989263118,
+          "sd": 0.034689862898908935,
+          "max": 3.9461502553897962,
+          "n_stances": 5
+        },
+        "peak_lateral_BW": {
+          "mean_of_stance_peaks": 2.5592910522013064,
+          "sd": 0.40288785244399294,
+          "max": 3.0669674153347426,
+          "n_stances": 5
+        }
+      },
+      "c3": {
+        "peak_total_BW": {
+          "mean_of_stance_peaks": 6.484477314124758,
+          "sd": 0.4645466319628738,
+          "max": 7.032401873707278,
+          "n_stances": 5
+        },
+        "peak_medial_BW": {
+          "mean_of_stance_peaks": 4.077597004029828,
+          "sd": 0.06828412964990851,
+          "max": 4.155025825282466,
+          "n_stances": 5
+        },
+        "peak_lateral_BW": {
+          "mean_of_stance_peaks": 2.8973588137149706,
+          "sd": 0.42332093078301813,
+          "max": 3.4494412463209794,
+          "n_stances": 5
+        }
+      }
+    },
+    "note": "same Newton-Euler + two-point split as the baseline, with the compliant MocoInverse tendon forces (only converged stages)"
+  }
 }

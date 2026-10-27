@@ -483,3 +483,32 @@ def test_varus_shift_moves_only_the_knee():
         atol=1e-12)
     np.testing.assert_allclose(varus_shift(kin, 0.0).r_world, kin.r_world,
                                atol=1e-12)
+
+
+def test_step_frequency_trial_keeps_speed_and_weight():
+    """The cadence counterfactual: k=1 is the identity; for k != 1 the
+    trial is k times shorter, a heel's fore-aft sweep is 1/k (same belt
+    speed), and the force averaged over the trial still carries body
+    weight."""
+    from pathlib import Path
+    from boneid import io_v3d as io
+    from boneid.simulate import step_frequency_trial
+    trial = io.load_v3d_trial(str(Path(__file__).resolve().parents[1]
+                                  / "data/p1_trial13_sample.mat"), 0)
+    m = 85.16
+    same = step_frequency_trial(trial, 1.0, m)
+    np.testing.assert_allclose(same.force, trial.force, atol=1e-9)
+    np.testing.assert_allclose(same.markers["RCAL"], trial.markers["RCAL"],
+                               atol=1e-12)
+    for k in (0.9, 1.1):
+        s = step_frequency_trial(trial, k, m)
+        assert abs(s.t[-1] - trial.t[-1] / k) < 1.0 / trial.rate
+        np.testing.assert_allclose(np.ptp(s.markers["RCAL"][:, 1]),
+                                   np.ptp(trial.markers["RCAL"][:, 1]) / k,
+                                   rtol=0.02)
+        np.testing.assert_allclose(np.ptp(s.markers["RCAL"][:, 2]),
+                                   np.ptp(trial.markers["RCAL"][:, 2]),
+                                   rtol=0.02)
+        fz0 = trial.force[..., 2].sum(axis=1).mean()
+        fz1 = s.force[..., 2].sum(axis=1).mean()
+        assert abs(fz1 - fz0) < 0.01 * fz0

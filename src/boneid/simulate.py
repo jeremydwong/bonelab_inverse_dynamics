@@ -829,3 +829,84 @@ def varus_markers(markers: dict, kin: SegmentKinematics, d: float) -> dict:
                 rel = markers[name] - pivot
                 out[name] = pivot + np.einsum("tij,tj->ti", r, rel)
     return out
+
+
+# ---------------------------------------------------------------------------
+# Counterfactual cadence: one measured treadmill trial time-scaled to a new
+# step frequency at the SAME belt speed
+# ---------------------------------------------------------------------------
+
+def step_frequency_trial(trial, k: float, body_mass: float,
+                         ap_axis: int = 1):
+    """`trial` (an `io_v3d.V3dTrial` on a treadmill) re-timed to step
+    frequency k * f0 with the belt speed unchanged.
+
+    The rule, with time-symmetric gait (left and right steps equal, so
+    f = 2 / stride time):
+
+    * time is compressed by k (t' = t / k), resampled at the same rates;
+    * fore-aft coordinates (lab axis `ap_axis`) of every marker and COP are
+      scaled by 1/k about their trial mean, so a stance foot still slides
+      back at belt speed: step length x 1/k, speed unchanged;
+    * vertical and medio-lateral coordinates keep their size;
+    * forces follow Newton on that motion: accelerations scale k^2 x
+      (spatial scale), so the medio-lateral force and the vertical force
+      MINUS body weight scale by k^2, the fore-aft force by k (its
+      excursion shrank by 1/k), and the weight-bearing part stays m g.
+      Per plate, the vertical change is split by that plate's share of the
+      total vertical load.  The stride mean of every force is unchanged.
+
+    It is a kinematic/Newtonian rescaling, not a model of how people
+    actually walk at another cadence (posture, bounce and stance fraction
+    don't adapt); see the step-frequency report for how it compares with
+    measured trials.  Visual3D's reference outputs are dropped.
+    """
+    from dataclasses import replace
+    k = float(k)
+    mg = float(body_mass) * float(np.linalg.norm(GRAVITY))
+
+    def retime(t_old, x, rate):
+        t_new = np.arange(0.0, t_old[-1] / k + 0.5 / rate, 1.0 / rate)
+        t_new = t_new[t_new * k <= t_old[-1] + 1e-12]
+        flat = np.asarray(x, float).reshape(len(t_old), -1)
+        out = np.stack([np.interp(t_new * k, t_old, flat[:, c])
+                        for c in range(flat.shape[1])], axis=1)
+        return t_new, out.reshape((len(t_new),) + np.shape(x)[1:])
+
+    all_ap = np.concatenate([m[:, ap_axis] for m in trial.markers.values()])
+    centre = float(np.nanmean(all_ap))
+
+    def squash(xyz):
+        out = np.array(xyz, float)
+        out[..., ap_axis] = centre + (out[..., ap_axis] - centre) / k
+        return out
+
+    def pts(d):
+        new = {}
+        for name, xyz in d.items():
+            t_new, v = retime(trial.t, xyz, trial.rate)
+            new[name] = squash(v) if np.ndim(xyz) == 2 and np.shape(xyz)[1] == 3 else v
+        return new
+
+    t_new, _ = retime(trial.t, trial.t, trial.rate)
+    ta_new, force = retime(trial.t_analog, trial.force, trial.analog_rate)
+    _, cop = retime(trial.t_analog, trial.cop, trial.analog_rate)
+    _, fm = retime(trial.t_analog, trial.free_moment, trial.analog_rate)
+    vert = 2                                       # lab z up
+    ml = 3 - ap_axis - vert
+    fz = force[..., vert]
+    total = fz.sum(axis=1, keepdims=True)
+    share = np.where(np.abs(total) > 1e-9, fz / np.where(total == 0, 1, total), 0.0)
+    force = force.copy()
+    force[..., vert] = fz + (k * k - 1.0) * (total - mg) * share
+    force[..., ap_axis] *= k
+    force[..., ml] *= k * k
+    return replace(
+        trial, t=t_new, t_analog=ta_new,
+        markers=pts(trial.markers),
+        markers_proc=pts(trial.markers_proc),
+        marker_residual={n: retime(trial.t, r, trial.rate)[1]
+                         for n, r in trial.marker_residual.items()},
+        landmarks=pts(trial.landmarks),
+        force=force, cop=squash(cop), free_moment=fm * k,
+        reference={})

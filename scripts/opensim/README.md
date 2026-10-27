@@ -235,3 +235,46 @@ vs 155.272, right tendon forces 0.43 N RMS apart, 27 N max; 513 iterations).
 A 128-interval C3 started as a fallback while the full one crawled (~49 s
 per iteration) also converged, but at objective 316.51, so it's a worse
 local optimum; it's recorded as `coarse_mesh_run` and not used.
+
+## Step-frequency trials (P1, 1.25 m/s, slots 16-24)
+
+Knee contact (SO + the two-point split above) for P1's nine fixed-speed
+walking trials from van der Zee et al. 2022 Table 2 (f* = 0.7/0.8/0.9, three
+preferred repeats, 1.1/1.2/1.3), plus 11 synthetic cadences made from slot 19
+with `boneid.simulate.step_frequency_trial` (f0 + d steps/min, d = -10..+10).
+
+```sh
+MAT=/Users/jeremy/Dropbox/Public/inverse-dynamics-test-data/p1_5StridesData.mat
+for s in 16 17 18 19 20 21 22 23 24; do
+  uv run python scripts/opensim/export_inputs.py --mat $MAT --slot $s \
+      --tag p1_slot$s --out data/opensim/stepfreq/work
+done
+for d in -10 -8 -6 -4 -2 0 2 4 6 8 10; do
+  uv run python scripts/opensim/export_inputs.py --mat $MAT --slot 19 \
+      --syn-d-spm $d --tag $(printf "p1_syn%+d" $d) --out data/opensim/stepfreq/work
+done
+PY=/Users/jeremy/.julia/conda/3/aarch64/envs/opensim/bin/python
+$PY scripts/opensim/stepfreq.py run 16      # ~1.5-4 min each; one process per trial, run them in parallel
+$PY scripts/opensim/stepfreq.py run syn-10  # ... syn+0 ... syn+10
+$PY scripts/opensim/stepfreq.py collect     # -> data/opensim/p1_stepfreq_knee_contact.{npz,json}
+```
+
+- Same subject and markerset, so I don't rescale: every trial uses the
+  trial-13 `p1_scaled.osim` (scale + placed markers) and one IK pass with the
+  trial-13 final weights. ID, SO and contact are the trial-13 functions with
+  their paths re-pointed (`pipeline.TAG`, `T_END`, `WINDOW` default to trial 13).
+  SO window is 0.10 s to T_end - 0.10 s.
+- Intermediates live in `data/opensim/stepfreq/` (gitignored): `work/` has the
+  exports, `slotNN/` and `syn<+d>/` have IK, ID, SO, `wrench.npz`, `info.json`.
+- Output `p1_stepfreq_knee_contact.npz`: `slots`, `f_star`, `stride_s`,
+  `step_freq_hz` (2 / mean right heel-strike interval), `body_mass` (85.16 kg,
+  trial 13's), `d_ic`; per trial `s16_t`, `s16_total`, `_medial`, `_lateral`,
+  `_lig_lateral` (BW, NaN outside the SO window), `_fz_r` (N),
+  `_stance_frames` [n,2], `_knee_flexion_deg`, `_knee_adduction_moment`
+  (external, + = varus, N m; the walker knee has no frontal DOF so this is the
+  inertia+gravity+GRF frontal moment at the knee, same as trial 13's
+  `ext_frontal_moment`), `_knee_sagittal_moment` (OpenSim ID, + = flexion).
+  Synthetic trials use the prefix `syn-10_` ... `syn+0_` ... `syn+10_`, with
+  `syn_d_spm`, `syn_k`, `syn_stride_s`, `syn_step_freq_hz`. The JSON has
+  per-trial IK RMS (and per marker), stance peaks and impulses, reserve use
+  and runtimes.

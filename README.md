@@ -46,7 +46,7 @@ the ASICS script. Actual **ASICS C3D running data** is analysed by
 ### Example reports — start at the table of contents
 
 [`reports/toc.html`](reports/toc.html) is a curriculum, not a directory
-listing: five chapters, each answering one question and handing its answer
+listing: six chapters, each answering one question and handing its answer
 to the next. Every page opens with the steps it demonstrates and/or the
 findings it reports.
 
@@ -290,6 +290,10 @@ executes them, saves their outputs, and exports those same outputs to HTML.
 | `asics_running_c3d.ipynb` | bundled ASICS C3D | ch 5: the Asics running reanalysis, plus the ported and executed legacy MATLAB |
 | `legacy_error_math.ipynb` | no — pure math (+ one Asics trial) | ch 5: the four MATLAB errors derived, with a numerical check after every claim |
 | [`p1_asics.ipynb`](notebooks/p1_asics.ipynb) | bundled P1 MAT sample | ch 5: the two legacy physics mistakes on P1 walking, one at a time |
+| `aff_bowed_femur.ipynb` | local P1–P9 MAT exports | ch 6: bowed legs and atypical femoral fracture — knee and femoral-shaft loads |
+| `muscle_force_validation.ipynb` | no — literature | ch 6: who has validated static/dynamic optimization, and with what |
+| `p1_muscle_forces.ipynb` | bundled P1 MAT sample + `data/opensim` | ch 6: OpenSim static/dynamic optimization, knee contact, varus sweep, tendon compliance |
+| `varus_intervention.ipynb` | P1 MAT + `data/opensim` | ch 6: step frequency at 1.25 m/s, measured vs time-rescaled — knee load per step and per km |
 
 Each notebook begins with a Colab bootstrap cell that is a no-op locally: on
 Colab it pip-installs `boneid` from GitHub and downloads the `.mat` from

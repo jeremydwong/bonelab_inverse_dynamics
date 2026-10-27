@@ -201,8 +201,11 @@ KEY-S2S-C3D — the whole c3d pipeline on a known body);
 ## Validation data
 
 - Local: `/Users/jeremy/Dropbox/Public/inverse-dynamics-test-data/p{1..9}_5StridesData.mat`
-  — 9 subjects × 33 trial slots (5 empty placeholders; 28 real trials forming a
-  **walk→run treadmill speed sweep**); Visual3D exports at 120 Hz mocap /
+  — 9 subjects × 33 trial slots (5 empty placeholders; 28 real trials, ALL
+  WALKING, van der Zee et al. 2022 Table 2: speeds 0.7–2.0 m/s, plus at
+  1.25 m/s a step-frequency sweep at 0.7–1.3× preferred — 0-based slots
+  16–18 and 22–24, preferred 19–21 — and step widths 0–0.4 m, slots 25–29;
+  slot = trial number − 1); Visual3D exports at 120 Hz mocap /
   1200 Hz analog including marker positions, dual-belt force plates (corners in
   mm; plate surface at z = −0.1746 m; +z up, +x subject-left, +y posterior),
   **and Visual3D's own computed outputs** to validate against

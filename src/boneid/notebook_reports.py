@@ -299,6 +299,16 @@ CHAPTERS = [
          "contact forces (about 2x what instrumented knees measure, which says "
          "something) and a varus sweep that lifts the lateral condyle off at "
          "about 6 degrees."),
+        ("varus_intervention",
+         "Step frequency at a fixed walking speed, measured and time-rescaled: "
+         "can quicker, shorter steps unload a (varus) knee?",
+         "P1 at 1.25 m/s with a metronome at 75 to 135 steps/min (the "
+         "experiment is already in the van der Zee data), next to my cheap "
+         "version: the preferred walk time-rescaled to f0 +/- 10 steps/min. "
+         "Knee contact from OpenSim per step and per km, the knee adduction "
+         "moment with the knee pushed into varus, and two animated walkers with "
+         "a slider over cadence. The rescale turns out not to be legal, and "
+         "per km the knee doesn't care much."),
      ]),
 ]
 

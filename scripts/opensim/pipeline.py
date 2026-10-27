@@ -47,6 +47,10 @@ IK = "p1_trial13_ik.mot"
 ID = "p1_trial13_id.sto"
 LOWPASS_HZ = 12.0                     # same as boneid report.p1_params()
 WINDOW = (0.10, 5.20)                 # s; trims IK/filter edges (T ends 5.30)
+T_END = 5.3                           # s, IK/ID end time (trial length)
+TAG = "p1_trial13"                    # name prefix of ID/SO/external-loads outputs
+# (stepfreq.py re-points TRC/GRF/IK/ID/... plus WINDOW, T_END and TAG per
+# trial; the defaults above are trial 13 and must stay as they are)
 MESH = 0.02                           # s, MocoInverse mesh interval
 SUMMARY = os.path.join(WORK, "summary.json")
 
@@ -253,7 +257,7 @@ def run_ik(model_file, out, setup, weights):
     ik.set_report_errors(True)
     ik.set_accuracy(1e-5)
     ik.setStartTime(0.0)
-    ik.setEndTime(5.3)
+    ik.setEndTime(T_END)
     for name, w in weights.items():
         t = osim.IKMarkerTask()
         t.setName(name)
@@ -411,7 +415,7 @@ def stage_ik():
 
 def write_external_loads():
     el = osim.ExternalLoads()
-    el.setName("p1_trial13_grf")
+    el.setName(f"{TAG}_grf")
     el.setDataFileName(GRF)
     for s in "rl":
         ef = osim.ExternalForce()
@@ -429,7 +433,7 @@ def write_external_loads():
 def stage_id():
     write_external_loads()
     idt = osim.InverseDynamicsTool()
-    idt.setName("p1_trial13_id")
+    idt.setName(f"{TAG}_id")
     idt.setModelFileName(SCALED)
     idt.setCoordinatesFileName(IK)
     idt.setLowpassCutoffFrequency(LOWPASS_HZ)
@@ -437,7 +441,7 @@ def stage_id():
     idt.setOutputGenForceFileName(ID)
     idt.setResultsDir(".")
     idt.setStartTime(0.0)
-    idt.setEndTime(5.3)
+    idt.setEndTime(T_END)
     ex = osim.ArrayStr()
     ex.append("Muscles")
     idt.setExcludedForces(ex)
@@ -496,7 +500,7 @@ def stage_so():
     m.initSystem()
     m.printToXML(PROCESSED)
     at = osim.AnalyzeTool()
-    at.setName("p1_trial13_so")
+    at.setName(f"{TAG}_so")
     at.setModelFilename(PROCESSED)
     at.setCoordinatesFileName(IK)
     at.setLowpassCutoffFrequency(LOWPASS_HZ)
@@ -518,7 +522,7 @@ def stage_so():
     t0 = time.time()
     tool = osim.AnalyzeTool("p1_setup_so.xml")
     tool.run()
-    ctrl = "so/p1_trial13_so_StaticOptimization_controls.xml"
+    ctrl = f"so/{TAG}_so_StaticOptimization_controls.xml"
     if os.path.exists(ctrl):                # 8 MB, same data as _force.sto
         os.remove(ctrl)
     summ = load_summary()

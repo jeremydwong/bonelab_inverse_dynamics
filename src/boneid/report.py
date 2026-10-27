@@ -1997,6 +1997,79 @@ def p1_foot_blob(trial, kin, side):
     return foot_blob_mesh(np.median(local, axis=0))
 
 
+def viewer_floor(chain, shift) -> float:
+    """Floor height in the viewer frame: the lowest distal foot point of
+    either leg over the clip (the plane the GRF arrow tail is drawn on)."""
+    return float(min(chain[1].dist_pos[:, 0, 2].min(),
+                     chain[4].dist_pos[:, 0, 2].min()) + shift[2])
+
+
+def _animate_whole_body(vis, trial, chain, skel_u, kin_u, shift, floor,
+                        decimate, prefix=None, animation=None,
+                        markers=VIEWER_MARKERS, skip_markers=(),
+                        floor_drawn: bool = True):
+    """Add one whole P1 body to `vis`: both legs (right chain carries the
+    shared pelvis), the pelvis band, the mass-sized torso, both arms and the
+    markers, all translated by `shift`, under ``prefix/{r,l,ar,al,markers}``
+    (default `viz.ROOT`).  Every track lands in `animation` (a new one when
+    None, which is returned).  Only that first body draws the floor, unless
+    `floor_drawn` is False.  Used by `p1_viewer_html` (one body) and
+    `cadence_viewer_html` (one body per step frequency).
+    """
+    from . import viz
+    from .core import UPPER_BODY_ARM, UPPER_BODY_TORSO, slice_chain
+    prefix = prefix or viz.ROOT
+    skel_r, kin_r, ground_r, skel_l, kin_l, ground_l = chain
+    vkin = {"r": shift_kinematics(kin_r, shift),
+            "l": shift_kinematics(kin_l, shift),
+            "u": shift_kinematics(kin_u, shift)}
+    vground = {"r": shift_wrench(ground_r, shift),
+               "l": shift_wrench(ground_l, shift)}
+    # left leg without the (shared) pelvis segment
+    skel_left3, kin_left3 = slice_chain(skel_l, vkin["l"], [0, 1, 2])
+    traj = {name: trial.markers[name] + shift for name in markers
+            if name in trial.markers and name not in skip_markers}
+    root = {tag: f"{prefix}/{tag}" for tag in ("r", "l", "ar", "al")}
+    pelvis_span = (vkin["l"].prox_pos[:, 2], vkin["r"].prox_pos[:, 2],
+                   vkin["r"].prox_pos[:, 3])
+    torso = (vkin["u"].prox_pos[:, UPPER_BODY_TORSO],
+             vkin["u"].dist_pos[:, UPPER_BODY_TORSO],
+             float(skel_u.mass[UPPER_BODY_TORSO]))
+    first = animation is None
+    animation = viz.animate(vis, skel_r, vkin["r"], ground=vground["r"],
+                            decimate=decimate, repetitions=1, play=False,
+                            plane_height=floor, root=root["r"],
+                            pelvis_span=pelvis_span, torso=torso,
+                            animation=animation, camera=first,
+                            floor=first and floor_drawn,
+                            segment_meshes={0: p1_foot_blob(trial, kin_r, "r")})
+    viz.animate(vis, skel_left3, kin_left3, ground=vground["l"],
+                decimate=decimate, repetitions=1, play=False,
+                plane_height=floor, root=root["l"], animation=animation,
+                camera=False, floor=False,
+                top_girth_fraction=viz.GIRTH_FRACTION,
+                segment_meshes={0: p1_foot_blob(trial, kin_l, "l")})
+    for side in ("r", "l"):
+        arm_skel, arm_kin = slice_chain(skel_u, vkin["u"],
+                                        UPPER_BODY_ARM[side])
+        # joint_balls=False: the arm joint centres ARE the AC/EP/WR
+        # markers, so a dark joint sphere would swallow the red marker
+        # that defines it — let the marker itself mark the joint.
+        viz.animate(vis, arm_skel, arm_kin, decimate=decimate,
+                    repetitions=1, play=False, plane_height=floor,
+                    root=root["a" + side], animation=animation,
+                    camera=False, joint_balls=False, floor=False,
+                    top_girth_fraction=viz.GIRTH_FRACTION)
+    viz.draw_markers(vis, traj, 0, root=prefix)
+    step = max(1, int(decimate))
+    for k, f in enumerate(range(0, len(kin_r.t), step)):
+        with animation.at_frame(vis, k) as frame:
+            for name, xyz in traj.items():
+                frame[f"{prefix}/markers/{name}"].set_transform(
+                    viz.translation(xyz[f]))
+    return animation
+
+
 def p1_viewer_html(trial, chain, skel_u, kin_u, params,
                    decimate: int = VIEWER_DECIMATE,
                    repetitions: int = 10000,
@@ -2038,77 +2111,38 @@ def p1_viewer_html(trial, chain, skel_u, kin_u, params,
     `strip_charts_grid(variants=...)` slider then picks the leg.
     """
     from . import viz
-    from .core import UPPER_BODY_ARM, UPPER_BODY_TORSO, slice_chain
+    from .core import slice_chain
     from .simulate import (VARUS_SHANK_MARKERS, VARUS_THIGH_MARKERS,
                            varus_markers, varus_shift)
 
     skel_r, kin_r, ground_r, skel_l, kin_l, ground_l = chain
     shift = viewer_frame_shift(kin_r, kin_l, kin_u)
-    vkin = {"r": shift_kinematics(kin_r, shift),
-            "l": shift_kinematics(kin_l, shift),
-            "u": shift_kinematics(kin_u, shift)}
-    vground = {"r": shift_wrench(ground_r, shift),
-               "l": shift_wrench(ground_l, shift)}
-    # left leg without the (shared) pelvis segment
-    skel_left3, kin_left3 = slice_chain(skel_l, vkin["l"], [0, 1, 2])
+    floor = viewer_floor(chain, shift)
+    vkin_r = shift_kinematics(kin_r, shift)
+    moved = VARUS_SHANK_MARKERS + VARUS_THIGH_MARKERS
     traj = {name: trial.markers[name] + shift for name in markers
             if name in trial.markers}
-    moved = VARUS_SHANK_MARKERS + VARUS_THIGH_MARKERS
-    variant_traj = []
-    if len(knee_shifts_m):
-        variant_traj = [varus_markers(traj, vkin["r"], float(d))
-                        for d in knee_shifts_m]
-        traj = {k: v for k, v in traj.items() if k not in moved}
-    floor = float(min(vkin["r"].dist_pos[:, 0, 2].min(),
-                      vkin["l"].dist_pos[:, 0, 2].min()))
-    root = {"r": f"{viz.ROOT}/r", "l": f"{viz.ROOT}/l",
-            "ar": f"{viz.ROOT}/ar", "al": f"{viz.ROOT}/al"}
-    pelvis_span = (vkin["l"].prox_pos[:, 2], vkin["r"].prox_pos[:, 2],
-                   vkin["r"].prox_pos[:, 3])
-    torso = (vkin["u"].prox_pos[:, UPPER_BODY_TORSO],
-             vkin["u"].dist_pos[:, UPPER_BODY_TORSO],
-             float(skel_u.mass[UPPER_BODY_TORSO]))
+    variant_traj = [varus_markers(traj, vkin_r, float(d))
+                    for d in knee_shifts_m]
 
     vis = viz.start_viewer()
     try:
-        animation = viz.animate(vis, skel_r, vkin["r"], ground=vground["r"],
-                                decimate=decimate, repetitions=1, play=False,
-                                plane_height=floor, root=root["r"],
-                                pelvis_span=pelvis_span, torso=torso,
-                                segment_meshes={0: p1_foot_blob(trial, kin_r, "r")})
-        viz.animate(vis, skel_left3, kin_left3, ground=vground["l"],
-                    decimate=decimate, repetitions=1, play=False,
-                    plane_height=floor, root=root["l"], animation=animation,
-                    camera=False, floor=False,
-                    top_girth_fraction=viz.GIRTH_FRACTION,
-                    segment_meshes={0: p1_foot_blob(trial, kin_l, "l")})
-        for side in ("r", "l"):
-            arm_skel, arm_kin = slice_chain(skel_u, vkin["u"],
-                                            UPPER_BODY_ARM[side])
-            # joint_balls=False: the arm joint centres ARE the AC/EP/WR
-            # markers, so a dark joint sphere would swallow the red marker
-            # that defines it — let the marker itself mark the joint.
-            viz.animate(vis, arm_skel, arm_kin, decimate=decimate,
-                        repetitions=1, play=False, plane_height=floor,
-                        root=root["a" + side], animation=animation,
-                        camera=False, joint_balls=False, floor=False,
-                        top_girth_fraction=viz.GIRTH_FRACTION)
+        animation = _animate_whole_body(
+            vis, trial, chain, skel_u, kin_u, shift, floor, decimate,
+            markers=markers,
+            skip_markers=moved if len(knee_shifts_m) else ())
         for v, d in enumerate(knee_shifts_m):
             leg_skel, leg_kin = slice_chain(
-                skel_r, varus_shift(vkin["r"], float(d)), [1, 2])
+                skel_r, varus_shift(vkin_r, float(d)), [1, 2])
             viz.animate(vis, leg_skel, leg_kin, decimate=decimate,
                         repetitions=1, play=False, plane_height=floor,
                         root=f"{viz.ROOT}/v{v}", animation=animation,
                         camera=False, floor=False,
                         top_girth_fraction=viz.GIRTH_FRACTION)
             viz.draw_markers(vis, variant_traj[v], 0, root=f"{viz.ROOT}/v{v}")
-        viz.draw_markers(vis, traj, 0)
         step = max(1, int(decimate))
         for k, f in enumerate(range(0, len(kin_r.t), step)):
             with animation.at_frame(vis, k) as frame:
-                for name, xyz in traj.items():
-                    frame[f"{viz.ROOT}/markers/{name}"].set_transform(
-                        viz.translation(xyz[f]))
                 for v, vt in enumerate(variant_traj):
                     for name, xyz in vt.items():
                         frame[f"{viz.ROOT}/v{v}/markers/{name}"].set_transform(
@@ -2118,8 +2152,93 @@ def p1_viewer_html(trial, chain, skel_u, kin_u, params,
                 vis[f"{viz.ROOT}/v{v}"].set_property("visible", v == 0)
             for s in (1, 2):
                 for part in ("", "_joint"):
-                    vis[f"{root['r']}/skeleton/{skel_r.segment_names[s]}"
+                    vis[f"{viz.ROOT}/r/skeleton/{skel_r.segment_names[s]}"
                         f"{part}"].set_property("visible", False)
+        vis["/Axes"].set_property("visible", False)
+        vis.set_animation(animation, play=True, repetitions=repetitions)
+        viz.set_camera(vis, target=(0.0, 0.0, 0.0), offset=camera_offset)
+        return viz.render_static_html(vis)
+    finally:
+        viz.stop_viewer(vis)
+
+
+def right_strides(chain, threshold_n: float = 20.0) -> np.ndarray:
+    """[(on, next_on)] mocap-frame pairs of every complete right stride
+    (right-belt loading onsets, the same detector as everywhere else, minus
+    blips: a stance must last 0.2 s and reach 0.3 BW)."""
+    from .core import detect_contact
+    fz = chain[2].force[:, 2]
+    bw = float(np.mean(fz + chain[5].force[:, 2]))
+    rate = float(chain[1].rate)
+    _, ev = detect_contact(fz, threshold_n, min_gap=5)
+    # a real stance lasts >= 0.2 s and carries >= 0.3 BW (P1 slot 17 has a
+    # ~20 N belt blip that would otherwise count as one)
+    on = [a for a, b in ev if a > 0 and (b - a) >= 0.2 * rate
+          and fz[a:b + 1].max() >= 0.3 * bw]
+    return np.array(list(zip(on[:-1], on[1:])), dtype=int)
+
+
+def stride_mean(x, strides, n: int = 200) -> np.ndarray:
+    """Mean over `strides` of `x` [T, ...] resampled onto n+1 phase points
+    (0..100 % of the stride, both ends included so a loop wraps cleanly)."""
+    x = np.asarray(x, float)
+    ph = np.linspace(0.0, 1.0, n + 1)
+    flat = x.reshape(len(x), -1)
+    out = []
+    for a, b in strides:
+        src = np.arange(a, b + 1)
+        u = (src - a) / float(b - a)
+        out.append(np.stack([np.interp(ph, u, flat[src, c])
+                             for c in range(flat.shape[1])], axis=1))
+    return np.nanmean(out, axis=0).reshape((n + 1,) + x.shape[1:])
+
+
+def take_frames(trial, run, idx, rate: float):
+    """(trial, chain, skel_u, kin_u) restricted to mocap frames `idx`, with
+    `rate` as the new frame rate (so a phase-sampled stride plays back at
+    whatever period the caller wants)."""
+    from dataclasses import replace
+    chain, skel_u, kin_u = run[0], run[1], run[2]
+    idx = np.asarray(idx, int)
+    t = np.arange(len(idx)) / float(rate)
+
+    def kin(k):
+        return replace(k, t=t, rate=float(rate), r_world=k.r_world[idx],
+                       prox_pos=k.prox_pos[idx], dist_pos=k.dist_pos[idx])
+
+    def wrench(g):
+        return replace(g, t=t, rate=float(rate), force=g.force[idx],
+                       moment=g.moment[idx])
+
+    skel_r, kin_r, gr, skel_l, kin_l, gl = chain
+    new_chain = (skel_r, kin(kin_r), wrench(gr), skel_l, kin(kin_l), wrench(gl))
+    new_trial = replace(trial, t=t, rate=float(rate),
+                        markers={k: v[idx] for k, v in trial.markers.items()})
+    return new_trial, new_chain, skel_u, kin(kin_u)
+
+
+def cadence_viewer_html(bodies, rate: float, repetitions: int = 10000,
+                        camera_offset=(1.55, -1.55, 0.35)) -> str:
+    """Meshcat page with one whole body per condition, each under
+    ``boneid/v{k}`` and only v0 visible: `bodies` is a list of
+    `take_frames` tuples with the SAME number of frames (one phase-sampled
+    stride each) at `rate`, so they share one looping clip.  The first body
+    sets the recentring shift and the floor, and draws it; the slider in
+    `strip_charts_grid(variants=..., variant_time_scale=...)` swaps bodies
+    and playback speed."""
+    from . import viz
+    trial0, chain0, _, kin_u0 = bodies[0]
+    shift = viewer_frame_shift(chain0[1], chain0[4], kin_u0)
+    floor = viewer_floor(chain0, shift)
+    vis = viz.start_viewer()
+    try:
+        animation = None
+        for v, (trial, chain, skel_u, kin_u) in enumerate(bodies):
+            animation = _animate_whole_body(
+                vis, trial, chain, skel_u, kin_u, shift, floor, 1,
+                prefix=f"{viz.ROOT}/v{v}", animation=animation)
+        for v in range(len(bodies)):
+            vis[f"{viz.ROOT}/v{v}"].set_property("visible", v == 0)
         vis["/Axes"].set_property("visible", False)
         vis.set_animation(animation, play=True, repetitions=repetitions)
         viz.set_camera(vis, target=(0.0, 0.0, 0.0), offset=camera_offset)
@@ -3422,7 +3541,10 @@ def strip_charts_grid(t, header, grid_rows, col_titles, period_s: float,
                       window_s: float = 1.6,
                       viewer_iframe: str | None = None,
                       variants: list[str] | None = None,
-                      variant_root: str = "/meshcat/boneid/v") -> str:
+                      variant_root: str = "/meshcat/boneid/v",
+                      variant_time_scale: list[float] | None = None,
+                      variant_ref: int = 0,
+                      phase_ticks: bool = False) -> str:
     """A scrolling-scope GRID synchronised to the animation clock.
 
     Layout: one full-width header panel (`header = (ylabel, [(label, color,
@@ -3446,7 +3568,13 @@ def strip_charts_grid(t, header, grid_rows, col_titles, period_s: float,
     the shift is visible.  Every panel keeps one y-scale across all variants.
     With `viewer_iframe`, the slider also flips meshcat's
     ``{variant_root}{k}`` group visible (the matching body, see
-    `p1_viewer_html(knee_shifts_m=...)`).
+    `p1_viewer_html(knee_shifts_m=...)`).  `variant_time_scale` (one per
+    variant) also sets the viewer clip's playback rate on each pick, so a
+    phase-normalised clip plays each variant at its own real speed while the
+    grid, which follows the clip's own clock, stays in phase.
+    `variant_ref` is the variant shown first and drawn as the faint dashed
+    reference.  `phase_ticks` labels the header in % of the period and the
+    "now" readout in %, for one-stride (phase) data.
     """
     t = np.asarray(t, float)
     span = float(t[-1] - t[0])
@@ -3503,29 +3631,34 @@ def strip_charts_grid(t, header, grid_rows, col_titles, period_s: float,
                     f'stroke-width="1.2"{d} points="'
                     f'{_strip_path(t, y, xa, xa + data_w, ytop, ybot, lo, hi, max_pts=1600)}"/>')
                 continue
-            # one polyline per variant; variant 0 also as a faint reference
+            # one polyline per variant; the reference also as a faint dash
             content.append(
                 f'<polyline fill="none" stroke="{FAINT}" stroke-width="1" '
                 f'stroke-dasharray="3 2" points="'
-                f'{_strip_path(t, y[0], xa, xa + data_w, ytop, ybot, lo, hi, max_pts=1600)}"/>')
+                f'{_strip_path(t, y[variant_ref], xa, xa + data_w, ytop, ybot, lo, hi, max_pts=1600)}"/>')
             for v in range(y.shape[0]):
-                show = "" if v == 0 else ' style="display:none"'
+                show = "" if v == variant_ref else ' style="display:none"'
                 content.append(
                     f'<polyline class="{uid}-v{v}"{show} fill="none" '
                     f'stroke="{color}" stroke-width="1.3"{d} points="'
                     f'{_strip_path(t, y[v], xa, xa + data_w, ytop, ybot, lo, hi, max_pts=1600)}"/>')
-        if p_i == 0:                            # header: scrolling seconds
-            sec = int(np.ceil(t[0]))
-            while sec <= t[-1]:
-                tx = xa + (sec - t[0]) * pxs
+        if p_i == 0:                            # header: scrolling ticks
+            if phase_ticks:
+                ticks = [(t[0] + q * span, f"{100 * q:.0f}%")
+                         for q in (0.0, 0.25, 0.5, 0.75)]
+            else:
+                ticks = [(float(sec), f"{sec:d}")
+                         for sec in range(int(np.ceil(t[0])),
+                                          int(np.floor(t[-1])) + 1)]
+            for tt, lab in ticks:
+                tx = xa + (tt - t[0]) * pxs
                 content.append(
                     f'<line x1="{tx:.1f}" y1="{y_ticks}" x2="{tx:.1f}" '
                     f'y2="{y_ticks + 4}" stroke="{NEUTRAL}" '
                     f'stroke-width="0.8"/>'
                     f'<text x="{tx:.1f}" y="{y_ticks + 15}" '
                     f'text-anchor="middle" font-size="10" '
-                    f'fill="{NEUTRAL}">{sec:d}</text>')
-                sec += 1
+                    f'fill="{NEUTRAL}">{lab}</text>')
         clip_h = (y_ticks + 18 - ytop) if p_i == 0 else h
         # the loop-wrap copies are <use> clones: same live content (so the
         # variant slider's display toggles reach them too), a third the bytes
@@ -3581,13 +3714,14 @@ def strip_charts_grid(t, header, grid_rows, col_titles, period_s: float,
     if variants:
         slider = (f'<div class="variant-pick"><input type="range" '
                   f'id="{uid}-slider" min="0" max="{len(variants) - 1}" '
-                  f'step="1" value="0" style="width:100%"><br>'
-                  f'<span id="{uid}-vlabel">{variants[0]}</span></div>')
+                  f'step="1" value="{variant_ref}" style="width:100%"><br>'
+                  f'<span id="{uid}-vlabel">{variants[variant_ref]}</span></div>')
         slider_js = f"""
   var LABELS = {json.dumps(list(variants))}, ROOT = "{variant_root}";
+  var TSCALE = {json.dumps([float(x) for x in variant_time_scale]) if variant_time_scale else "null"};
   var slider = document.getElementById("{uid}-slider");
   var vlabel = document.getElementById("{uid}-vlabel");
-  var shown = 0, synced = -1;
+  var shown = {variant_ref}, synced = -1;
   function viewer() {{
     try {{
       var f = document.getElementById(IFRAME);
@@ -3596,10 +3730,15 @@ def strip_charts_grid(t, header, grid_rows, col_titles, period_s: float,
   }}
   function sync_viewer() {{
     var v = IFRAME ? viewer() : null;
-    if (!v || !v.handle_command) return;
+    // wait until the page has replayed its scene (the animation is set
+    // last), or the replay would undo what we set here
+    if (!v || !v.handle_command || !(v.animator && v.animator.duration > 0))
+      return;
     for (var k = 0; k < LABELS.length; k++)
       v.handle_command({{type: "set_property", path: ROOT + k,
                          property: "visible", value: k === shown}});
+    if (TSCALE && v.animator && v.animator.actions)
+      v.animator.actions.forEach(function(a) {{ a.timeScale = TSCALE[shown]; }});
     synced = shown;
   }}
   function pick(k) {{
@@ -3641,7 +3780,7 @@ def strip_charts_grid(t, header, grid_rows, col_titles, period_s: float,
     var tr = "translate(" + (-tau * PXS) + ",0)";
     for (var i = 0; i < pans.length; i++)
       pans[i].setAttribute("transform", tr);
-    label.textContent = (T0 + tau).toFixed(2) + " s";
+    label.textContent = {'(100 * tau / PERIOD).toFixed(0) + "% stride"' if phase_ticks else '(T0 + tau).toFixed(2) + " s"'};
     {"if (synced !== shown) sync_viewer();" if variants else ""}
     window.requestAnimationFrame(tick);
   }}{slider_js}
@@ -4396,6 +4535,79 @@ the swing shows up about the other axes).  The total contact barely moves while 
 places, and the sagittal torques don't care at all.  That's the whole story
 of the sweep, I think.</p>"""
     return html_page(title, "varus", body)
+
+
+def cadence_section_html(conditions, ref: int, params=None, uid: str = "cad",
+                         n_key: int = 40, n_plot: int = 200,
+                         viewer_html: str | None = None) -> str:
+    """Viewer + synced grid for a set of walking conditions at one speed
+    that differ in step frequency, with a slider over them.
+
+    `conditions[i]` is a dict: ``label`` (slider readout, HTML), ``trial``,
+    ``run`` (`whole_body_run`'s tuple) and optional ``contact`` (dict of
+    ``total``/``medial``/``lateral``/``lig_lateral`` [T] in BW on
+    ``trial.t``).  Everything is one stride, phase-normalised: the walker
+    is the stride closest to the condition's median, sampled at n_key + 1
+    phases; the traces are means over every complete right stride.  The
+    clip's period is condition `ref`'s mean stride time, and the slider sets
+    the playback rate to ref/condition, so each walker steps at its real
+    cadence while the grid (on the clip's clock = stride phase) stays put.
+    """
+    params = params or p1_params()
+    strides = [right_strides(c["run"][0]) for c in conditions]
+    t_stride = np.array([np.mean(np.diff(st, axis=1)) / c["trial"].rate
+                         for st, c in zip(strides, conditions)])
+    period = float(t_stride[ref])
+    rate = n_key / period
+    if viewer_html is None:
+        bodies = []
+        for st, c in zip(strides, conditions):
+            lens = np.diff(st, axis=1)[:, 0]
+            a, b = st[int(np.argmin(np.abs(lens - np.median(lens))))]
+            idx = np.round(np.linspace(a, b, n_key + 1)).astype(int)
+            bodies.append(take_frames(c["trial"], c["run"], idx, rate))
+        viewer_html = cadence_viewer_html(bodies, rate,
+                                          camera_offset=(1.55, -1.55, 0.35))
+    t = np.linspace(0.0, period, n_plot + 1)
+    sag_angle, sag_torque, front = [], [], []
+    hdr = {k: [] for k in ("medial", "lateral", "lig_lateral", "total")}
+    grf = []
+    for st, c in zip(strides, conditions):
+        chain, whole = c["run"][0], c["run"][3]
+        sag = c3d_sagittal_series(None, chain[0], chain[1], whole.right, params)
+        sag_angle.append(stride_mean(sag["angle"], st, n_plot))
+        sag_torque.append(stride_mean(sag["torque"], st, n_plot))
+        front.append(stride_mean(-whole.right.joint_torque_local[:, :3, 0],
+                                 st, n_plot))
+        bw = float(np.mean(chain[2].force[:, 2] + chain[5].force[:, 2]))
+        grf.append(stride_mean(chain[2].force[:, 2] / bw, st, n_plot))
+        for k in hdr:
+            if c.get("contact") is not None:
+                hdr[k].append(stride_mean(c["contact"][k], st, n_plot))
+    sag_angle, sag_torque, front = map(np.array, (sag_angle, sag_torque, front))
+    if hdr["total"]:
+        header = ("knee contact\n(BW)", [
+            ("medial (static opt)", JOINT_COLORS[0], None, np.array(hdr["medial"])),
+            ("lateral (static opt)", JOINT_COLORS[1], None, np.array(hdr["lateral"])),
+            ("lateral ligament tension needed", JOINT_COLORS[3], "2 2",
+             np.array(hdr["lig_lateral"])),
+            ("total", NEUTRAL, "5 3", np.array(hdr["total"]))])
+    else:
+        header = ("right vertical\nGRF (BW)", [
+            ("right vertical GRF", JOINT_COLORS[0], None, np.array(grf))])
+    rows = [(row, [(JOINT_COLORS[j], arr[:, :, j]) for j in range(3)])
+            for row, arr in (("sagittal\nangle (deg)", sag_angle),
+                             ("sagittal\ntorque (N m)", sag_torque),
+                             ("frontal torque\n(N m, + ext.\nadduction)", front))]
+    strips = strip_charts_grid(
+        t, header, rows, ("ankle", "knee", "hip"), period_s=period,
+        fps=rate, n_frames=n_key + 1, uid=uid, viewer_iframe=f"{uid}-viewer",
+        variants=[c["label"] for c in conditions],
+        variant_time_scale=list(period / t_stride), variant_ref=ref,
+        phase_ticks=True)
+    esc = viewer_html.replace("&", "&amp;").replace('"', "&quot;")
+    return (f'<iframe id="{uid}-viewer" class="viewer" srcdoc="{esc}"></iframe>'
+            + strips)
 
 
 #: Repo-local cache of the published running reference curves (see

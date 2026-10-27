@@ -24,3 +24,5 @@ data/literature_figures/
 data/opensim/varus/
 # compliant-tendon MocoInverse intermediates (regenerate with scripts/opensim/compliance.py)
 data/opensim/compliant/
+# step-frequency trials intermediates (regenerate with scripts/opensim/stepfreq.py)
+data/opensim/stepfreq/

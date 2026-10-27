@@ -585,3 +585,32 @@ def test_p1_feet_use_both_ankles_and_heel():
         assert vertices[:, 2].min() <= np.median(heel_local[:, 2]) + 1e-10
         assert vertices[:, 2].min() < 0 < vertices[:, 2].max()
         assert len(faces) > 20
+
+
+def _commands(html: str) -> list[dict]:
+    """Every scene command of a static page, msgpack-decoded, in order."""
+    import umsgpack
+    blobs = re.findall(r'base64,([A-Za-z0-9+/=]+)"', html)
+    return [umsgpack.unpackb(base64.b64decode(b)) for b in blobs]
+
+
+def test_floor_is_drawn_at_plane_height(vis, skeleton, kin):
+    """The floor box goes straight to `plane_height` (never parked at z=0,
+    which is the waist in the recentred report viewers); `floor=False`
+    chains draw none, and meshcat's z=0 grid stays hidden."""
+    viz.clear_scene(vis)
+    anim_ = viz.animate(vis, skeleton, kin, plane_height=-0.7, play=False,
+                        repetitions=1)
+    viz.animate(vis, skeleton, kin, plane_height=-0.7, play=False,
+                repetitions=1, root=f"{viz.ROOT}/extra", animation=anim_,
+                camera=False, floor=False)
+    cmds = _commands(viz.render_static_html(vis))
+    ground = [c for c in cmds if str(c.get("path", "")).endswith("/ground")]
+    assert {c["path"] for c in ground} == {f"/meshcat/{viz.ROOT}/ground"}
+    zs = [np.frombuffer(c["matrix"], np.float32)[14] if isinstance(
+              c["matrix"], (bytes, bytearray)) else c["matrix"][14]
+          for c in ground if c["type"] == "set_transform"]
+    assert zs and all(abs(z - (-0.702)) < 1e-4 for z in zs)
+    grid = [c["value"] for c in cmds if c.get("path") == "/Grid"
+            and c.get("property") == "visible"]
+    assert grid and grid[-1] is False

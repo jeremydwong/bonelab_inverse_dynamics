@@ -2079,7 +2079,7 @@ def p1_viewer_html(trial, chain, skel_u, kin_u, params,
         viz.animate(vis, skel_left3, kin_left3, ground=vground["l"],
                     decimate=decimate, repetitions=1, play=False,
                     plane_height=floor, root=root["l"], animation=animation,
-                    camera=False,
+                    camera=False, floor=False,
                     top_girth_fraction=viz.GIRTH_FRACTION,
                     segment_meshes={0: p1_foot_blob(trial, kin_l, "l")})
         for side in ("r", "l"):
@@ -2091,7 +2091,7 @@ def p1_viewer_html(trial, chain, skel_u, kin_u, params,
             viz.animate(vis, arm_skel, arm_kin, decimate=decimate,
                         repetitions=1, play=False, plane_height=floor,
                         root=root["a" + side], animation=animation,
-                        camera=False, joint_balls=False,
+                        camera=False, joint_balls=False, floor=False,
                         top_girth_fraction=viz.GIRTH_FRACTION)
         for v, d in enumerate(knee_shifts_m):
             leg_skel, leg_kin = slice_chain(
@@ -2099,7 +2099,8 @@ def p1_viewer_html(trial, chain, skel_u, kin_u, params,
             viz.animate(vis, leg_skel, leg_kin, decimate=decimate,
                         repetitions=1, play=False, plane_height=floor,
                         root=f"{viz.ROOT}/v{v}", animation=animation,
-                        camera=False, top_girth_fraction=viz.GIRTH_FRACTION)
+                        camera=False, floor=False,
+                        top_girth_fraction=viz.GIRTH_FRACTION)
             viz.draw_markers(vis, variant_traj[v], 0, root=f"{viz.ROOT}/v{v}")
         viz.draw_markers(vis, traj, 0)
         step = max(1, int(decimate))
@@ -2112,15 +2113,8 @@ def p1_viewer_html(trial, chain, skel_u, kin_u, params,
                     for name, xyz in vt.items():
                         frame[f"{viz.ROOT}/v{v}/markers/{name}"].set_transform(
                             viz.translation(xyz[f]))
-        for tag in ("r", "l"):
-            viz.draw_ground(vis, size=1.2, root=root[tag])
-            vis[f"{root[tag]}/ground"].set_transform(
-                viz.translation([0.0, 0.0, floor - 0.005]))
-        for tag in ("ar", "al"):
-            vis[f"{root[tag]}/ground"].delete()
         if len(knee_shifts_m):
             for v in range(len(knee_shifts_m)):
-                vis[f"{viz.ROOT}/v{v}/ground"].delete()
                 vis[f"{viz.ROOT}/v{v}"].set_property("visible", v == 0)
             for s in (1, 2):
                 for part in ("", "_joint"):
@@ -2427,9 +2421,7 @@ def p1_urdf_html(trial, chain, skel_u, kin_u, frame_index: int | None = None,
                                urdf_kinematics(kin_w),
                                frame_index, scale_map=URDF_SCALE_MAP,
                                skeleton=skel_w, color=viz.SEGMENT_COLOR)
-        viz.draw_ground(vis, size=1.4)
-        vis[f"{viz.ROOT}/ground"].set_transform(
-            viz.translation([0.0, 0.0, floor - 0.005]))
+        viz.draw_ground(vis, size=1.4, height=floor)
         vis["/Grid"].set_property("visible", False)
         vis["/Axes"].set_property("visible", False)
         viz.set_camera(vis, target=(0.0, 0.0, 0.0),
@@ -3354,8 +3346,6 @@ def c3d_viewer_html(trial, cal, skeleton, kin, ground, quality, params,
                 for name, xyz in traj.items():
                     frame[f"{viz.ROOT}/markers/{name}"].set_transform(
                         viz.translation(xyz[f]))
-        vis[f"{viz.ROOT}/ground"].set_transform(
-            viz.translation([0.0, 0.0, floor - 0.005]))
         vis["/Grid"].set_property("visible", False)
         vis["/Axes"].set_property("visible", False)
         vis.set_animation(animation, play=True, repetitions=repetitions)

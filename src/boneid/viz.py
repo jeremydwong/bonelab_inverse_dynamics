@@ -368,20 +368,26 @@ def set_camera(vis: meshcat.Visualizer,
 # --------------------------------------------------------------------------
 
 def draw_ground(vis: meshcat.Visualizer, size: float = 1.8,
-                path: str | None = None, root: str = ROOT) -> None:
-    """Draw a floor at z=0: a thin box plus meshcat's built-in grid.
+                path: str | None = None, root: str = ROOT,
+                height: float = 0.0) -> None:
+    """Draw a floor whose top surface is at z=`height`: a thin box, plus
+    meshcat's built-in grid when the floor really is at z=0.
 
-    The built-in `/Grid` helper is already in the x-y plane (meshcat rotates it
-    for its z-up convention), so we simply make sure it is visible; the box
-    gives the shadowless viewer something to read depth against.
+    The floor is placed in the SAME command that creates it — every viewer
+    goes through here — so it can never sit at a stale z=0 (which, in the
+    recentred viewer frame of `report.viewer_frame_shift`, is the waist).
+    The built-in `/Grid` helper is fixed at z=0 (meshcat rotates it for its
+    z-up convention), so it is shown only for a z=0 floor and hidden
+    otherwise; the box gives the shadowless viewer something to read depth
+    against.
     """
     path = path or f"{root}/ground"
     vis[path].set_object(
         g.Box([size, size, 0.004]),
         g.MeshLambertMaterial(color=GROUND_COLOR, opacity=0.3,
                               transparent=True))
-    vis[path].set_transform(translation([0.0, 0.0, -0.002]))
-    vis["/Grid"].set_property("visible", True)
+    vis[path].set_transform(translation([0.0, 0.0, float(height) - 0.002]))
+    vis["/Grid"].set_property("visible", abs(float(height)) < 1e-9)
 
 
 def _pelvis_span_parts(pelvis_span):
@@ -596,7 +602,8 @@ def build_scene(vis: meshcat.Visualizer, skeleton: Skeleton,
                 root: str = ROOT,
                 pelvis_span=None, torso=None,
                 joint_balls: bool = True,
-                segment_meshes: dict | None = None) -> None:
+                segment_meshes: dict | None = None,
+                ground_height: float = 0.0) -> None:
     """Create every mesh once, under `<root>/...`, in its canonical pose.
 
     Segments are unit-height cylinders along local +Y (so `segment_transform`
@@ -653,7 +660,7 @@ def build_scene(vis: meshcat.Visualizer, skeleton: Skeleton,
         build_torso(vis, torso_radius(t_mass, _mean_distance(t_top, t_l5s1)),
                     root=root)
     if ground:
-        draw_ground(vis, root=root)
+        draw_ground(vis, root=root, height=ground_height)
 
 
 def clear_scene(vis: meshcat.Visualizer) -> None:
@@ -1087,6 +1094,7 @@ def animate(vis: meshcat.Visualizer, skeleton: Skeleton,
             top_girth_fraction: float = TOP_GIRTH_FRACTION,
             pelvis_span=None, torso=None,
             segment_meshes: dict | None = None,
+            floor: bool = True,
             ) -> anim.Animation:
     """Build and send a meshcat `Animation` over the whole trial.
 
@@ -1103,7 +1111,9 @@ def animate(vis: meshcat.Visualizer, skeleton: Skeleton,
     `plane_height` is the z of the plane the force arrow's tail is drawn on
     (the same knob `force_application_point` takes): the wrench is COP-free, so
     the arrow is drawn where its line of action crosses this plane. Set it to
-    the floor height when the data's floor is not at z=0.
+    the floor height when the data's floor is not at z=0.  The floor box is
+    drawn at that same height; `floor=False` draws none (for extra chains —
+    arms, alternative legs — added to a scene that already has one).
 
     `idres` is accepted for symmetry with the rest of the API and is currently
     only used to color the trial: nothing about the geometry depends on it, so
@@ -1133,7 +1143,8 @@ def animate(vis: meshcat.Visualizer, skeleton: Skeleton,
     """
     segment_meshes = segment_meshes or {}
     build_scene(vis, skeleton, girth_fraction, top_girth_fraction,
-                ground=True, force_arrow=ground is not None, root=root,
+                ground=floor, ground_height=plane_height,
+                force_arrow=ground is not None, root=root,
                 pelvis_span=pelvis_span, torso=torso,
                 joint_balls=joint_balls, segment_meshes=segment_meshes)
     n_frames = int(kin.prox_pos.shape[0])

@@ -370,16 +370,16 @@ def set_camera(vis: meshcat.Visualizer,
 def draw_ground(vis: meshcat.Visualizer, size: float = 1.8,
                 path: str | None = None, root: str = ROOT,
                 height: float = 0.0) -> None:
-    """Draw a floor whose top surface is at z=`height`: a thin box, plus
-    meshcat's built-in grid when the floor really is at z=0.
+    """Draw a floor whose top surface is at z=`height`: a thin box with
+    meshcat's built-in grid lying on it.
 
     The floor is placed in the SAME command that creates it — every viewer
     goes through here — so it can never sit at a stale z=0 (which, in the
     recentred viewer frame of `report.viewer_frame_shift`, is the waist).
-    The built-in `/Grid` helper is fixed at z=0 (meshcat rotates it for its
-    z-up convention), so it is shown only for a z=0 floor and hidden
-    otherwise; the box gives the shadowless viewer something to read depth
-    against.
+    Meshcat's `/Grid` helper lives at z=0 by default, so it is moved down to
+    the floor too (it is already in the x-y plane: meshcat rotates it for
+    its z-up convention).  Grid lines give speed and stride a scale; the box
+    gives the shadowless viewer something to read depth against.
     """
     path = path or f"{root}/ground"
     vis[path].set_object(
@@ -387,7 +387,9 @@ def draw_ground(vis: meshcat.Visualizer, size: float = 1.8,
         g.MeshLambertMaterial(color=GROUND_COLOR, opacity=0.3,
                               transparent=True))
     vis[path].set_transform(translation([0.0, 0.0, float(height) - 0.002]))
-    vis["/Grid"].set_property("visible", abs(float(height)) < 1e-9)
+    # 1 mm above the box's top face: coplanar, the box would hide the lines
+    vis["/Grid"].set_transform(translation([0.0, 0.0, float(height) + 0.001]))
+    vis["/Grid"].set_property("visible", True)
 
 
 def _pelvis_span_parts(pelvis_span):

@@ -2027,9 +2027,9 @@ def p1_viewer_html(trial, chain, skel_u, kin_u, params,
     `LOOP_REPETITIONS`). The markers are animated by extending the returned
     `Animation` with one transform track each — `viz.draw_markers` only creates
     the spheres and poses them statically. Everything is drawn in the recentred
-    frame of `viewer_frame_shift`; meshcat's own grid and axes are hidden
-    because they would then sit at an arbitrary height, and our ground box is
-    placed at the subject's foot level instead.
+    frame of `viewer_frame_shift`; the ground box and meshcat's grid sit at
+    the subject's foot level (`viz.draw_ground(height=...)`), and meshcat's
+    axes are hidden because at the origin they would float at the waist.
 
     `knee_shifts_m` (e.g. 0, 0.005, ... 0.05) draws the right shank + thigh
     once per lateral knee shift (`simulate.varus_shift`, markers carried by
@@ -2120,7 +2120,6 @@ def p1_viewer_html(trial, chain, skel_u, kin_u, params,
                 for part in ("", "_joint"):
                     vis[f"{root['r']}/skeleton/{skel_r.segment_names[s]}"
                         f"{part}"].set_property("visible", False)
-        vis["/Grid"].set_property("visible", False)
         vis["/Axes"].set_property("visible", False)
         vis.set_animation(animation, play=True, repetitions=repetitions)
         viz.set_camera(vis, target=(0.0, 0.0, 0.0), offset=camera_offset)
@@ -2422,7 +2421,6 @@ def p1_urdf_html(trial, chain, skel_u, kin_u, frame_index: int | None = None,
                                frame_index, scale_map=URDF_SCALE_MAP,
                                skeleton=skel_w, color=viz.SEGMENT_COLOR)
         viz.draw_ground(vis, size=1.4, height=floor)
-        vis["/Grid"].set_property("visible", False)
         vis["/Axes"].set_property("visible", False)
         viz.set_camera(vis, target=(0.0, 0.0, 0.0),
                        offset=(1.55, -1.55, 0.35))
@@ -3346,7 +3344,6 @@ def c3d_viewer_html(trial, cal, skeleton, kin, ground, quality, params,
                 for name, xyz in traj.items():
                     frame[f"{viz.ROOT}/markers/{name}"].set_transform(
                         viz.translation(xyz[f]))
-        vis["/Grid"].set_property("visible", False)
         vis["/Axes"].set_property("visible", False)
         vis.set_animation(animation, play=True, repetitions=repetitions)
         viz.set_camera(vis, target=(0.0, 0.0, 0.0), offset=(1.55, -1.55, 0.35))

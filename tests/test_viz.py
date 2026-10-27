@@ -597,7 +597,7 @@ def _commands(html: str) -> list[dict]:
 def test_floor_is_drawn_at_plane_height(vis, skeleton, kin):
     """The floor box goes straight to `plane_height` (never parked at z=0,
     which is the waist in the recentred report viewers); `floor=False`
-    chains draw none, and meshcat's z=0 grid stays hidden."""
+    chains draw none, and meshcat's grid is moved down onto the floor."""
     viz.clear_scene(vis)
     anim_ = viz.animate(vis, skeleton, kin, plane_height=-0.7, play=False,
                         repetitions=1)
@@ -611,6 +611,10 @@ def test_floor_is_drawn_at_plane_height(vis, skeleton, kin):
               c["matrix"], (bytes, bytearray)) else c["matrix"][14]
           for c in ground if c["type"] == "set_transform"]
     assert zs and all(abs(z - (-0.702)) < 1e-4 for z in zs)
-    grid = [c["value"] for c in cmds if c.get("path") == "/Grid"
-            and c.get("property") == "visible"]
-    assert grid and grid[-1] is False
+    grid = [c for c in cmds if c.get("path") == "/Grid"]
+    vis_ = [c["value"] for c in grid if c.get("property") == "visible"]
+    assert vis_ and vis_[-1] is True
+    gz = [np.frombuffer(c["matrix"], np.float32)[14] if isinstance(
+              c["matrix"], (bytes, bytearray)) else c["matrix"][14]
+          for c in grid if c["type"] == "set_transform"]
+    assert gz and abs(gz[-1] - (-0.699)) < 1e-4
